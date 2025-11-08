@@ -1,4 +1,4 @@
-import { query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
 export const getSnowball = query({
@@ -19,5 +19,15 @@ export const getTotal = query({
       .collect();
 
     return spending.reduce((acc, curr) => acc + curr.amount, 0);
+  },
+});
+
+export const toggleSnowball = mutation({
+  args: {
+    id: v.id("snowball"),
+    value: v.boolean(),
+  },
+  handler: async (ctx, { id, value }) => {
+    await ctx.db.patch(id, { snowball: value });
   },
 });

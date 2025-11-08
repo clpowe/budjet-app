@@ -8,7 +8,7 @@ const value = ref(0)
 const { mutate: add } = useConvexMutation(api.extraDollars.addExtraDollars)
 
 async function handleSubmit() {
-  if (!user) return
+  if (!user || !user.value?.householdId) return
   add({
     name: name.value,
     notes: notes.value,

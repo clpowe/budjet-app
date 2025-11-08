@@ -9,8 +9,7 @@ const date = ref()
 const { mutate: add } = useConvexMutation(api.spending.addSpending)
 
 async function handleSubmit() {
-  if (!user) return
-  console.log(date.value)
+  if (!user || !user.value?.householdId) return
   add({
     name: name.value,
     notes: notes.value,

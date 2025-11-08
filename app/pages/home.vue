@@ -44,6 +44,7 @@ const { data: extraDollars, isPending: extraLoading } = useConvexQuery(api.extra
       </div>
       <div>
         <h2>Snowball</h2>{{ formatMoney(snowball ?? 0) }}
+        <Snowball-list />
       </div>
     </div>
   </template>
