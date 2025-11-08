@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { formatMoney } from "../../shared/utils/format-money";
-
 import { api } from "../../convex/_generated/api";
 
 const { data: user, isPending: userLoading } = useConvexQuery(api.users.getCurrentUser, {})
@@ -29,12 +27,15 @@ const { data: currentPosition, isPending: posLoading } = useConvexQuery(api.spen
     <div v-else>
       <div>
         <h2>Spent Today</h2>{{ formatMoney(data ?? 0) }}
+        <spending-add />
+        <spending-list />
       </div>
       <div>
         <h2>Money left to spend</h2>{{ formatMoney(currentPosition ?? 0) }}
       </div>
       <div>
         <h2>Extra Dollars</h2>{{ formatMoney(currentPosition ?? 0) }}
+        <extra-list />
       </div>
       <div>
         <h2>Monthly Total</h2>{{ formatMoney(total ?? 0) }}

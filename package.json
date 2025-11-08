@@ -24,7 +24,8 @@
     "svix": "^1.81.0",
     "typescript": "^5.6.3",
     "vue": "^3.5.22",
-    "vue-router": "^4.6.3"
+    "vue-router": "^4.6.3",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "wrangler": "^4.46.0"

@@ -53,5 +53,11 @@ This is a personal budget tracking application built with Nuxt.js for the fronte
 # TODO
 
 - [x] Setup Auth
-- [ ] Setup Nuxt Hub
-- [ ] Deploy to Cloudflare
+- [x] Setup Nuxt Hub
+- [x] Deploy to Cloudflare
+- [x] List Spending
+- [x] ADD Spending
+- [ ] List Extra Dollars
+- [ ] ADD Extra Dollars
+- [ ] list Snowball
+- [ ] Add Snowball

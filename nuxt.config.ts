@@ -9,10 +9,25 @@ export default defineNuxtConfig({
     '@clerk/nuxt',
     '@nuxthub/core'
   ],
-  convex: {
-    url: process.env.CONVEX_URL,
+  runtimeConfig: {
+    // server only
+    clerkSecretKey: '',
+    convexDeployment: '',
+
+    public: {
+      clerkPublishableKey: '',
+      convexUrl: '',
+    }
   },
-  alias: {
-    "#convex": "/<rootDir>/convex",
+  $development: {
+    convex: {
+      url: 'https://hip-caribou-985.convex.cloud',
+    },
+  },
+  $production: {
+    convex: {
+      url: 'https://tidy-fox-761.convex.cloud',
+    },
   }
 })
+
