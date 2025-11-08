@@ -6,6 +6,7 @@ const { data, isPending: todayLoading } = useConvexQuery(api.spending.getToday, 
 const { data: total, isPending: totalLoading } = useConvexQuery(api.spending.getTotal, { month: 'november 2025' })
 const { data: snowball, isPending: snowballLoading } = useConvexQuery(api.snowball.getTotal, { month: 'november 2025' })
 const { data: currentPosition, isPending: posLoading } = useConvexQuery(api.spending.getCurrentPosition, { offset: 0, allowance: 45, month: 'november 2025' })
+const { data: extraDollars, isPending: extraLoading } = useConvexQuery(api.extraDollars.getTotal)
 
 </script>
 
@@ -34,7 +35,8 @@ const { data: currentPosition, isPending: posLoading } = useConvexQuery(api.spen
         <h2>Money left to spend</h2>{{ formatMoney(currentPosition ?? 0) }}
       </div>
       <div>
-        <h2>Extra Dollars</h2>{{ formatMoney(currentPosition ?? 0) }}
+        <h2>Extra Dollars</h2>{{ formatMoney(extraDollars ?? 0) }}
+        <extra-add />
         <extra-list />
       </div>
       <div>
