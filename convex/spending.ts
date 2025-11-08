@@ -18,6 +18,8 @@ export const getTotal = query({
     month: v.string(),
   },
   handler: async (ctx, args) => {
+    const user = await ctx.auth.getUserIdentity()
+
     const spending = await ctx.db
       .query("spending")
       .filter((q) => q.eq(q.field("month"), args.month))
@@ -108,6 +110,7 @@ export const addSpending = mutation({
     name: v.string(),
     notes: v.string(),
     value: v.number(),
+    householdId: v.id("households"),
     month: v.string(),
     date: v.number(),
   },
@@ -115,6 +118,7 @@ export const addSpending = mutation({
     const newSpending = await ctx.db.insert("spending", {
       name: args.name,
       notes: args.notes,
+      householdId: args.householdId,
       value: args.value,
       month: args.month,
       date: args.date,

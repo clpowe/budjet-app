@@ -9,9 +9,11 @@
  */
 
 import type * as extraDollars from "../extraDollars.js";
+import type * as households from "../households.js";
 import type * as snowball from "../snowball.js";
 import type * as spending from "../spending.js";
 import type * as tasks from "../tasks.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -29,9 +31,11 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   extraDollars: typeof extraDollars;
+  households: typeof households;
   snowball: typeof snowball;
   spending: typeof spending;
   tasks: typeof tasks;
+  users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

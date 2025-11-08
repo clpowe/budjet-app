@@ -10,14 +10,23 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@clerk/clerk-sdk-node": "^5.1.6",
+    "@clerk/nuxt": "^1.11.2",
+    "@convex-dev/auth": "^0.0.90",
     "@nuxt/test-utils": "3.20.1",
     "@nuxt/ui": "4.1.0",
+    "@nuxthub/core": "0.9.0",
     "convex": "^1.28.1",
     "convex-nuxt": "0.1.5",
     "convex-vue": "^0.1.4",
     "nuxt": "^4.2.0",
+    "nuxt-auth-utils": "0.5.25",
+    "svix": "^1.81.0",
     "typescript": "^5.6.3",
     "vue": "^3.5.22",
     "vue-router": "^4.6.3"
+  },
+  "devDependencies": {
+    "wrangler": "^4.46.0"
   }
 }

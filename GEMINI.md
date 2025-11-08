@@ -49,3 +49,9 @@ This is a personal budget tracking application built with Nuxt.js for the fronte
 *   The backend logic is organized into files within the `convex/` directory, corresponding to the data they manage (e.g., `spending.ts`, `snowball.ts`).
 *   The database schema is defined in `convex/schema.ts`.
 *   The frontend makes reactive queries to the Convex backend using `useConvexQuery`.
+
+# TODO
+
+- [x] Setup Auth
+- [ ] Setup Nuxt Hub
+- [ ] Deploy to Cloudflare
