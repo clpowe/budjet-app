@@ -1,21 +1,21 @@
 <script setup lang="ts">
 import { api } from "../../convex/_generated/api";
 
+const selected_month = ref('november 2025')
+
 const { data: user, isPending: userLoading } = useConvexQuery(api.users.getCurrentUser, {})
-const { data, isPending: todayLoading } = useConvexQuery(api.spending.getToday, { month: 'november 2025' })
-const { data: total, isPending: totalLoading } = useConvexQuery(api.spending.getTotal, { month: 'november 2025' })
-const { data: snowball, isPending: snowballLoading } = useConvexQuery(api.snowball.getTotal, { month: 'november 2025' })
-const { data: currentPosition, isPending: posLoading } = useConvexQuery(api.spending.getCurrentPosition, { offset: 0, allowance: 45, month: 'november 2025' })
+const { data, isPending: todayLoading } = useConvexQuery(api.spending.getToday, { month: selected_month.value })
+const { data: total, isPending: totalLoading } = useConvexQuery(api.spending.getTotal, { month: selected_month.value })
+const { data: snowball, isPending: snowballLoading } = useConvexQuery(api.snowball.getTotal, { month: selected_month.value })
+const { data: currentPosition, isPending: posLoading } = useConvexQuery(api.spending.getCurrentPosition, { offset: 0, allowance: 45, month: selected_month.value })
 const { data: extraDollars, isPending: extraLoading } = useConvexQuery(api.extraDollars.getTotal)
+const left_to_spend = computed(() => {
+  return (45 * 30) - total.value!
+})
 
 </script>
 
 <template>
-  <header>
-    <SignInButton />
-    <SignOutButton />
-  </header>
-
   <div v-if="userLoading">
     Waiting...
   </div>
@@ -26,6 +26,22 @@ const { data: extraDollars, isPending: extraLoading } = useConvexQuery(api.extra
     </div>
 
     <div v-else>
+      <div class="flex justify-between">
+        <div>
+          {{ selected_month }}
+        </div>
+        <div>
+          <div>
+            {{ formatMoney(total ?? 0) }}<br />
+            total spent
+          </div>
+          <div>
+            {{ formatMoney(left_to_spend ?? 0) }}<br />
+            left to spend
+          </div>
+        </div>
+      </div>
+
       <div>
         <h2>Spent Today</h2>{{ formatMoney(data ?? 0) }}
         <spending-add />
@@ -39,9 +55,7 @@ const { data: extraDollars, isPending: extraLoading } = useConvexQuery(api.extra
         <extra-add />
         <extra-list />
       </div>
-      <div>
-        <h2>Monthly Total</h2>{{ formatMoney(total ?? 0) }}
-      </div>
+
       <div>
         <h2>Snowball</h2>{{ formatMoney(snowball ?? 0) }}
         <Snowball-list />
