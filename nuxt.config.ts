@@ -9,6 +9,7 @@ export default defineNuxtConfig({
     '@clerk/nuxt',
     '@nuxthub/core'
   ],
+  css: ['~/assets/css/main.css'],
   runtimeConfig: {
     // server only
     clerkSecretKey: '',

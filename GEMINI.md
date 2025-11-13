@@ -67,17 +67,23 @@ This is a personal budget tracking application built with Nuxt.js for the fronte
 - [x] ADD Extra Dollars
 - [x] list Snowball
 - [x] Add Snowball
-- [ ] Home Screen
-  - [ ] UI
+- [x] Home Screen
+  - [x] UI
     - [x] Selected Month
     - [x] Monthly Total
     - [x] Remaining for Month
-  - [ ] Actions
-    - [ ] Change Selected Month
-    - [ ] Add Spending
+  - [x] Actions
+    - [x] Change Selected Month
+    - [x] Add Spending
 - [ ] Money Cards Component
 - [ ] Transaction Tile Component
 - [ ] Integrate Components into Home Screen
 - [ ] Forms Integration
 - [ ] Add item to snowball list
 - [ ] Update daily spending total
+
+# Instructions
+
+- When I ask what do I need todo or whats next or any similer phrase refer to GEMINI.MD.
+- Do not sart on any task without me telling you to start If I ask whats next whats todo just show the list from GEMINI.md DO NOT START ANY WORK!!!
+

@@ -8,13 +8,19 @@ const value = ref(0)
 const date = ref()
 const { mutate: add } = useConvexMutation(api.spending.addSpending)
 
+function toLocalMidnightTimestamp(dateString?: string) {
+  if (!dateString) return Date.now()
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, (month ?? 1) - 1, day ?? 1).getTime()
+}
+
 async function handleSubmit() {
   if (!user || !user.value?.householdId) return
   add({
     name: name.value,
     notes: notes.value,
     value: value.value,
-    date: new Date(date.value).getTime(),
+    date: toLocalMidnightTimestamp(date.value),
     month: formatDate(date.value),
     householdId: user.value?.householdId
   })

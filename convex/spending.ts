@@ -34,21 +34,7 @@ export const getToday = query({
     month: v.string(),
   },
   handler: async (ctx, args) => {
-    const now = new Date();
-
-    // local midnight (start of the day)
-    const startOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    ).getTime();
-
-    // next local midnight (end of the day)
-    const endOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() + 1,
-    ).getTime();
+    const { startOfDay, endOfDay } = getDayBoundsInTimeZone("America/New_York");
 
     const spending = await ctx.db
       .query("spending")
@@ -61,7 +47,7 @@ export const getToday = query({
       )
       .collect();
 
-    return spending.reduce((acc, curr) => acc + curr.value, 0);
+    return spending
   },
 });
 
@@ -105,6 +91,20 @@ function daysElapsedInMonth(offset = 0): number {
   return daysInMonth;
 }
 
+function getDayBoundsInTimeZone(timeZone: string) {
+  const now = new Date();
+  const localized = new Date(now.toLocaleString("en-US", { timeZone }));
+  const offset = now.getTime() - localized.getTime();
+  const start = new Date(localized);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return {
+    startOfDay: start.getTime() - offset,
+    endOfDay: end.getTime() - offset,
+  };
+}
+
 export const addSpending = mutation({
   args: {
     name: v.string(),
@@ -125,5 +125,37 @@ export const addSpending = mutation({
     });
 
     return newSpending;
+  },
+});
+
+export const editSpending = mutation({
+  args: {
+    spendingId: v.id("spending"),
+    name: v.string(),
+    notes: v.string(),
+    value: v.number(),
+    month: v.string(),
+    date: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.spendingId, {
+      name: args.name,
+      notes: args.notes,
+      value: args.value,
+      month: args.month,
+      date: args.date,
+    });
+
+    return args.spendingId;
+  },
+});
+
+export const deleteSpending = mutation({
+  args: {
+    spendingId: v.id("spending"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.spendingId);
+    return args.spendingId;
   },
 });
