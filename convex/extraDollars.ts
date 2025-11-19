@@ -35,3 +35,33 @@ export const addExtraDollars = mutation({
     return trans;
   }
 })
+
+export const editExtraDollars = mutation({
+  args: {
+    extraDollarId: v.id("extraDollars"),
+    name: v.string(),
+    notes: v.string(),
+    value: v.number(),
+    householdId: v.id("households"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.extraDollarId, {
+      name: args.name,
+      notes: args.notes,
+      value: args.value,
+      householdId: args.householdId,
+    });
+
+    return args.extraDollarId;
+  }
+})
+
+export const deleteExtraDollars = mutation({
+  args: {
+    extraDollarId: v.id("extraDollars"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.extraDollarId);
+    return args.extraDollarId;
+  }
+})

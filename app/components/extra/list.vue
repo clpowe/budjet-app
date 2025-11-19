@@ -1,23 +1,125 @@
 <script setup lang="ts">
+import type { ColumnDef, Row } from '@tanstack/vue-table'
+
+const toast = useToast()
+const overlay = useOverlay()
 
 import { api } from "../../../convex/_generated/api";
-const { data: spending, isPending: loading } = useConvexQuery(api.extraDollars.getExtraDollars)
+import type { Doc } from "../../../convex/_generated/dataModel";
+import ExtraEditSlideover from './edit-slideover.vue'
 
+const { data: spending } = useConvexQuery(
+  api.extraDollars.getExtraDollars,
+)
+
+const { mutate: deleteExtraDollars } = useConvexMutation(api.extraDollars.deleteExtraDollars)
+
+const editSlideover = overlay.create(ExtraEditSlideover, {
+  destroyOnClose: true
+})
+
+const UButton = resolveComponent('UButton')
+const UDropdownMenu = resolveComponent('UDropdownMenu')
+
+const columns: ColumnDef<Doc<'extraDollars'>>[] = [
+  {
+    accessorKey: 'name',
+    header: 'Name',
+    meta: {
+      class: {
+        th: 'text-center font-semibold',
+        td: 'text-center font-mono'
+      }
+    }
+  },
+  {
+    accessorKey: 'notes',
+    header: 'Notes',
+  },
+  {
+    accessorKey: 'value',
+    header: 'Value',
+    cell: ({ row }) => {
+      return formatMoney(row.getValue('value'))
+    }
+  },
+  {
+    id: 'actions',
+    cell: ({ row }) => {
+      return h(
+        'div',
+        { class: 'text-right' },
+        h(
+          UDropdownMenu,
+          {
+            content: {
+              align: 'end'
+            },
+            items: getRowItems(row),
+            'aria-label': 'Actions dropdown'
+          },
+          () =>
+            h(UButton, {
+              icon: 'i-lucide-ellipsis-vertical',
+              color: 'neutral',
+              variant: 'ghost',
+              class: 'ml-auto',
+              'aria-label': 'Actions dropdown'
+            })
+        )
+      )
+    }
+  }
+]
+
+function getRowItems(row: Row<Doc<'extraDollars'>>) {
+  return [
+    {
+      type: 'label',
+      label: 'Actions'
+    },
+    {
+      label: 'Delete',
+      onSelect() {
+
+        deleteExtraDollars({
+          extraDollarId: row.original._id
+        })
+
+        toast.add({
+          title: 'Deleted spending!',
+          color: 'success',
+          icon: 'i-lucide-circle-check'
+        })
+      }
+    },
+    {
+      label: 'Edit',
+      onSelect() {
+        openEditSlideover(row.original)
+      }
+    }
+  ]
+}
+
+async function openEditSlideover(item: Doc<'extraDollars'>) {
+  const instance = editSlideover.open({
+    extraDollar: item
+  })
+
+  const updatedId = await instance
+  if (updatedId) {
+    toast.add({
+      title: 'Updated spending!',
+      color: 'success',
+      icon: 'i-lucide-circle-check'
+    })
+  }
+}
 </script>
 
 <template>
-  <div v-for="t in spending" :key="t._id" class="transaction">
-    <div>
-      {{ t.name }}
-    </div>
-
-    <div>
-      {{ t.notes }}
-    </div>
-    <div>
-      {{ formatMoney(t.value) }}
-    </div>
-  </div>
+  <UTable :data="spending" :columns="columns" class="flex-1" />
 </template>
 
 <style scoped>

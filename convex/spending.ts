@@ -6,7 +6,7 @@ export const getSpending = query({
     month: v.string(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const spending = await ctx.db
       .query("spending")
       .filter((q) => q.eq(q.field("month"), args.month))
       .collect();
@@ -29,7 +29,7 @@ export const getTotal = query({
   },
 });
 
-export const getToday = query({
+export const listTodaysSpending = query({
   args: {
     month: v.string(),
   },

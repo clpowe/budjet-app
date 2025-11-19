@@ -48,9 +48,9 @@ async function handleSubmit() {
       <input type="date" v-model="date" />
     </label>
 
-    <UButton type="submit">
+    <button color="primary" type="submit">
       Add Spending
-    </UButton>
+    </button>
   </form>
 </template>
 

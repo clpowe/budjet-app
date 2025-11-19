@@ -23,7 +23,7 @@ const editSlideover = overlay.create(SpendingEditSlideover, {
 const UButton = resolveComponent('UButton')
 const UDropdownMenu = resolveComponent('UDropdownMenu')
 
-const columns: ColumnDef<Doc<'spending'>> = [
+const columns: ColumnDef<Doc<'spending'>>[] = [
   {
     accessorKey: 'name',
     header: 'Name',

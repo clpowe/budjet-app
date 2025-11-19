@@ -37,7 +37,7 @@ async function handleSubmit() {
       <input v-model.number="value" step="0.01" type="number" />
     </label>
 
-    <UButton type="submit">
+    <UButton color="primary" type="submit">
       Add Dollars
     </UButton>
   </form>

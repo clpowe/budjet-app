@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 const { selectedMonth, getPreviousMonth, getNextMonth } = useMonthNavigation();
 
 const { data: user, isPending: userLoading } = useConvexQuery(
-  api.users.getCurrentUser,
+  api.users.findCurrentUser,
   {}
 )
 
@@ -58,93 +58,99 @@ const totalToday = computed(() => {
 
 
 <template>
-  <div v-if="userLoading">
-    Waiting...
-  </div>
 
-  <template v-else>
-    <div v-if="!user?.householdId">
-      <complete-profile />
-    </div>
+  <UPage>
 
-    <div v-else>
-      <div class="flex justify-between">
-        <div>
-          <UButton @click="getPreviousMonth">previous</UButton>
-          {{ selectedMonth }}
-          <UButton @click="getNextMonth">previous</UButton>
+    <UContainer>
+      <div v-if="userLoading">
+        Waiting...
+      </div>
+
+      <template v-else>
+        <div v-if="!user?.householdId">
+          <complete-profile />
         </div>
-        <div>
+
+        <div v-else>
+          <div class="flex justify-between">
+            <div>
+              <UButton @click="getPreviousMonth">previous</UButton>
+              {{ selectedMonth }}
+              <UButton @click="getNextMonth">previous</UButton>
+            </div>
+            <div>
+              <div>
+                {{ formatMoney(total ?? 0) }}<br />
+                total spent
+              </div>
+              <div>
+                {{ formatMoney(left_to_spend ?? 0) }}<br />
+                left to spend
+              </div>
+            </div>
+          </div>
+
+          <UCard v-if="currentMonth">
+            <template #header>
+              <h2>Spent Today</h2>
+            </template>
+            {{ formatMoney(totalToday ?? 0) }}
+            <div class="grid grid-cols-3 gap-4">
+
+              <UCard>
+                <template #header>
+                  <p>Burn Rate</p>
+                </template>
+                {{ formatMoney(burn_rate ?? 0) }}
+              </UCard>
+              <UCard>
+                <template #header>
+                  <p>Variance</p>
+                </template>
+                {{ formatMoney(burn_rate - 45) }}
+              </UCard>
+              <UCard>
+                <template #header>
+                  <p>Daily Budget</p>
+                </template>
+                {{ formatMoney(45) }}
+              </UCard>
+
+            </div>
+            <template #footer>
+              <div>
+                <USlideover>
+                  <UButton label="Add Spending" />
+                  <template #content>
+                    <spending-add />
+                  </template>
+                </USlideover>
+                <UButton to="/today" color="neutral" variant="subtle">Show todays Spending</UButton>
+              </div>
+            </template>
+          </UCard>
           <div>
-            {{ formatMoney(total ?? 0) }}<br />
-            total spent
+            <h2>Money left to spend</h2>{{ formatMoney(currentPosition ?? 0) }}
           </div>
           <div>
-            {{ formatMoney(left_to_spend ?? 0) }}<br />
-            left to spend
+            <h2>Extra Dollars</h2>{{ formatMoney(extraDollars ?? 0) }}
+            <div>
+              <USlideover>
+                <UButton label="Add Extra Dollars" color="neutral" variant="subtle" />
+                <template #content>
+                  <extra-add />
+                </template>
+              </USlideover>
+              <NuxtLink to="/extraDollars">Show Extra Dollars</NuxtLink>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <UCard v-if="currentMonth">
-        <template #header>
-          <h2>Spent Today</h2>
-        </template>
-        {{ formatMoney(totalToday ?? 0) }}
-        <div class="grid grid-cols-3 gap-4">
-
-          <UCard>
-            <template #header>
-              <p>Burn Rate</p>
-            </template>
-            {{ formatMoney(burn_rate ?? 0) }}
-          </UCard>
-          <UCard>
-            <template #header>
-              <p>Variance</p>
-            </template>
-            {{ formatMoney(burn_rate - 45) }}
-          </UCard>
-          <UCard>
-            <template #header>
-              <p>Daily Budget</p>
-            </template>
-            {{ formatMoney(45) }}
-          </UCard>
-
-        </div>
-        <template #footer>
           <div>
-            <USlideover>
-              <UButton label="Add Spending" />
-              <template #content>
-                <spending-add />
-              </template>
-            </USlideover>
-            <UButton to="/today" color="neutral" variant="subtle">Show todays Spending</UButton>
+            <h2>Snowball</h2>{{ formatMoney(snowball ?? 0) }}
+            <UButton>Show Snowball List</UButton>
           </div>
-        </template>
-      </UCard>
-      <div>
-        <h2>Money left to spend</h2>{{ formatMoney(currentPosition ?? 0) }}
-      </div>
-      <div>
-        <h2>Extra Dollars</h2>{{ formatMoney(extraDollars ?? 0) }}
-        <div>
-          <USlideover>
-            <UButton label="Add Extra Dollars" color="neutral" variant="subtle" />
-            <template #content>
-              <extra-add />
-            </template>
-          </USlideover>
-          <UButton>Show Extra Dollars</UButton>
         </div>
-      </div>
-
-      <div>
-        <h2>Snowball</h2>{{ formatMoney(snowball ?? 0) }}
-        <UButton>Show Snowball List</UButton>
-      </div>
-    </div>
-  </template>
+      </template>
+    </UContainer>
+  </UPage>
 </template>

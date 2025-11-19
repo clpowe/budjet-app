@@ -33,7 +33,7 @@ export const syncUser = mutation({
 });
 
 // Get current user
-export const getCurrentUser = query({
+export const findCurrentUser = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
