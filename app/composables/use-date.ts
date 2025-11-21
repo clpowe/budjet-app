@@ -13,21 +13,19 @@ import {
 
 export function useDate() {
 
-  const currentDate = ref(new Date())
+  const currentDate = useState<Date>('currentDate', () => new Date())
 
   const queryDayBounds = computed(() => {
-    const date = currentDate.value
     return {
-      from: dayStart(date).getTime(),
-      to: dayEnd(date).getTime()
+      from: dayStart(currentDate.value).getTime(),
+      to: dayEnd(currentDate.value).getTime()
     }
   })
 
   const queryMonthBounds = computed(() => {
-    const date = currentDate.value
     return {
-      from: monthStart(date).getTime(),
-      to: monthEnd(date).getTime()
+      from: monthStart(currentDate.value).getTime(),
+      to: monthEnd(currentDate.value).getTime()
     }
   })
 
