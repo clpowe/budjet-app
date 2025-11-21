@@ -21,7 +21,7 @@ async function handleSubmit() {
 }
 </script>
 <template>
-  <form class="" @submit.prevent="handleSubmit">
+  <form @submit.prevent="handleSubmit">
     <label>
       Name
       <input v-model="name" />
@@ -37,18 +37,8 @@ async function handleSubmit() {
       <input v-model.number="value" step="0.01" type="number" />
     </label>
 
-    <UButton color="primary" type="submit">
+    <button type="submit">
       Add Dollars
-    </UButton>
+    </button>
   </form>
 </template>
-
-<style scoped>
-form {
-  display: grid;
-}
-
-label {
-  display: grid;
-}
-</style>

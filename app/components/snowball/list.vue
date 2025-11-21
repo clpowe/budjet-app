@@ -15,7 +15,7 @@ async function handleSnowball(id: Id<"snowball">, value: boolean) {
 </script>
 
 <template>
-  <div v-for="t in spending" :key="t._id" class="transaction">
+  <div v-for="t in spending" :key="t._id">
     <div>
       {{ t.name }}
     </div>
@@ -23,17 +23,9 @@ async function handleSnowball(id: Id<"snowball">, value: boolean) {
       {{ formatMoney(t.amount) }}
     </div>
     <div>
-      <UButton @click="handleSnowball(t._id as Id<'snowball'>, t.snowball)">
+      <button @click="handleSnowball(t._id as Id<'snowball'>, t.snowball)">
         {{ t.snowball }}
-      </UButton>
+      </button>
     </div>
   </div>
 </template>
-
-<style scoped>
-.transaction {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 1fr 1fr 10ch;
-}
-</style>

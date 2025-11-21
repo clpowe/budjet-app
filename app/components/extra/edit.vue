@@ -64,13 +64,3 @@ async function handleSubmit() {
     </button>
   </form>
 </template>
-
-<style scoped>
-form {
-  display: grid;
-}
-
-label {
-  display: grid;
-}
-</style>

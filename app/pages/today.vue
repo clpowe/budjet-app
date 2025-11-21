@@ -1,49 +1,56 @@
 <script setup lang="ts">
-const { selectedMonth, getPreviousMonth, getNextMonth } = useMonthNavigation();
 
 import { api } from "../../convex/_generated/api";
 
-const { data: todaySpendingItems } = useConvexQuery(
-  api.spending.getToday,
-  computed(() => ({ month: selectedMonth.value }))
+const { queryDayBounds, queryMonthBounds, appDay, elapsedDays, backDay, forwardDay } = useDate()
+const { user } = useConvexUser()
+
+
+
+const { data: currentPosition } = useConvexQuery(
+  api.expenses.getMyTotal,
+  computed(() => ({
+    from: queryDayBounds.value.from,
+    to: queryDayBounds.value.to,
+    householdId: user?.value?.householdId!
+  })),
 )
-onMounted(() => {
-  console.log(todaySpendingItems.value)
-})
 
 const { data: total } = useConvexQuery(
-  api.spending.getTotal,
-  computed(() => ({ month: selectedMonth.value }))
-)
+  api.expenses.getMyTotal,
+  computed(() => ({
+    from: queryMonthBounds.value.from,
+    to: queryMonthBounds.value.to,
+    householdId: user?.value?.householdId!
+  })
+  ))
 
 const burn_rate = computed(() => {
-  const daysElapsed = new Date().getDate() - new Date(selectedMonth.value).getDate()
-  return total.value! / daysElapsed
+  return total.value! / elapsedDays.value
 })
 
-const totalToday = computed(() => {
-  return todaySpendingItems.value?.reduce((acc, curr) => acc + curr.value, 0) ?? 0;
+const variance = computed(() => {
+  return (45 * elapsedDays.value) - total.value!
 })
-
-
-// .reduce((acc, curr) => acc + curr.value, 0);
 
 </script>
 
 <template>
-  <UPage>
+  <div>
     <div>
-      {{ selectedMonth }} (this should be selected Day)
+      {{ appDay }}
     </div>
+    <button @click="backDay">back</button>
+    <button @click="forwardDay">forward</button>
     <div>
-      <h2>Spent Today</h2>{{ formatMoney(totalToday ?? 0) }}
+      <h2>Spent Today</h2>{{ formatMoney(currentPosition ?? 0) }}
       <div>
         <p>Burn Rate</p>
         {{ formatMoney(burn_rate ?? 0) }}
       </div>
       <div>
         <p>Variance</p>
-        {{ formatMoney(burn_rate - 45) }}
+        {{ formatMoney(variance ?? 0) }}
       </div>
       <div>
         <p>Daily Budget</p>
@@ -51,5 +58,5 @@ const totalToday = computed(() => {
       </div>
     </div>
     <spending-list />
-  </UPage>
+  </div>
 </template>

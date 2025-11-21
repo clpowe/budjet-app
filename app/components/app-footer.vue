@@ -5,16 +5,12 @@ const { selectedMonth, getPreviousMonth, getNextMonth } = useMonthNavigation();
 <template>
   <footer>
     <div>
-      <UButton @click="getPreviousMonth">previous</UButton>
+      <button @click="getPreviousMonth">previous</button>
       {{ selectedMonth }}
-      <UButton @click="getNextMonth">previous</UButton>
+      <button @click="getNextMonth">next</button>
     </div>
-    <USlideover>
-      <UButton label="Add Spending" color="neutral" variant="subtle" />
-      <template #content>
-        <spending-add />
-      </template>
-    </USlideover>
-
+    <div>
+      <spending-add />
+    </div>
   </footer>
 </template>

@@ -1,11 +1,11 @@
 <template>
-  <UApp>
+  <div>
     <app-header />
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
     <app-footer />
-  </UApp>
+  </div>
 </template>
 
 <script setup>

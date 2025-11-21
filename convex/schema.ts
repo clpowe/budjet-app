@@ -2,6 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  // 1. Users
   users: defineTable({
     clerkId: v.string(),
     email: v.string(),
@@ -9,35 +10,41 @@ export default defineSchema({
     householdId: v.optional(v.id("households")),
     role: v.union(v.literal("owner"), v.literal("member")),
     createdAt: v.number(),
-  }).index("by_clerk_id", ["clerkId"]).index("by_household", ["householdId"]),
+  })
+    .index("by_clerk_id", ["clerkId"])
+    .index("by_household", ["householdId"]),
 
+  // 2. Households
   households: defineTable({
     name: v.string(),
     inviteCode: v.string(),
     ownerId: v.id("users"),
+    allowance: v.optional(v.number()),
     createdAt: v.number(),
   }).index("by_invite_code", ["inviteCode"]),
 
-  spending: defineTable({
+  // 3. Expenses (was 'spending')
+  expenses: defineTable({
     name: v.string(),
     notes: v.string(),
-    value: v.number(),
-    month: v.string(),
+    amount: v.number(), // Standardized to 'amount'
     householdId: v.id("households"),
     date: v.number(),
-  }).index("by_household", ["householdId"]),
+  }).index("by_household", ["householdId", "date"]),
 
-  extraDollars: defineTable({
-    name: v.string(),
+  // 4. Incomes (was 'extraDollars')
+  windfall: defineTable({
+    source: v.string(), // Renamed 'name' -> 'source' for clarity
     notes: v.string(),
     householdId: v.id("households"),
-    value: v.number(),
+    amount: v.number(),
   }).index("by_household", ["householdId"]),
 
-  snowball: defineTable({
-    name: v.string(),
-    snowball: v.boolean(),
+  // 5. Debts (was 'snowball')
+  debts: defineTable({
+    creditor: v.string(), // Renamed 'name' -> 'creditor' (who you owe)
+    isPriority: v.boolean(), // Renamed 'snowball' -> 'isPriority'
     householdId: v.id("households"),
-    amount: v.number(),
+    payment: v.number(), // Renamed 'amount' -> 'balance' (outstanding debt)
   }).index("by_household", ["householdId"]),
 });

@@ -2,32 +2,34 @@
 import { api } from "../../../convex/_generated/api";
 const { data: user, isPending: userLoading } = useConvexQuery(api.users.getCurrentUser, {})
 
-const name = ref('')
+import { format, tzDate } from "@formkit/tempo"
+
+const today = format({
+  date: new Date(),
+  format: "YYYY-MM-DD",
+  tz: "America/New_York"
+})
+
+const name = ref("")
 const notes = ref('')
 const value = ref(0)
-const date = ref()
-const { mutate: add } = useConvexMutation(api.spending.addSpending)
+const date = ref(today)
 
-function toLocalMidnightTimestamp(dateString?: string) {
-  if (!dateString) return Date.now()
-  const [year, month, day] = dateString.split('-').map(Number)
-  return new Date(year, (month ?? 1) - 1, day ?? 1).getTime()
-}
+const { mutate } = useConvexMutation(api.expenses.createExpense)
 
 async function handleSubmit() {
-  if (!user || !user.value?.householdId) return
-  add({
+  if (!user || !user.value?.householdId) return;
+  mutate({
     name: name.value,
     notes: notes.value,
-    value: value.value,
-    date: toLocalMidnightTimestamp(date.value),
-    month: formatDate(date.value),
-    householdId: user.value?.householdId
+    amount: value.value,
+    date: new Date(tzDate(date.value, "America/New_York")).getTime(),
+    householdId: user.value?.householdId!
   })
 }
 </script>
 <template>
-  <form class="" @submit.prevent="handleSubmit">
+  <form @submit.prevent="handleSubmit">
     <label>
       Name
       <input v-model="name" />
@@ -48,18 +50,8 @@ async function handleSubmit() {
       <input type="date" v-model="date" />
     </label>
 
-    <button color="primary" type="submit">
+    <button type="submit">
       Add Spending
     </button>
   </form>
 </template>
-
-<style scoped>
-form {
-  display: grid;
-}
-
-label {
-  display: grid;
-}
-</style>

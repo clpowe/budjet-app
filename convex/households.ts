@@ -1,6 +1,5 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import clerk from '@clerk/nuxt'
 
 // Generate a random invite code
 function generateInviteCode(): string {
@@ -36,6 +35,7 @@ export const createHousehold = mutation({
       inviteCode: generateInviteCode(),
       ownerId: user._id,
       createdAt: Date.now(),
+      allowance: 55,
     });
 
     // Update user with household
@@ -49,7 +49,7 @@ export const createHousehold = mutation({
 });
 
 // Join household with invite code
-export const joinHousehold = mutation({
+export const updateHouseholdMembers = mutation({
   args: {
     inviteCode: v.string(),
   },
@@ -112,7 +112,7 @@ export const getMyHousehold = query({
 });
 
 // Get household members
-export const getHouseholdMembers = query({
+export const listHouseholdMembers = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -135,7 +135,7 @@ export const getHouseholdMembers = query({
 });
 
 // Leave household
-export const leaveHousehold = mutation({
+export const updateHouseholdMembership = mutation({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();

@@ -1,58 +1,60 @@
 <script setup lang="ts">
+import { format, tzDate } from "@formkit/tempo";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
 
 const props = defineProps<{
-  spending: Doc<"spending">;
+  expense: Doc<"expenses">;
 }>();
 
 const emit = defineEmits<{
-  (e: "updated", spendingId: Doc<"spending">["_id"]): void;
+  (e: "updated", spendingId: Doc<"expenses">["_id"]): void;
 }>();
 
-const name = ref(props.spending.name);
-const notes = ref(props.spending.notes);
-const value = ref(props.spending.value);
-const date = ref(formatDateInput(props.spending.date));
+const today = format(
+  {
+    date: new Date(props.expense.date),
+    format: "YYYY-MM-DD",
+    tz: "America/New_York"
+  }
+)
 
-const { mutate: editSpending } = useConvexMutation(api.spending.editSpending);
+const name = ref(props.expense.name);
+const notes = ref(props.expense.notes);
+const value = ref(props.expense.amount);
+const date = ref(today);
+
+const { mutate: editSpending } = useConvexMutation(api.expenses.updateExpense);
 
 watch(
-  () => props.spending,
+  () => props.expense,
   (updated) => {
     if (!updated) return;
     name.value = updated.name;
     notes.value = updated.notes;
-    value.value = updated.value;
-    date.value = formatDateInput(updated.date);
+    value.value = updated.amount;
+    date.value = format(
+      {
+        date: new Date(updated.date),
+        format: "YYYY-MM-DD",
+        tz: "America/New_York"
+      }
+    )
   },
   { deep: true }
 );
 
-function formatDateInput(timestamp?: number) {
-  if (!timestamp) return undefined;
-  const date = new Date(timestamp);
-  const tzOffsetMs = date.getTimezoneOffset() * 60000;
-  return new Date(date.getTime() - tzOffsetMs).toISOString().split("T")[0];
-}
-
-function toLocalMidnightTimestamp(dateString?: string) {
-  if (!dateString) return props.spending.date;
-  const [year, month, day] = dateString.split("-").map(Number);
-  return new Date(year, (month ?? 1) - 1, day ?? 1).getTime();
-}
 
 async function handleSubmit() {
   await editSpending({
-    spendingId: props.spending._id,
+    expenseId: props.expense._id,
     name: name.value,
     notes: notes.value,
-    value: value.value,
-    date: toLocalMidnightTimestamp(date.value),
-    month: date.value ? formatDate(date.value) : props.spending.month,
+    amount: value.value,
+    date: new Date(tzDate(date.value, "America/New_York")).getTime(),
   });
 
-  emit("updated", props.spending._id);
+  emit("updated", props.expense._id);
 }
 </script>
 
@@ -78,18 +80,8 @@ async function handleSubmit() {
       <input v-model="date" type="date" />
     </label>
 
-    <UButton type="submit">
+    <button type="submit">
       Update Spending
-    </UButton>
+    </button>
   </form>
 </template>
-
-<style scoped>
-form {
-  display: grid;
-}
-
-label {
-  display: grid;
-}
-</style>

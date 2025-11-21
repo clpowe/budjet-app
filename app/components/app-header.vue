@@ -1,18 +1,13 @@
 <template>
-  <UHeader>
-    <template #left>
-      <NuxtLink to="/home">
-        Home
-      </NuxtLink>
-    </template>
+  <header>
+    <NuxtLink to="/home">
+      Home
+    </NuxtLink>
 
-    <template #right>
-      <UColorModeSwitch />
-      <ClientOnly>
-        <SignedIn>
-          <UserButton />
-        </SignedIn>
-      </ClientOnly>
-    </template>
-  </UHeader>
+    <ClientOnly>
+      <SignedIn>
+        <UserButton />
+      </SignedIn>
+    </ClientOnly>
+  </header>
 </template>

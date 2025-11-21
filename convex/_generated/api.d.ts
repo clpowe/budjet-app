@@ -8,12 +8,11 @@
  * @module
  */
 
-import type * as extraDollars from "../extraDollars.js";
+import type * as depts from "../depts.js";
+import type * as expenses from "../expenses.js";
 import type * as households from "../households.js";
-import type * as snowball from "../snowball.js";
-import type * as spending from "../spending.js";
-import type * as tasks from "../tasks.js";
 import type * as users from "../users.js";
+import type * as windfall from "../windfall.js";
 
 import type {
   ApiFromModules,
@@ -30,12 +29,11 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
-  extraDollars: typeof extraDollars;
+  depts: typeof depts;
+  expenses: typeof expenses;
   households: typeof households;
-  snowball: typeof snowball;
-  spending: typeof spending;
-  tasks: typeof tasks;
   users: typeof users;
+  windfall: typeof windfall;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 

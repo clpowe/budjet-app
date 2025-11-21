@@ -12,10 +12,10 @@ const { data: total } = useConvexQuery(
 </script>
 
 <template>
-  <UPage>
+  <div>
     <div>
       <h2>Spent Today</h2>{{ formatMoney(data ?? 0) }}
     </div>
     <extra-list />
-  </UPage>
+  </div>
 </template>

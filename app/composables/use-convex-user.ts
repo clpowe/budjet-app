@@ -1,11 +1,9 @@
-import { api } from "../../convex/_generated/api";
+import { api } from '../../convex/_generated/api';
+import { useConvexQuery } from '#imports';
 
 export const useConvexUser = () => {
-  const convex = useConvexClient();
-  const user = convex.query(api.users.getCurrentUser, {});
-  const household = convex.query(api.households.getMyHousehold, {});
+  const { data: user } = useConvexQuery(api.users.getCurrentUser, {});
   return {
     user,
-    household
-  }
-}
+  };
+};

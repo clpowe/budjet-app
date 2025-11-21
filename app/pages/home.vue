@@ -1,39 +1,48 @@
 <script setup lang="ts">
 import { api } from "../../convex/_generated/api";
 
-const { selectedMonth, getPreviousMonth, getNextMonth } = useMonthNavigation();
+const { queryDayBounds, queryMonthBounds, appDay, elapsedDays } = useDate()
+const { user } = useConvexUser()
 
-const { data: user, isPending: userLoading } = useConvexQuery(
-  api.users.findCurrentUser,
-  {}
-)
+const currentDate = ref(new Date())
 
-const { data: todaySpendingItems } = useConvexQuery(
-  api.spending.getToday,
-  computed(() => ({ month: selectedMonth.value }))
+const { data: expenses } = useConvexQuery(
+  api.expenses.listMyExpenses,
+  computed(() => ({
+    from: queryDayBounds.value.from,
+    to: queryDayBounds.value.to,
+    householdId: user?.value?.householdId!
+  })),
+
 )
 
 const { data: total } = useConvexQuery(
-  api.spending.getTotal,
-  computed(() => ({ month: selectedMonth.value }))
+  api.expenses.getMyTotal,
+  computed(() => ({
+    from: queryMonthBounds.value.from,
+    to: queryMonthBounds.value.to,
+    householdId: user?.value?.householdId!
+  })),
+
 )
 
-const { data: snowball } = useConvexQuery(
-  api.snowball.getTotal,
-  computed(() => ({ month: selectedMonth.value }))
+const { data: totalPayment } = useConvexQuery(
+  api.depts.getTotalPayment, {}
 )
+
 
 const { data: currentPosition } = useConvexQuery(
-  api.spending.getCurrentPosition,
+  api.expenses.getMyCurrentPosition,
   computed(() => ({
-    offset: 0,
+    from: queryDayBounds.value.from,
+    to: queryDayBounds.value.to,
     allowance: 45,
-    month: selectedMonth.value
-  }))
+    householdId: user?.value?.householdId!
+  })),
 )
 
 const { data: extraDollars } = useConvexQuery(
-  api.extraDollars.getTotal,
+  api.windfall.getMyWindfallTotal,
   {}
 )
 
@@ -42,41 +51,35 @@ const left_to_spend = computed(() => {
 })
 
 const burn_rate = computed(() => {
-  const daysElapsed = new Date().getDate() - new Date(selectedMonth.value).getDate()
-  return total.value! / daysElapsed
+  return total.value! / elapsedDays.value
 })
 
 const currentMonth = computed(() => {
-  return selectedMonth.value.split(' ')[0] === new Date().toLocaleString('en-US', { month: 'long' }).toLowerCase()
+  return `${currentDate.value.getMonth()} - ${currentDate.value.getFullYear()}`
 })
 
 const totalToday = computed(() => {
-  return todaySpendingItems.value?.reduce((acc, curr) => acc + curr.value, 0) ?? 0;
+  return expenses.value?.reduce((acc, curr) => acc + curr.amount, 0) ?? 0;
 })
+
 
 </script>
 
 
 <template>
-
-  <UPage>
-
-    <UContainer>
-      <div v-if="userLoading">
-        Waiting...
-      </div>
-
-      <template v-else>
+  <div>
+    <div>
+      <template>
         <div v-if="!user?.householdId">
           <complete-profile />
         </div>
 
         <div v-else>
-          <div class="flex justify-between">
+          <div>
             <div>
-              <UButton @click="getPreviousMonth">previous</UButton>
-              {{ selectedMonth }}
-              <UButton @click="getNextMonth">previous</UButton>
+              <button @click="">previous</button>
+              {{ appDay }}
+              <button @click="">next</button>
             </div>
             <div>
               <div>
@@ -90,67 +93,65 @@ const totalToday = computed(() => {
             </div>
           </div>
 
-          <UCard v-if="currentMonth">
-            <template #header>
+          <div v-if="currentMonth">
+            <div>
               <h2>Spent Today</h2>
-            </template>
+            </div>
             {{ formatMoney(totalToday ?? 0) }}
-            <div class="grid grid-cols-3 gap-4">
-
-              <UCard>
-                <template #header>
+            <div>
+              <div>
+                <div>
                   <p>Burn Rate</p>
-                </template>
+                </div>
                 {{ formatMoney(burn_rate ?? 0) }}
-              </UCard>
-              <UCard>
-                <template #header>
+              </div>
+              <div>
+                <div>
                   <p>Variance</p>
-                </template>
+                </div>
                 {{ formatMoney(burn_rate - 45) }}
-              </UCard>
-              <UCard>
-                <template #header>
+              </div>
+              <div>
+                <div>
                   <p>Daily Budget</p>
-                </template>
+                </div>
                 {{ formatMoney(45) }}
-              </UCard>
+              </div>
 
             </div>
-            <template #footer>
+            <div>
               <div>
-                <USlideover>
-                  <UButton label="Add Spending" />
-                  <template #content>
+                <div>
+                  <div>
                     <spending-add />
-                  </template>
-                </USlideover>
-                <UButton to="/today" color="neutral" variant="subtle">Show todays Spending</UButton>
+                  </div>
+                </div>
+                <NuxtLink to="/today">Show todays Spending</NuxtLink>
               </div>
-            </template>
-          </UCard>
+            </div>
+          </div>
           <div>
             <h2>Money left to spend</h2>{{ formatMoney(currentPosition ?? 0) }}
           </div>
           <div>
             <h2>Extra Dollars</h2>{{ formatMoney(extraDollars ?? 0) }}
             <div>
-              <USlideover>
-                <UButton label="Add Extra Dollars" color="neutral" variant="subtle" />
-                <template #content>
+              <div>
+                <button>Add Extra Dollars</button>
+                <div>
                   <extra-add />
-                </template>
-              </USlideover>
+                </div>
+              </div>
               <NuxtLink to="/extraDollars">Show Extra Dollars</NuxtLink>
             </div>
           </div>
 
           <div>
-            <h2>Snowball</h2>{{ formatMoney(snowball ?? 0) }}
-            <UButton>Show Snowball List</UButton>
+            <h2>Snowball</h2>{{ formatMoney(totalPayment ?? 0) }}
+            <button>Show Snowball List</button>
           </div>
         </div>
       </template>
-    </UContainer>
-  </UPage>
+    </div>
+  </div>
 </template>
