@@ -53,5 +53,5 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <transactions-form v-model="formState" :show-date="true" submit-label="Update Spending" @submit="handleSubmit" />
+  <transactions-form v-model="formState" :show-date="true" submit-label="Update" @submit="handleSubmit" />
 </template>

@@ -5,19 +5,19 @@ const { data: user, isPending: userLoading } = useConvexQuery(api.users.getCurre
 const name = ref('')
 const notes = ref('')
 const value = ref(0)
-const { mutate: add } = useConvexMutation(api.extraDollars.addExtraDollars)
+const { mutate: add } = useConvexMutation(api.windfall.addWindfallTransaction)
 
 
 async function handleSubmit() {
 
   if (!user || !user.value?.householdId) return
-  add({
-    name: name.value,
+  const res = await add({
+    source: name.value,
     notes: notes.value,
-    value: value.value,
+    amount: value.value,
     householdId: user.value?.householdId
   })
-
+  console.log(res)
 }
 </script>
 <template>

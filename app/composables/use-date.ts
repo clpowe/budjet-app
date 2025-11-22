@@ -42,6 +42,10 @@ export function useDate() {
     return diffDays(new Date(), monthStart(currentDate.value))
   })
 
+  function setDate(date: Date) {
+    currentDate.value = date
+  }
+
   function backDay() {
     currentDate.value = addDay(currentDate.value, -1)
   }
@@ -52,11 +56,13 @@ export function useDate() {
   }
 
   return {
+    currentDate,
     queryDayBounds,
     queryMonthBounds,
     appDay: today,
     backDay,
     forwardDay,
+    setDate,
     elapsedDays
   }
 }

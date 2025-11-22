@@ -32,7 +32,7 @@ function onExpenseUpdated(id: string) {
           <button @click="onDelete(item._id)">Delete</button>
           <button :popovertarget="item._id">Edit</button>
           <div :id="item._id" popover>
-            <LazySpendingEdit :expense="item" @updated="onExpenseUpdated" />
+            <lazy-expenses-edit :expense="item" @updated="onExpenseUpdated" />
           </div>
         </td>
       </tr>

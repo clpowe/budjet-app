@@ -1,17 +1,17 @@
 <script setup lang="ts">
-const { expenses, remove } = useExpenses();
+const { windfall, remove } = useWindfall();
 import type { Doc } from "../../../convex/_generated/dataModel";
 
-function onDelete(id: Doc<"expenses">["_id"]) {
+function onDelete(id: Doc<"windfall">["_id"]) {
   remove(id);
 }
 
 const { closePopoverById } = usePopoverClose();
 
-function onExpenseUpdated(id: string) {
+function onWindfallUpdated(id: string) {
   closePopoverById(id);
-}
-</script>
+
+}</script>
 
 <template>
   <table>
@@ -24,15 +24,15 @@ function onExpenseUpdated(id: string) {
       </tr>
     </thead>
     <tbody>
-      <tr v-for="item in expenses" :key="item._id">
-        <td>{{ item.name }}</td>
+      <tr v-for="item in windfall" :key="item._id">
+        <td>{{ item.source }}</td>
         <td>{{ item.notes }}</td>
         <td>{{ formatMoney(item.amount) }}</td>
         <td>
           <button @click="onDelete(item._id)">Delete</button>
           <button :popovertarget="item._id">Edit</button>
           <div :id="item._id" popover>
-            <LazySpendingEdit :expense="item" @updated="onExpenseUpdated" />
+            <lazy-windfall-edit :windfall="item" @updated="onWindfallUpdated" />
           </div>
         </td>
       </tr>

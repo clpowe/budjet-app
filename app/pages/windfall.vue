@@ -3,11 +3,7 @@
 import { api } from "../../convex/_generated/api";
 
 const { data } = useConvexQuery(
-  api.extraDollars.getTotal,
-)
-
-const { data: total } = useConvexQuery(
-  api.extraDollars.getExtraDollars,
+  api.windfall.getMyWindfallTotal,
 )
 </script>
 
@@ -16,6 +12,7 @@ const { data: total } = useConvexQuery(
     <div>
       <h2>Spent Today</h2>{{ formatMoney(data ?? 0) }}
     </div>
-    <extra-list />
+    <windfall-add />
+    <windfall-list />
   </div>
 </template>

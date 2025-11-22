@@ -7,7 +7,6 @@ import { query, mutation } from "./_generated/server";
 
 export const listMyExpenses = query({
   args: {
-    householdId: v.optional(v.id("households")),
     from: v.number(),
     to: v.number(),
   },
@@ -16,15 +15,17 @@ export const listMyExpenses = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
+    const user = await ctx.db.query("users").withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject)).first()
+
     // Use the combined index for fast range lookup
     const expenses = await ctx.db
       .query("expenses")
-      .withIndex("by_household", (q) => q.eq("householdId", args.householdId!))
+      .withIndex("by_household", (q) => q.eq("householdId", user?.householdId!))
       .filter((q) =>
         q.and(
           q.gte(q.field("date"), args.from),
-          q.lt(q.field("date"), args.to)
-        )
+          q.lt(q.field("date"), args.to),
+        ),
       )
       .collect();
 
@@ -35,7 +36,6 @@ export const listMyExpenses = query({
 
 export const getMyTotal = query({
   args: {
-    householdId: v.id("households"),
     from: v.number(),
     to: v.number(),
   },
@@ -44,14 +44,17 @@ export const getMyTotal = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
+    const user = await ctx.db.query("users").withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject)).first()
+
+
     const expenses = await ctx.db
       .query("expenses")
-      .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+      .withIndex("by_household", (q) => q.eq("householdId", user?.householdId!))
       .filter((q) =>
         q.and(
           q.gte(q.field("date"), args.from),
-          q.lt(q.field("date"), args.to)
-        )
+          q.lt(q.field("date"), args.to),
+        ),
       )
       .collect();
 
@@ -62,7 +65,6 @@ export const getMyTotal = query({
 // Cleaned up "Current Position" logic
 export const getMyCurrentPosition = query({
   args: {
-    householdId: v.id("households"),
     allowance: v.number(),
     from: v.number(),
     to: v.number(),
@@ -71,7 +73,7 @@ export const getMyCurrentPosition = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-
+    const user = await ctx.db.query("users").withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject)).first()
     const now = Date.now();
 
     // 1. Calculate how many days have passed within the requested window
@@ -88,22 +90,21 @@ export const getMyCurrentPosition = query({
     // 2. Get actual spending
     const expenses = await ctx.db
       .query("expenses")
-      .withIndex("by_household", (q) => q.eq("householdId", args.householdId))
+      .withIndex("by_household", (q) => q.eq("householdId", user?.householdId!))
       .filter((q) =>
         q.and(
           q.gte(q.field("date"), args.from),
-          q.lt(q.field("date"), args.to)
-        )
+          q.lt(q.field("date"), args.to),
+        ),
       )
       .collect();
 
     const totalSpent = expenses.reduce((acc, curr) => acc + curr.amount, 0);
 
     // 3. Math: (Days Passed * Daily Budget) - Actual Spending
-    return (daysElapsed * args.allowance) - totalSpent;
+    return daysElapsed * args.allowance - totalSpent;
   },
 });
-
 
 // -------------------------
 // MUTATIONS
@@ -115,13 +116,19 @@ export const createExpense = mutation({
     notes: v.string(),
     amount: v.number(),
     householdId: v.id("households"),
-    date: v.number(),   // UTC Timestamp
+    date: v.number(), // UTC Timestamp
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.db.query("users").withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject)).first()
+
+
+
     const newExpense = await ctx.db.insert("expenses", {
       name: args.name,
       notes: args.notes,
-      householdId: args.householdId,
+      householdId: user?.householdId!,
       amount: args.amount,
       date: args.date,
     });
@@ -139,7 +146,7 @@ export const updateExpense = mutation({
   },
   handler: async (ctx, args) => {
     const expense = await ctx.db.get(args.expenseId);
-    if (!expense) throw new Error("Expense not found")
+    if (!expense) throw new Error("Expense not found");
 
     await ctx.db.patch(args.expenseId, {
       name: args.name,
@@ -148,7 +155,7 @@ export const updateExpense = mutation({
       date: args.date,
     });
 
-    return { success: true }
+    return { success: true };
   },
 });
 
@@ -156,10 +163,10 @@ export const deleteExpense = mutation({
   args: { expenseId: v.id("expenses") },
   handler: async (ctx, args) => {
     const expense = await ctx.db.get(args.expenseId);
-    if (!expense) throw new Error("Expense not found")
+    if (!expense) throw new Error("Expense not found");
 
     await ctx.db.delete(args.expenseId);
 
-    return { success: true }
+    return { success: true };
   },
 });

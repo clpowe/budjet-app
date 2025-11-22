@@ -1,27 +1,26 @@
 <script setup lang="ts">
-
 import { api } from "../../convex/_generated/api";
 
-const { queryDayBounds, queryMonthBounds, appDay, elapsedDays, backDay, forwardDay } = useDate()
-const { user } = useConvexUser()
+const { currentDate, queryDayBounds, queryMonthBounds, appDay, elapsedDays, backDay, forwardDay } = useDate()
 
+onMounted(() => {
+  currentDate.value = new Date()
+})
 
-
-const { data: currentPosition } = useConvexQuery(
+const { data: currentPosition, suspense } = useConvexQuery(
   api.expenses.getMyTotal,
   computed(() => ({
     from: queryDayBounds.value.from,
     to: queryDayBounds.value.to,
-    householdId: user?.value?.householdId!
   })),
 )
+
 
 const { data: total } = useConvexQuery(
   api.expenses.getMyTotal,
   computed(() => ({
     from: queryMonthBounds.value.from,
     to: queryMonthBounds.value.to,
-    householdId: user?.value?.householdId!
   })
   ))
 
@@ -37,10 +36,11 @@ const variance = computed(() => {
 
 <template>
   <div>
+
+    <button @click="backDay">back</button>
     <div>
       {{ appDay }}
     </div>
-    <button @click="backDay">back</button>
     <button @click="forwardDay">forward</button>
     <div>
       <h2>Spent Today</h2>{{ formatMoney(currentPosition ?? 0) }}
@@ -57,6 +57,7 @@ const variance = computed(() => {
         {{ formatMoney(45) }}
       </div>
     </div>
-    <spending-list />
+    <expenses-add />
+    <expenses-list />
   </div>
 </template>

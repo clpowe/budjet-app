@@ -20,7 +20,7 @@ export const useHousehold = () => {
   const household = convex.query(api.households.getMyHousehold, {});
 
   // Get household members
-  const members = convex.query(api.households.getHouseholdMembers, {});
+  const members = convex.query(api.households.listHouseholdMembers, {});
 
   // Create a new household
   const createHousehold = async (name: string) => {
@@ -39,7 +39,7 @@ export const useHousehold = () => {
   const joinHousehold = async (inviteCode: string) => {
     try {
       await syncUser();
-      const householdId = await convex.mutation(api.households.joinHousehold, {
+      const householdId = await convex.mutation(api.households.updateHouseholdMembership, {
         inviteCode,
       });
       return { success: true, householdId };
@@ -51,7 +51,7 @@ export const useHousehold = () => {
   // Leave household
   const leaveHousehold = async () => {
     try {
-      await convex.mutation(api.households.leaveHousehold, {});
+      await convex.mutation(api.households.updateHouseholdMembership, {});
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
