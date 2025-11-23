@@ -101,7 +101,7 @@ const left_to_spend = computed(() => {
 
         <div>
           <h2>Snowball</h2>{{ formatMoney(totalPayment ?? 0) }}
-          <button>Show Snowball List</button>
+          <NuxtLink to="/mydepts">Show Depts</NuxtLink>
         </div>
       </div>
     </div>

@@ -18,7 +18,6 @@ const windfallSplit = computed(() => {
   }
   return Object.groupBy(windfall.value, ({ amount }) => amount > 0 ? "income" : "expense")
 })
-console.log(windfallSplit.value)
 </script>
 
 <template>
