@@ -1,66 +1,23 @@
 <script setup lang="ts">
 import { api } from "../../convex/_generated/api";
 
-const { queryDayBounds, queryMonthBounds, appDay, elapsedDays, setDate } = useDate()
+const { appDay, setDate } = useDate()
 
 const { data: user, isPending } = useConvexQuery(api.users.getCurrentUser, {})
 
+const { total, totalToday, burn_rate, variance, currentPosition } = useExpenses()
+const { windfallTotal } = useWindfall()
+
 setDate(new Date())
 
-const { data: expenses } = useConvexQuery(
-  api.expenses.listMyExpenses,
-  computed(() => ({
-    from: queryDayBounds.value.from,
-    to: queryDayBounds.value.to,
-  })),
-)
-
-const { data: total } = useConvexQuery(
-  api.expenses.getMyTotal,
-  computed(() => ({
-    from: queryMonthBounds.value.from,
-    to: queryMonthBounds.value.to,
-  })),
-
-)
 
 const { data: totalPayment } = useConvexQuery(
   api.depts.getTotalPayment, {}
 )
 
-
-const { data: currentPosition } = useConvexQuery(
-  api.expenses.getMyCurrentPosition,
-  computed(() => ({
-    from: queryDayBounds.value.from,
-    to: queryDayBounds.value.to,
-    allowance: 45,
-  })),
-)
-
-const { data: extraDollars } = useConvexQuery(
-  api.windfall.getMyWindfallTotal,
-  {}
-)
-
 const left_to_spend = computed(() => {
   return (45 * 30) - (total.value ?? 0)
 })
-
-const burn_rate = computed(() => {
-  return total.value! / elapsedDays.value
-})
-
-const variance = computed(() => {
-  return (45 * elapsedDays.value) - total.value!
-})
-
-
-
-const totalToday = computed(() => {
-  return expenses.value?.reduce((acc, curr) => acc + curr.amount, 0) ?? 0;
-})
-
 
 </script>
 
@@ -136,7 +93,7 @@ const totalToday = computed(() => {
         </div>
 
         <div>
-          <h2>Extra Dollars</h2>{{ formatMoney(extraDollars ?? 0) }}
+          <h2>Extra Dollars</h2>{{ formatMoney(windfallTotal ?? 0) }}
           <div>
             <NuxtLink to="/windfall">Show Extra Dollars</NuxtLink>
           </div>

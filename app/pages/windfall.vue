@@ -10,7 +10,7 @@ const { data } = useConvexQuery(
 <template>
   <div>
     <div>
-      <h2>Spent Today</h2>{{ formatMoney(data ?? 0) }}
+      <h2>Windfall</h2>{{ formatMoney(data ?? 0) }}
     </div>
     <windfall-add />
     <windfall-list />
