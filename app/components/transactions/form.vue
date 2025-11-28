@@ -8,8 +8,9 @@
 const props = defineProps<{
   modelValue: {
     name: string;
-    notes: string;
+    notes?: string;
     amount: number;
+    isPriority?: boolean;
     date?: string | null;
   };
   showDate?: boolean;
@@ -44,7 +45,7 @@ const onSubmit = () => {
       <input :value="modelValue.name" @input="updateField('name', ($event.target as HTMLInputElement).value)" />
     </label>
 
-    <label>
+    <label v-if="modelValue.notes !== undefined">
       Notes
       <textarea :value="modelValue.notes" @input="updateField('notes', ($event.target as HTMLTextAreaElement).value)" />
     </label>
@@ -57,6 +58,12 @@ const onSubmit = () => {
           Number(($event.target as HTMLInputElement).value || 0)
         )
         " />
+    </label>
+
+    <label>
+      Priority
+      <input :checked="modelValue.isPriority" type="checkbox"
+        @change="updateField('isPriority', ($event.target as HTMLInputElement).checked)">
     </label>
 
     <label v-if="showDate">

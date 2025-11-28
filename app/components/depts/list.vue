@@ -1,12 +1,12 @@
 <script setup lang="ts">
-const { depts, totalPayment } = useDepts()
+const { depts, update } = useDepts()
 import type { Id } from "../../../convex/_generated/dataModel";
 
 
 
-async function handleSnowball(id: Id<"snowball">, value: boolean) {
+async function handleupdate(id: Id<"debts">, value: boolean) {
   if (!id) return
-  await update({ id, value: !value })
+  await update({ id, isPriority: !value })
 }
 </script>
 
@@ -15,7 +15,7 @@ async function handleSnowball(id: Id<"snowball">, value: boolean) {
     <thead>
       <tr>
         <th>Creditor</th>
-        <th>Notes</th>
+        <th>In Snowball</th>
         <th>Payment</th>
         <th>Actions</th>
       </tr>
@@ -23,12 +23,16 @@ async function handleSnowball(id: Id<"snowball">, value: boolean) {
     <tbody>
       <tr v-for="item in depts" :key="item._id">
         <td>{{ item.creditor }}</td>
-        <td>{{ item.isPriority }}</td>
+        <td>
+          <button @click="handleupdate(item._id, item.isPriority)">
+            {{ item.isPriority ? 'Remove' : 'Add' }}
+          </button>
+        </td>
         <td>{{ formatMoney(item.payment) }}</td>
         <td>
           <button :popovertarget="item._id">Edit</button>
           <div :id="item._id" popover>
-            <lazy-dept-edit :windfall="item" @updated="onWindfallUpdated" />
+            <lazy-depts-edit :depts="item" @updated="handleupdate" />
           </div>
         </td>
       </tr>

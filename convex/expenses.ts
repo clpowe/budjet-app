@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import type { QueryCtx, MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 
 // -------------------------
 // QUERIES
@@ -15,12 +17,11 @@ export const listMyExpenses = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    const user = await ctx.db.query("users").withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject)).first()
-
+    const householdId = await getHouseholdId(ctx, identity);
     // Use the combined index for fast range lookup
     const expenses = await ctx.db
       .query("expenses")
-      .withIndex("by_household", (q) => q.eq("householdId", user?.householdId!))
+      .withIndex("by_household", (q) => q.eq("householdId", householdId))
       .filter((q) =>
         q.and(
           q.gte(q.field("date"), args.from),
@@ -44,12 +45,11 @@ export const getMyTotal = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    const user = await ctx.db.query("users").withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject)).first()
-
+    const householdId = await getHouseholdId(ctx, identity);
 
     const expenses = await ctx.db
       .query("expenses")
-      .withIndex("by_household", (q) => q.eq("householdId", user?.householdId!))
+      .withIndex("by_household", (q) => q.eq("householdId", householdId))
       .filter((q) =>
         q.and(
           q.gte(q.field("date"), args.from),
@@ -73,7 +73,8 @@ export const getMyCurrentPosition = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    const user = await ctx.db.query("users").withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject)).first()
+    const householdId = await getHouseholdId(ctx, identity);
+
     const now = Date.now();
 
     // 1. Calculate how many days have passed within the requested window
@@ -90,7 +91,7 @@ export const getMyCurrentPosition = query({
     // 2. Get actual spending
     const expenses = await ctx.db
       .query("expenses")
-      .withIndex("by_household", (q) => q.eq("householdId", user?.householdId!))
+      .withIndex("by_household", (q) => q.eq("householdId", householdId))
       .filter((q) =>
         q.and(
           q.gte(q.field("date"), args.from),
@@ -121,14 +122,13 @@ export const createExpense = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
-    const user = await ctx.db.query("users").withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject)).first()
 
-
+    const householdId = await getHouseholdId(ctx, identity);
 
     const newExpense = await ctx.db.insert("expenses", {
       name: args.name,
       notes: args.notes,
-      householdId: user?.householdId!,
+      householdId: householdId,
       amount: args.amount,
       date: args.date,
     });
@@ -170,3 +170,19 @@ export const deleteExpense = mutation({
     return { success: true };
   },
 });
+
+async function getHouseholdId(
+  ctx: QueryCtx | MutationCtx,
+  identity: { subject: string },
+): Promise<Id<"households">> {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+    .first();
+
+  if (!user || !user.householdId) {
+    throw new Error("User is not in a household");
+  }
+
+  return user.householdId;
+}

@@ -13,7 +13,7 @@ export const useHousehold = () => {
       email: "",
       name: user.sessionId.value!,
     });
-    console.log(u)
+    console.log(u);
   };
 
   // Get current user's household
@@ -26,9 +26,12 @@ export const useHousehold = () => {
   const createHousehold = async (name: string) => {
     try {
       await syncUser();
-      const householdId = await convex.mutation(api.households.createHousehold, {
-        name,
-      });
+      const householdId = await convex.mutation(
+        api.households.createHousehold,
+        {
+          name,
+        },
+      );
       return { success: true, householdId };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -39,9 +42,12 @@ export const useHousehold = () => {
   const joinHousehold = async (inviteCode: string) => {
     try {
       await syncUser();
-      const householdId = await convex.mutation(api.households.updateHouseholdMembership, {
-        inviteCode,
-      });
+      const householdId = await convex.mutation(
+        api.households.updateHouseholdMembers,
+        {
+          inviteCode,
+        },
+      );
       return { success: true, householdId };
     } catch (error: any) {
       return { success: false, error: error.message };

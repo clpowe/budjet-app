@@ -1,6 +1,6 @@
-import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+import { query, mutation } from "./_generated/server";
 // -------------------------
 // QUERIES
 // -------------------------
@@ -37,8 +37,8 @@ export const addWindfallTransaction = mutation({
     });
 
     return windfallTransaction;
-  }
-})
+  },
+});
 
 // -------------------------
 // MUTATIONS
@@ -54,8 +54,7 @@ export const updateWindfall = mutation({
   },
   handler: async (ctx, args) => {
     const windfall = await ctx.db.get(args.windfallId);
-    if (!windfall) throw new Error("Windfall not found")
-
+    if (!windfall) throw new Error("Windfall not found");
 
     await ctx.db.patch(args.windfallId, {
       source: args.source,
@@ -64,9 +63,9 @@ export const updateWindfall = mutation({
       householdId: args.householdId,
     });
 
-    return { success: true }
-  }
-})
+    return { success: true };
+  },
+});
 
 export const deleteWindfall = mutation({
   args: {
@@ -74,10 +73,10 @@ export const deleteWindfall = mutation({
   },
   handler: async (ctx, args) => {
     const windfall = await ctx.db.get(args.windfallId);
-    if (!windfall) throw new Error("Windfall not found")
+    if (!windfall) throw new Error("Windfall not found");
 
     await ctx.db.delete(args.windfallId);
 
     return { success: true };
-  }
-})
+  },
+});

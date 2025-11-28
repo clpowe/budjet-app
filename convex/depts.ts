@@ -38,33 +38,23 @@ export const getTotalPayment = query({
 // MUTATIONS
 // -------------------------
 
-export const updateDeptPriority = mutation({
+export const updateDebt = mutation({
   args: {
     id: v.id("debts"),
-    value: v.boolean(),
+    isPriority: v.optional(v.boolean()),
+    creditor: v.optional(v.string()),
+    payment: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.id, { isPriority: args.value });
+    const { id, ...fields } = args;
+
+    // Build a partial update with only defined fields
+    const update: Record<string, any> = {};
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined) update[key] = value;
+    }
+
+    await ctx.db.patch(id, update);
   },
 });
 
-export const updateDept = mutation({
-  args: {
-    id: v.id("debts"),
-    creditor: v.string(),
-    priority: v.boolean(),
-    payment: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
-    await ctx.db.patch(args.id, {
-      creditor: args.creditor,
-      payment: args.payment,
-      isPriority: args.priority,
-    });
-
-    return { success: true }
-  },
-})

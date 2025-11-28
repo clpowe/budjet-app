@@ -10,7 +10,7 @@ export const syncUser = mutation({
     name: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    console.log('syncUser 2')
+    console.log("syncUser 2");
     const existingUser = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
@@ -47,5 +47,3 @@ export const getCurrentUser = query({
     return user;
   },
 });
-
-

@@ -13,7 +13,7 @@ const emit = defineEmits<{
 const makeFormState = (dept: Doc<"debts">) => ({
   name: dept.creditor,
   amount: dept.payment,
-  priority: dept.isPriority,
+  isPriority: dept.isPriority,
 });
 
 const formState = ref(makeFormState(props.depts));
@@ -31,13 +31,13 @@ watch(
 );
 
 async function handleSubmit() {
-  const { name, amount, priority } = formState.value;
+  const { name, amount, isPriority } = formState.value;
 
   await mutate({
     id: props.depts._id,
     creditor: name,
     payment: amount,
-    priority,
+    priority: isPriority,
   });
 
 
