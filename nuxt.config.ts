@@ -1,32 +1,31 @@
-
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import tailwindcss from "@tailwindcss/vite";
+
 export default defineNuxtConfig({
-  compatibilityDate: '2025-07-15',
+  compatibilityDate: "2025-07-15",
   devtools: { enabled: true },
-  modules: [
-    '@nuxt/test-utils',
-    'convex-nuxt',
-    '@clerk/nuxt',
-    '@nuxthub/core'
-  ],
-  css: ['~/assets/css/main.css'],
+  modules: ["@nuxt/test-utils", "convex-nuxt", "@clerk/nuxt", "@nuxthub/core"],
+  vite: {
+    plugins: [tailwindcss()],
+  },
+  css: ["~/assets/css/main.css"],
   runtimeConfig: {
     // server only
-    clerkSecretKey: '',
-    convexDeployment: '',
+    clerkSecretKey: "",
+    convexDeployment: "",
     public: {
-      clerkPublishableKey: '',
-      convexUrl: '',
-    }
+      clerkPublishableKey: "",
+      convexUrl: "",
+    },
   },
   $development: {
     convex: {
-      url: 'https://hip-caribou-985.convex.cloud',
+      url: "https://hip-caribou-985.convex.cloud",
     },
   },
   $production: {
     convex: {
-      url: 'https://tidy-fox-761.convex.cloud',
+      url: "https://tidy-fox-761.convex.cloud",
     },
-  }
-})
+  },
+});

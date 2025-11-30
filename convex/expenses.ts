@@ -132,7 +132,9 @@ export const createExpense = mutation({
       amount: args.amount,
       date: args.date,
     });
-    return newExpense;
+    return {
+      success: true,
+    };
   },
 });
 

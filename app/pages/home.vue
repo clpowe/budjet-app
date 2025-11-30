@@ -1,39 +1,34 @@
 <script setup lang="ts">
 import { api } from "../../convex/_generated/api";
 
-const { appDay, setDate } = useDate()
+const { appDay, setDate } = useDate();
 
-const { data: user, isPending } = useConvexQuery(api.users.getCurrentUser, {})
+const { data: user, isPending } = useConvexQuery(api.users.getCurrentUser, {});
 
-const { total, totalToday, burn_rate, variance, currentPosition } = useExpenses()
-const { windfallTotal } = useWindfall()
+const { total, totalToday, burn_rate, variance, currentPosition } =
+  useExpenses();
 
-setDate(new Date())
+const { windfallTotal } = useWindfall();
 
+setDate(new Date());
 
-const { data: totalPayment } = useConvexQuery(
-  api.depts.getTotalPayment, {}
-)
+const { data: totalPayment } = useConvexQuery(api.depts.getTotalPayment, {});
 
 const left_to_spend = computed(() => {
-  return (45 * 30) - (total.value ?? 0)
-})
-
+  return 45 * 30 - (total.value ?? 0);
+});
 </script>
-
 
 <template>
   <div>
-    <div v-if="isPending && !user?.householdId && total">
-      Loading...
-    </div>
+    <div v-if="isPending && !user?.householdId && total">Loading...</div>
     <div v-else>
       <div v-if="!user?.householdId">
         <complete-profile />
       </div>
 
-      <div v-else>
-        <div>
+      <div v-else class="container mx-auto p-4 space-y-8">
+        <div class="flex justify-between flex-wrap">
           <div>
             <div>
               {{ appDay }}
@@ -50,58 +45,61 @@ const left_to_spend = computed(() => {
             </div>
           </div>
         </div>
-
-        <div>
-          <div>
-            <h2>Money left to spend Today</h2>{{ formatMoney(currentPosition ?? 0) }}
-          </div>
-          <div>
-            <h2>Spent Today</h2>
-          </div>
-          {{ formatMoney(totalToday ?? 0) }}
-          <div>
-            <div>
-              <div>
-                <p>Burn Rate</p>
+        <app-main-card
+          title="Budget Overview"
+          subtitle="Your current budget status"
+          :amount="currentPosition"
+        >
+          <template #items>
+            <mini-card title="Spent Today" :amount="totalToday" />
+            <mini-card title="Burn Rate" :amount="burn_rate" />
+            <mini-card title="Variance" :amount="variance" />
+            <mini-card title="Daily Budget" :amount="45" />
+          </template>
+          <template #actions>
+            <div class="drawer drawer-end w-full">
+              <input
+                id="my-drawer-5"
+                type="checkbox"
+                class="drawer-toggle w-full"
+              />
+              <div class="drawer-content">
+                <label for="my-drawer-5" class="drawer-button btn btn-primary"
+                  >Add transaction</label
+                >
               </div>
-              {{ formatMoney(burn_rate ?? 0) }}
-            </div>
-            <div>
-              <div>
-                <p>Variance</p>
-              </div>
-              {{ formatMoney(variance ?? 0) }}
-            </div>
-            <div>
-              <div>
-                <p>Daily Budget</p>
-              </div>
-              {{ formatMoney(45) }}
-            </div>
-
-          </div>
-          <div>
-            <div>
-              <div>
-                <div>
+              <div class="drawer-side">
+                <label
+                  for="my-drawer-5"
+                  aria-label="close sidebar"
+                  class="drawer-overlay"
+                ></label>
+                <ul class="menu bg-base-200 min-h-full w-80 p-4">
                   <expenses-add />
-                </div>
+                </ul>
               </div>
-              <NuxtLink to="/today">Show todays Spending</NuxtLink>
             </div>
-          </div>
-        </div>
-
-        <div>
-          <h2>Extra Dollars</h2>{{ formatMoney(windfallTotal ?? 0) }}
-          <div>
-            <NuxtLink to="/windfall">Show Extra Dollars</NuxtLink>
-          </div>
-        </div>
-
-        <div>
-          <h2>Snowball</h2>{{ formatMoney(totalPayment ?? 0) }}
-          <NuxtLink to="/mydepts">Show Depts</NuxtLink>
+            <NuxtLink to="/today">Show todays Spending</NuxtLink>
+          </template>
+        </app-main-card>
+        <div class="flex gap-4">
+          <app-main-card
+            class="basis-1/2"
+            title="Windfall"
+            :amount="windfallTotal"
+          >
+            <template #actions>
+              <app-drawer title="windfall-drawer" label="Add Windfall">
+                <windfall-add />
+              </app-drawer>
+            </template>
+          </app-main-card>
+          <app-main-card
+            class="basis-1/2"
+            title="Snowball"
+            :amount="totalPayment"
+          >
+          </app-main-card>
         </div>
       </div>
     </div>
