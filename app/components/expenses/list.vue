@@ -28,7 +28,11 @@ function onExpenseUpdated(id: string) {
         <td>{{ formatMoney(item.amount) }}</td>
         <td class="flex gap-2">
           <button @click="onDelete(item._id)" class="btn btn-circle">
-            <Icon name="i-material-symbols:delete-forever-outline-rounded" />
+            <Icon
+              name="i-material-symbols:delete-forever-outline-rounded"
+              size="24"
+              class="text-red-500/30"
+            />
           </button>
           <div class="drawer drawer-end w-full">
             <input

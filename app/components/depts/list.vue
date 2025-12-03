@@ -6,6 +6,8 @@ async function onDeptUpdated(id: Id<"debts">, value: boolean) {
   if (!id) return;
   await update({ id, isPriority: !value });
 }
+
+
 </script>
 
 <template>
@@ -39,7 +41,7 @@ async function onDeptUpdated(id: Id<"debts">, value: boolean) {
         <td>{{ item.creditor }}</td>
 
         <td>{{ formatMoney(item.payment) }}</td>
-        <td class="flex gap-2">
+        <td class="flex gap-12">
           <div class="drawer drawer-end w-full">
             <input
               :id="item._id"
@@ -65,6 +67,13 @@ async function onDeptUpdated(id: Id<"debts">, value: boolean) {
               </div>
             </div>
           </div>
+          <button @click="onDelete(item._id)" class="btn btn-circle">
+            <Icon
+              name="i-material-symbols:delete-forever-outline-rounded"
+              size="24"
+              class="text-red-500/30"
+            />
+          </button>
         </td>
       </tr>
     </tbody>
