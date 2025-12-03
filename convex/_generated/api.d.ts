@@ -11,6 +11,7 @@
 import type * as depts from "../depts.js";
 import type * as expenses from "../expenses.js";
 import type * as households from "../households.js";
+import type * as lib_helpers from "../lib/helpers.js";
 import type * as users from "../users.js";
 import type * as windfall from "../windfall.js";
 
@@ -32,6 +33,7 @@ declare const fullApi: ApiFromModules<{
   depts: typeof depts;
   expenses: typeof expenses;
   households: typeof households;
+  "lib/helpers": typeof lib_helpers;
   users: typeof users;
   windfall: typeof windfall;
 }>;

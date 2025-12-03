@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
-import type { QueryCtx, MutationCtx } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import { getHouseholdId } from "./lib/helpers";
 
 // -------------------------
 // QUERIES
@@ -132,6 +131,11 @@ export const createExpense = mutation({
       amount: args.amount,
       date: args.date,
     });
+
+    if (!newExpense) {
+      throw new Error("Failed to create expense");
+    }
+
     return {
       success: true,
     };
@@ -172,19 +176,3 @@ export const deleteExpense = mutation({
     return { success: true };
   },
 });
-
-async function getHouseholdId(
-  ctx: QueryCtx | MutationCtx,
-  identity: { subject: string },
-): Promise<Id<"households">> {
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-    .first();
-
-  if (!user || !user.householdId) {
-    throw new Error("User is not in a household");
-  }
-
-  return user.householdId;
-}

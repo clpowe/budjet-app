@@ -1,3 +1,5 @@
+<script setup lang="ts"></script>
+
 <template>
   <header class="flex justify-between">
     <NuxtLink to="/home"> Home </NuxtLink>

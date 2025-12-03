@@ -14,11 +14,10 @@ function onExpenseUpdated(id: string) {
 </script>
 
 <template>
-  <table>
+  <table class="table">
     <thead>
       <tr>
-        <th>Name</th>
-        <th>Notes</th>
+        <th class="w-full">Name</th>
         <th>Value</th>
         <th>Actions</th>
       </tr>
@@ -26,13 +25,35 @@ function onExpenseUpdated(id: string) {
     <tbody>
       <tr v-for="item in expenses" :key="item._id">
         <td>{{ item.name }}</td>
-        <td>{{ item.notes }}</td>
         <td>{{ formatMoney(item.amount) }}</td>
-        <td>
-          <button @click="onDelete(item._id)">Delete</button>
-          <button :popovertarget="item._id">Edit</button>
-          <div :id="item._id" popover>
-            <lazy-expenses-edit :expense="item" @updated="onExpenseUpdated" />
+        <td class="flex gap-2">
+          <button @click="onDelete(item._id)" class="btn btn-circle">
+            <Icon name="i-material-symbols:delete-forever-outline-rounded" />
+          </button>
+          <div class="drawer drawer-end w-full">
+            <input
+              :id="item._id"
+              type="checkbox"
+              class="drawer-toggle w-full"
+            />
+            <div class="drawer-content">
+              <label :for="item._id" class="drawer-button btn btn-circle">
+                <Icon name="i-material-symbols:edit-square-outline-rounded" />
+              </label>
+            </div>
+            <div class="drawer-side">
+              <label
+                :for="item._id"
+                aria-label="close sidebar"
+                class="drawer-overlay"
+              ></label>
+              <div class="menu bg-base-200 min-h-full w-80 p-4">
+                <lazy-expenses-edit
+                  :expense="item"
+                  @updated="onExpenseUpdated"
+                />
+              </div>
+            </div>
           </div>
         </td>
       </tr>

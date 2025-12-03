@@ -42,9 +42,9 @@ export default defineSchema({
 
   // 5. Debts (was 'snowball')
   debts: defineTable({
-    creditor: v.string(), // Renamed 'name' -> 'creditor' (who you owe)
-    isPriority: v.boolean(), // Renamed 'snowball' -> 'isPriority'
+    creditor: v.string(),
+    isPriority: v.boolean(),
     householdId: v.id("households"),
-    payment: v.number(), // Renamed 'amount' -> 'balance' (outstanding debt)
+    payment: v.number(),
   }).index("by_household", ["householdId"]),
 });

@@ -15,7 +15,7 @@ setDate(new Date());
 const { data: totalPayment } = useConvexQuery(api.depts.getTotalPayment, {});
 
 const left_to_spend = computed(() => {
-  return 45 * 30 - (total.value ?? 0);
+  return 50 * 30 - (total.value ?? 0);
 });
 </script>
 
@@ -54,7 +54,7 @@ const left_to_spend = computed(() => {
             <mini-card title="Spent Today" :amount="totalToday" />
             <mini-card title="Burn Rate" :amount="burn_rate" />
             <mini-card title="Variance" :amount="variance" />
-            <mini-card title="Daily Budget" :amount="45" />
+            <mini-card title="Daily Budget" :amount="50" />
           </template>
           <template #actions>
             <div class="drawer drawer-end w-full">
@@ -92,6 +92,7 @@ const left_to_spend = computed(() => {
               <app-drawer title="windfall-drawer" label="Add Windfall">
                 <windfall-add />
               </app-drawer>
+              <NuxtLink to="/windfall">Show Windfall</NuxtLink>
             </template>
           </app-main-card>
           <app-main-card
@@ -99,6 +100,12 @@ const left_to_spend = computed(() => {
             title="Snowball"
             :amount="totalPayment"
           >
+            <template #actions>
+              <app-drawer title="snowball-drawer" label="Add Dept">
+                <depts-add />
+              </app-drawer>
+              <NuxtLink to="/mydepts">Show Depts</NuxtLink>
+            </template>
           </app-main-card>
         </div>
       </div>

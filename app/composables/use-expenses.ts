@@ -9,8 +9,13 @@ export function useExpenses() {
     to: queryDayBounds.value.to,
   }));
 
-  const { data: expenses } = useConvexQuery(api.expenses.listMyExpenses, params);
-  const { mutate: deleteExpense } = useConvexMutation(api.expenses.deleteExpense);
+  const { data: expenses } = useConvexQuery(
+    api.expenses.listMyExpenses,
+    params,
+  );
+  const { mutate: deleteExpense } = useConvexMutation(
+    api.expenses.deleteExpense,
+  );
 
   const { data: total } = useConvexQuery(
     api.expenses.getMyTotal,
@@ -18,31 +23,42 @@ export function useExpenses() {
       from: queryMonthBounds.value.from,
       to: queryMonthBounds.value.to,
     })),
-  )
+  );
 
   const { data: currentPosition } = useConvexQuery(
     api.expenses.getMyCurrentPosition,
     computed(() => ({
       from: queryDayBounds.value.from,
       to: queryDayBounds.value.to,
-      allowance: 45,
+      allowance: 50,
     })),
-  )
+  );
 
   const totalToday = computed(() => {
     return expenses.value?.reduce((acc, curr) => acc + curr.amount, 0) ?? 0;
-  })
+  });
 
   const burn_rate = computed(() => {
-    return total.value! / elapsedDays.value
-  })
+    if (!elapsedDays.value || elapsedDays.value <= 0) {
+      return 0;
+    }
+    return (totalToday.value ?? 0) / elapsedDays.value;
+  });
 
   const variance = computed(() => {
-    return (45 * elapsedDays.value) - total.value!
-  })
+    return 50 * elapsedDays.value - (total.value ?? 0);
+  });
 
   const remove = (id: Doc<"expenses">["_id"]) =>
     deleteExpense({ expenseId: id });
 
-  return { total, expenses, totalToday, burn_rate, variance, currentPosition, remove };
+  return {
+    total,
+    expenses,
+    totalToday,
+    burn_rate,
+    variance,
+    currentPosition,
+    remove,
+  };
 }

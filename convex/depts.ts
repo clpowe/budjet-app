@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { getHouseholdId } from "./lib/helpers";
 
 // -------------------------
 // QUERIES
@@ -10,10 +11,12 @@ export const listMyDepts = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
-    const user = await ctx.db.query("users").withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject)).first()
 
-    return await ctx.db.query("debts")
-      .withIndex("by_household", (q) => q.eq("householdId", user?.householdId!))
+    const householdId = await getHouseholdId(ctx, identity);
+
+    return await ctx.db
+      .query("debts")
+      .withIndex("by_household", (q) => q.eq("householdId", householdId))
       .collect();
   },
 });
@@ -23,12 +26,13 @@ export const getTotalPayment = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
-    const user = await ctx.db.query("users").withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject)).first()
+    const householdId = await getHouseholdId(ctx, identity);
 
     const spending = await ctx.db
       .query("debts")
-      .withIndex("by_household", (q) => q.eq("householdId", user?.householdId!))
-      .filter((q) => q.eq(q.field("isPriority"), true)).collect();
+      .withIndex("by_household", (q) => q.eq("householdId", householdId))
+      .filter((q) => q.eq(q.field("isPriority"), true))
+      .collect();
 
     return spending.reduce((acc, curr) => acc + curr.payment, 0);
   },
@@ -58,3 +62,31 @@ export const updateDebt = mutation({
   },
 });
 
+export const createDebt = mutation({
+  args: {
+    creditor: v.string(),
+    payment: v.number(),
+    isPriority: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const householdId = await getHouseholdId(ctx, identity);
+
+    const newDebt = await ctx.db.insert("debts", {
+      creditor: args.creditor,
+      payment: args.payment,
+      isPriority: args.isPriority,
+      householdId: householdId,
+    });
+
+    if (!newDebt) {
+      throw new Error("Failed to create expense");
+    }
+
+    return {
+      success: true,
+    };
+  },
+});

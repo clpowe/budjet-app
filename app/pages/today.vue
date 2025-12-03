@@ -1,63 +1,46 @@
 <script setup lang="ts">
-import { api } from "../../convex/_generated/api";
-
-const { currentDate, queryDayBounds, queryMonthBounds, appDay, elapsedDays, backDay, forwardDay } = useDate()
+const { currentDate } = useDate();
 
 onMounted(() => {
-  currentDate.value = new Date()
-})
+  currentDate.value = new Date();
+});
 
-const { data: currentPosition, suspense } = useConvexQuery(
-  api.expenses.getMyTotal,
-  computed(() => ({
-    from: queryDayBounds.value.from,
-    to: queryDayBounds.value.to,
-  })),
-)
-
-
-const { data: total } = useConvexQuery(
-  api.expenses.getMyTotal,
-  computed(() => ({
-    from: queryMonthBounds.value.from,
-    to: queryMonthBounds.value.to,
-  })
-  ))
-
-const burn_rate = computed(() => {
-  return total.value! / elapsedDays.value
-})
-
-const variance = computed(() => {
-  return (45 * elapsedDays.value) - total.value!
-})
-
+const { totalToday, burn_rate, variance, currentPosition } = useExpenses();
 </script>
 
 <template>
-  <div>
-
-    <button @click="backDay">back</button>
-    <div>
-      {{ appDay }}
+  <div class="px-4 container mx-auto space-y-8">
+    <app-main-card
+      title="Budget Overview"
+      subtitle="Your current budget status"
+      :amount="currentPosition!"
+    >
+      <template #items>
+        <mini-card title="Spent Today" :amount="totalToday" />
+        <mini-card title="Burn Rate" :amount="burn_rate" />
+        <mini-card title="Variance" :amount="variance" />
+        <mini-card title="Daily Budget" :amount="50" />
+      </template>
+      <template #actions> </template>
+    </app-main-card>
+    <div class="drawer drawer-end w-full">
+      <input id="my-drawer-5" type="checkbox" class="drawer-toggle w-full" />
+      <div class="drawer-content">
+        <label for="my-drawer-5" class="drawer-button btn btn-primary"
+          >Add transaction</label
+        >
+      </div>
+      <div class="drawer-side">
+        <label
+          for="my-drawer-5"
+          aria-label="close sidebar"
+          class="drawer-overlay"
+        ></label>
+        <ul class="menu bg-base-200 min-h-full w-80 p-4">
+          <expenses-add />
+        </ul>
+      </div>
     </div>
-    <button @click="forwardDay">forward</button>
-    <div>
-      <h2>Spent Today</h2>{{ formatMoney(currentPosition ?? 0) }}
-      <div>
-        <p>Burn Rate</p>
-        {{ formatMoney(burn_rate ?? 0) }}
-      </div>
-      <div>
-        <p>Variance</p>
-        {{ formatMoney(variance ?? 0) }}
-      </div>
-      <div>
-        <p>Daily Budget</p>
-        {{ formatMoney(45) }}
-      </div>
-    </div>
-    <expenses-add />
     <expenses-list />
   </div>
 </template>

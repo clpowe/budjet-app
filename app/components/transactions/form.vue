@@ -25,7 +25,7 @@ const emit = defineEmits<{
 // Local computed "fields" that proxy into modelValue
 const updateField = <K extends keyof typeof props.modelValue>(
   key: K,
-  value: (typeof props.modelValue)[K]
+  value: (typeof props.modelValue)[K],
 ) => {
   emit("update:modelValue", {
     ...props.modelValue,
@@ -42,38 +42,65 @@ const onSubmit = () => {
   <form @submit.prevent="onSubmit">
     <label>
       Name
-      <input :value="modelValue.name" @input="updateField('name', ($event.target as HTMLInputElement).value)" />
+      <input
+        :value="modelValue.name"
+        @input="updateField('name', ($event.target as HTMLInputElement).value)"
+        class="input"
+      />
     </label>
 
     <label v-if="modelValue.notes !== undefined">
       Notes
-      <textarea :value="modelValue.notes" @input="updateField('notes', ($event.target as HTMLTextAreaElement).value)" />
+      <textarea
+        :value="modelValue.notes"
+        @input="
+          updateField('notes', ($event.target as HTMLTextAreaElement).value)
+        "
+        class="input"
+      />
     </label>
 
     <label>
       Amount
-      <input type="number" step="0.01" :value="modelValue.amount" @input="
-        updateField(
-          'amount',
-          Number(($event.target as HTMLInputElement).value || 0)
-        )
-        " />
+      <input
+        type="number"
+        step="0.01"
+        :value="modelValue.amount"
+        @input="
+          updateField(
+            'amount',
+            Number(($event.target as HTMLInputElement).value || 0),
+          )
+        "
+        class="input"
+      />
     </label>
 
     <label>
       Priority
-      <input :checked="modelValue.isPriority" type="checkbox"
-        @change="updateField('isPriority', ($event.target as HTMLInputElement).checked)">
+      <input
+        :checked="modelValue.isPriority"
+        type="checkbox"
+        @change="
+          updateField('isPriority', ($event.target as HTMLInputElement).checked)
+        "
+        class="checkbox"
+      />
     </label>
 
     <label v-if="showDate">
       Date
-      <input type="date" :value="modelValue.date ?? ''" @input="
-        updateField('date', ($event.target as HTMLInputElement).value || null)
-        " />
+      <input
+        type="date"
+        :value="modelValue.date ?? ''"
+        @input="
+          updateField('date', ($event.target as HTMLInputElement).value || null)
+        "
+        class=""
+      />
     </label>
 
-    <button type="submit">
+    <button type="submit" class="btn btn-primary">
       {{ submitLabel || "Save" }}
     </button>
   </form>
