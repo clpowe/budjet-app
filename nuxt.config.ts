@@ -4,7 +4,14 @@ import tailwindcss from "@tailwindcss/vite";
 export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   devtools: { enabled: true },
-  modules: ["@nuxt/test-utils", "convex-nuxt", "@clerk/nuxt", "@nuxthub/core", "@nuxt/icon"],
+  modules: [
+    "@nuxt/test-utils/module",
+    "@nuxt/test-utils",
+    "convex-nuxt",
+    "@clerk/nuxt",
+    "@nuxthub/core",
+    "@nuxt/icon",
+  ],
   vite: {
     plugins: [tailwindcss()],
   },

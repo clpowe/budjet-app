@@ -28,15 +28,17 @@ const left_to_spend = computed(() => {
     <div class="container mx-auto p-4 space-y-8">
       <div class="flex justify-between flex-wrap">
         <div>
-          <div>
+          <p class="text-2xl font-bold">
             {{ appDay }}
-          </div>
+          </p>
         </div>
         <div>
-          <div v-if="total">
+          <p v-if="total" class="text-2xl font-bold">
             {{ formatMoney(total) }}<br />
-            total spent
-          </div>
+            <span class="text-base-content font-normal text-base">
+              total spent
+            </span>
+          </p>
           <div>
             {{ formatMoney(left_to_spend) }}<br />
             left to spend
