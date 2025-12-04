@@ -39,10 +39,10 @@ export function useExpenses() {
   });
 
   const burn_rate = computed(() => {
-    if (!elapsedDays.value || elapsedDays.value <= 0) {
+    if (!elapsedDays.value || !total.value) {
       return 0;
     }
-    return (totalToday.value ?? 0) / elapsedDays.value;
+    return total.value / elapsedDays.value;
   });
 
   const variance = computed(() => {
