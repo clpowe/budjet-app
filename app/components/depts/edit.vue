@@ -1,50 +1,40 @@
 <script setup lang="ts">
-import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
 
 const props = defineProps<{
   depts: Doc<"debts">;
 }>();
 
-const emit = defineEmits<{
-  (e: "updated", id: Doc<"debts">["_id"]): void;
-}>();
+const emit = defineEmits<(e: "updated", id: Doc<"debts">["_id"]) => void>();
 
 const makeFormState = (dept: Doc<"debts">) => ({
   name: dept.creditor,
   amount: dept.payment,
-  isPriority: dept.isPriority,
 });
 
 const formState = ref(makeFormState(props.depts));
+const { update } = useDepts();
 
-const { mutate } = useConvexMutation(
-  api.depts.updateDept)
-
-watch(
-  () => props.depts,
-  (updated) => {
-    if (!updated) return;
-    formState.value = makeFormState(updated);
-  },
-  { deep: true }
-);
-
+// biome-ignore lint/correctness/noUnusedVariables: used as submit handler in template
 async function handleSubmit() {
-  const { name, amount, isPriority } = formState.value;
+  const { name, amount } = formState.value;
 
-  await mutate({
+  await update({
     id: props.depts._id,
     creditor: name,
     payment: amount,
-    priority: isPriority,
   });
-
 
   emit("updated", props.depts._id);
 }
 </script>
 
 <template>
-  <transactions-form v-model="formState" :show-date="false" submit-label="Update" @submit="handleSubmit" />
+  <transactions-form
+    v-model="formState"
+    :show-date="false"
+    :show-priority="false"
+    submit-label="Update"
+    @submit="handleSubmit"
+  />
 </template>

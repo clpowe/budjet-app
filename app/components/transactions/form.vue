@@ -14,13 +14,14 @@ const props = defineProps<{
     date?: string | null;
   };
   showDate?: boolean;
+  showPriority?: boolean;
   submitLabel?: string;
 }>();
 
-const emit = defineEmits<{
-  (e: "update:modelValue", value: typeof props.modelValue): void;
-  (e: "submit"): void;
-}>();
+const emit = defineEmits<
+  ((e: "update:modelValue", value: typeof props.modelValue) => void) &
+    ((e: "submit") => void)
+>();
 
 // Local computed "fields" that proxy into modelValue
 const updateField = <K extends keyof typeof props.modelValue>(
@@ -36,6 +37,8 @@ const updateField = <K extends keyof typeof props.modelValue>(
 const onSubmit = () => {
   emit("submit");
 };
+
+const showPriority = computed(() => props.showPriority ?? true);
 </script>
 
 <template>
@@ -76,7 +79,7 @@ const onSubmit = () => {
       />
     </label>
 
-    <label>
+    <label v-if="showPriority">
       Priority
       <input
         :checked="modelValue.isPriority"

@@ -90,3 +90,17 @@ export const createDebt = mutation({
     };
   },
 });
+
+export const deleteDepts = mutation({
+  args: {
+    id: v.id("debts"),
+  },
+  handler: async (ctx, args) => {
+    const debt = await ctx.db.get(args.id);
+    if (!debt) throw new Error("Debt not found");
+
+    await ctx.db.delete(args.id);
+
+    return { success: true };
+  },
+});

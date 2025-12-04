@@ -7,9 +7,7 @@ const props = defineProps<{
   expense: Doc<"expenses">;
 }>();
 
-const emit = defineEmits<{
-  (e: "updated", id: Doc<"expenses">["_id"]): void;
-}>();
+const emit = defineEmits<(e: "updated", id: Doc<"expenses">["_id"]) => void>();
 
 // Build the initial form state
 const makeFormState = (expense: Doc<"expenses">) => ({
@@ -34,7 +32,7 @@ watch(
     if (!updated) return;
     formState.value = makeFormState(updated);
   },
-  { deep: true }
+  { deep: true },
 );
 
 async function handleSubmit() {
@@ -53,5 +51,10 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <transactions-form v-model="formState" :show-date="true" submit-label="Update Spending" @submit="handleSubmit" />
+  <transactions-form
+    v-model="formState"
+    :show-date="true"
+    submit-label="Update Spending"
+    @submit="handleSubmit"
+  />
 </template>

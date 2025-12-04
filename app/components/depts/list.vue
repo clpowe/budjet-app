@@ -1,13 +1,32 @@
 <script setup lang="ts">
-const { depts, update } = useDepts();
 import type { Id } from "../../../convex/_generated/dataModel";
 
-async function onDeptUpdated(id: Id<"debts">, value: boolean) {
+// biome-ignore lint/correctness/noUnusedVariables: used by template click handler
+const { depts, update, remove } = useDepts();
+
+const drawerToggles = ref<HTMLInputElement[]>([]);
+
+// biome-ignore lint/correctness/noUnusedVariables: used by template click handler
+async function onPriorityToggle(id: Id<"debts">, value: boolean) {
   if (!id) return;
-  await update({ id, isPriority: !value });
+  await update({ id, isPriority: value });
 }
 
+function closeDrawer(id: Id<"debts">) {
+  const toggle = drawerToggles.value.find((el) => el?.id === id);
+  if (toggle) toggle.checked = false;
+}
 
+// biome-ignore lint/correctness/noUnusedVariables: used by template click handler
+function onEditSaved(id: Id<"debts">) {
+  if (!id) return;
+  closeDrawer(id);
+}
+
+// biome-ignore lint/correctness/noUnusedVariables: used by template click handler
+function onDelete(id: Id<"debts">) {
+  remove({ id });
+}
 </script>
 
 <template>
@@ -23,7 +42,7 @@ async function onDeptUpdated(id: Id<"debts">, value: boolean) {
     <tbody>
       <tr v-for="item in depts" :key="item._id">
         <td>
-          <button @click="onDeptUpdated(item._id, item.isPriority)">
+          <button @click="onPriorityToggle(item._id, !item.isPriority)">
             <Icon
               v-if="item.isPriority"
               name="lucide:circle-check"
@@ -44,6 +63,7 @@ async function onDeptUpdated(id: Id<"debts">, value: boolean) {
         <td class="flex gap-12">
           <div class="drawer drawer-end w-full">
             <input
+              ref="drawerToggles"
               :id="item._id"
               type="checkbox"
               class="drawer-toggle w-full"
@@ -63,7 +83,7 @@ async function onDeptUpdated(id: Id<"debts">, value: boolean) {
                 class="drawer-overlay"
               ></label>
               <div class="menu bg-base-200 min-h-full w-80 p-4">
-                <lazy-dept-edit :dept="item" @updated="onDeptUpdated" />
+                <lazy-depts-edit :depts="item" @updated="onEditSaved" />
               </div>
             </div>
           </div>

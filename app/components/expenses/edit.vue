@@ -7,9 +7,7 @@ const props = defineProps<{
   expense: Doc<"expenses">;
 }>();
 
-const emit = defineEmits<{
-  (e: "updated", id: Doc<"expenses">["_id"]): void;
-}>();
+const emit = defineEmits<(e: "updated", id: Doc<"expenses">["_id"]) => void>();
 
 // Build the initial form state
 const makeFormState = (expense: Doc<"expenses">) => ({
@@ -34,9 +32,10 @@ watch(
     if (!updated) return;
     formState.value = makeFormState(updated);
   },
-  { deep: true }
+  { deep: true },
 );
 
+// biome-ignore lint/correctness/noUnusedVariables: used as submit handler in template
 async function handleSubmit() {
   const { name, notes, amount, date } = formState.value;
 
@@ -45,7 +44,7 @@ async function handleSubmit() {
     name,
     notes,
     amount,
-    date: new Date(tzDate(date!, "America/New_York")).getTime(),
+    date: new Date(tzDate(date, "America/New_York")).getTime(),
   });
 
   emit("updated", props.expense._id);
@@ -53,5 +52,10 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <transactions-form v-model="formState" :show-date="true" submit-label="Update" @submit="handleSubmit" />
+  <transactions-form
+    v-model="formState"
+    :show-date="true"
+    submit-label="Update"
+    @submit="handleSubmit"
+  />
 </template>

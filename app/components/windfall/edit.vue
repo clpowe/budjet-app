@@ -6,9 +6,7 @@ const props = defineProps<{
   windfall: Doc<"windfall">;
 }>();
 
-const emit = defineEmits<{
-  (e: "updated", id: Doc<"windfall">["_id"]): void;
-}>();
+const emit = defineEmits<(e: "updated", id: Doc<"windfall">["_id"]) => void>();
 
 const makeFormState = (windfall: Doc<"windfall">) => ({
   name: windfall.source,
@@ -20,9 +18,7 @@ const makeFormState = (windfall: Doc<"windfall">) => ({
 
 const formState = ref(makeFormState(props.windfall));
 
-const { mutate: editWindfall } = useConvexMutation(
-  api.windfall.updateWindfall
-);
+const { mutate: editWindfall } = useConvexMutation(api.windfall.updateWindfall);
 
 watch(
   () => props.windfall,
@@ -30,7 +26,7 @@ watch(
     if (!updated) return;
     formState.value = makeFormState(updated);
   },
-  { deep: true }
+  { deep: true },
 );
 
 async function handleSubmit() {
@@ -49,5 +45,10 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <transactions-form v-model="formState" :show-date="false" submit-label="Update" @submit="handleSubmit" />
+  <transactions-form
+    v-model="formState"
+    :show-date="false"
+    submit-label="Update"
+    @submit="handleSubmit"
+  />
 </template>
