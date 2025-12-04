@@ -1,9 +1,5 @@
-<script setup lang="ts">
-definePageMeta({
-  middleware: ['onboarding-client'],
-});
-</script>
+<script setup lang="ts"></script>
 
 <template>
-  <SignUp />
+  <SignUp afterSignUpUrl="/home" afterSignInUrl="/home" />
 </template>

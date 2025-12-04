@@ -23,14 +23,20 @@ const windfallSplit = computed(() => {
 </script>
 
 <template>
-  <div class="tables">
-    <div v-for="(items, key) in windfallSplit">
-      {{ key }}
-      <table>
+  <div class="flex flex-wrap gap-8 w-full">
+    <div
+      v-for="(items, key) in windfallSplit"
+      :key="key"
+      class="space-y-2 flex-1 min-w-[280px]"
+    >
+      <div class="text-sm uppercase tracking-wide text-gray-500">
+        {{ key === "income" ? "Income" : "Outflows" }}
+      </div>
+      <table class="table w-full">
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Amount</th>
+            <th class="w-full">Name</th>
+            <th>Value</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -38,14 +44,41 @@ const windfallSplit = computed(() => {
           <tr v-for="item in items" :key="item._id">
             <td>{{ item.source }}</td>
             <td>{{ formatMoney(item.amount) }}</td>
-            <td>
-              <button @click="onDelete(item._id)">Delete</button>
-              <button :popovertarget="item._id">Edit</button>
-              <div :id="item._id" popover>
-                <lazy-windfall-edit
-                  :windfall="item"
-                  @updated="onWindfallUpdated"
+            <td class="flex gap-2">
+              <button @click="onDelete(item._id)" class="btn btn-circle">
+                <Icon
+                  name="i-material-symbols:delete-forever-outline-rounded"
+                  size="24"
+                  class="text-red-500/30"
                 />
+              </button>
+              <div class="drawer drawer-end w-full">
+                <input
+                  :id="item._id"
+                  type="checkbox"
+                  class="drawer-toggle w-full"
+                />
+                <div class="drawer-content">
+                  <label :for="item._id" class="drawer-button btn btn-circle">
+                    <Icon
+                      name="i-material-symbols:edit-square-outline-rounded"
+                      size="24"
+                    />
+                  </label>
+                </div>
+                <div class="drawer-side">
+                  <label
+                    :for="item._id"
+                    aria-label="close sidebar"
+                    class="drawer-overlay"
+                  ></label>
+                  <div class="menu bg-base-200 min-h-full w-80 p-4">
+                    <lazy-windfall-edit
+                      :windfall="item"
+                      @updated="onWindfallUpdated"
+                    />
+                  </div>
+                </div>
               </div>
             </td>
           </tr>
@@ -54,17 +87,3 @@ const windfallSplit = computed(() => {
     </div>
   </div>
 </template>
-
-<style scoped>
-.tables {
-  display: flex;
-  flex-wrap: wrap;
-  width: 100%;
-}
-
-tr {
-  width: 100%;
-  display: flex;
-  flex-wrap: wrap;
-}
-</style>

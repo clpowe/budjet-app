@@ -1,4 +1,9 @@
 <script setup lang="ts">
+definePageMeta({
+  middleware: ["auth"],
+  ssr: false,
+});
+
 const { currentDate } = useDate();
 
 onMounted(() => {

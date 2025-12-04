@@ -1,4 +1,9 @@
 <script setup lang="ts">
+definePageMeta({
+  middleware: ["auth"],
+  server: false,
+});
+
 const { totalPayment } = useDepts();
 </script>
 <template>

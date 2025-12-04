@@ -1,8 +1,4 @@
-<script setup lang="ts">
-definePageMeta({
-  middleware: ['onboarding-client'],
-});
-</script>
+<script setup lang="ts"></script>
 <template>
-  <SignIn oauthFlow="redirect" redirect="/complete-profile" />
+  <SignIn afterSignInUrl="/home" afterSignUpUrl="/home" />
 </template>

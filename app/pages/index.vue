@@ -1,5 +1,5 @@
 <script setup lang="ts"></script>
 
 <template>
-  <SignIn afterSignInUrl="/home" />
+  <SignIn afterSignInUrl="/home" afterSignUpUrl="/home" />
 </template>

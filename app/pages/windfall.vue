@@ -2,15 +2,27 @@
 import { api } from "../../convex/_generated/api";
 
 const { data } = useConvexQuery(api.windfall.getMyWindfallTotal);
+
+definePageMeta({
+  middleware: ["auth"],
+  ssr: false,
+});
 </script>
 
 <template>
   <div class="px-4 container mx-auto space-y-8">
-    <div>
-      <h2>Windfall</h2>
-      {{ formatMoney(data ?? 0) }}
-    </div>
-    <windfall-add />
+    <app-main-card
+      title="Windfall"
+      subtitle="One-off income and outflows"
+      :amount="data"
+    >
+      <template #actions>
+        <app-drawer title="windfall-add" label="Add Windfall">
+          <windfall-add drawer-id="windfall-add" />
+        </app-drawer>
+      </template>
+    </app-main-card>
+
     <windfall-list />
   </div>
 </template>

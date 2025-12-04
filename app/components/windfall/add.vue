@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { api } from "../../../convex/_generated/api";
-const { data: user, isPending: userLoading } = useConvexQuery(
-  api.users.getCurrentUser,
-  {},
-);
+
+const props = defineProps<{
+  drawerId?: string;
+}>();
+
+const { data: user } = useConvexQuery(api.users.getCurrentUser, {});
 
 const name = ref("");
 const notes = ref("");
@@ -12,13 +14,24 @@ const { mutate: add } = useConvexMutation(api.windfall.addWindfallTransaction);
 
 async function handleSubmit() {
   if (!user || !user.value?.householdId) return;
-  const res = await add({
+  await add({
     source: name.value,
     notes: notes.value,
     amount: value.value,
     householdId: user.value?.householdId,
   });
-  console.log(res);
+
+  // Reset form and close the drawer if provided.
+  name.value = "";
+  notes.value = "";
+  value.value = 0;
+
+  if (props.drawerId) {
+    const toggle = document.getElementById(
+      props.drawerId,
+    ) as HTMLInputElement | null;
+    if (toggle) toggle.checked = false;
+  }
 }
 </script>
 <template>
