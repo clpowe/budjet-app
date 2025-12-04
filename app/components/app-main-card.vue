@@ -1,8 +1,8 @@
 <script setup lang="ts">
 defineProps<{
   title: string;
-  subtitle: string;
-  amount: number;
+  subtitle?: string;
+  amount?: number;
 }>();
 </script>
 
@@ -12,8 +12,8 @@ defineProps<{
       <h2 class="card-title mx-auto text-3xl">{{ title }}</h2>
       <div class="grid gap-3">
         <div class="mx-auto text-center">
-          <p class="text-4xl font-bold">
-            {{ formatMoney(amount ?? 0) }}
+          <p v-if="amount" class="text-4xl font-bold">
+            {{ formatMoney(amount) }}
           </p>
           <p class="text-base-content">{{ subtitle }}</p>
         </div>

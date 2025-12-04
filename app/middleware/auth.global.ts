@@ -10,7 +10,7 @@ const homeRoute = "/home";
 
 export default defineNuxtRouteMiddleware((to) => {
   // Clerk composables are client-only; skip during SSR.
-  if (process.server) return;
+  if (import.meta.server) return;
 
   const { isLoaded, isSignedIn, sessionClaims } = useAuth();
 

@@ -5,7 +5,6 @@ const { data } = useConvexQuery(api.windfall.getMyWindfallTotal);
 
 definePageMeta({
   middleware: ["auth"],
-  ssr: false,
 });
 </script>
 

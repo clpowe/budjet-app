@@ -3,7 +3,6 @@ import { api } from "../../convex/_generated/api";
 
 definePageMeta({
   middleware: ["auth"],
-  server: false,
 });
 
 const { appDay, setDate } = useDate();
@@ -34,12 +33,12 @@ const left_to_spend = computed(() => {
           </div>
         </div>
         <div>
-          <div>
-            {{ formatMoney(total ?? 0) }}<br />
+          <div v-if="total">
+            {{ formatMoney(total) }}<br />
             total spent
           </div>
           <div>
-            {{ formatMoney(left_to_spend ?? 0) }}<br />
+            {{ formatMoney(left_to_spend) }}<br />
             left to spend
           </div>
         </div>
@@ -51,8 +50,8 @@ const left_to_spend = computed(() => {
       >
         <template #items>
           <mini-card title="Spent Today" :amount="totalToday" />
-          <mini-card title="Burn Rate" :amount="burn_rate" />
-          <mini-card title="Variance" :amount="variance" />
+          <mini-card indicator title="Burn Rate" :amount="burn_rate" />
+          <mini-card indicator title="Variance" :amount="variance" />
           <mini-card title="Daily Budget" :amount="50" />
         </template>
         <template #actions>
