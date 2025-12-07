@@ -7,9 +7,7 @@ definePageMeta({
 
 const { appDay, setDate } = useDate();
 
-const { data: user, isPending } = useConvexQuery(api.users.getCurrentUser, {});
-
-const { total, totalToday, burn_rate, variance, currentPosition } =
+const { total, totalToday, burn_rate, variance, currentPosition, dailyBudget } =
   useExpenses();
 
 const { windfallTotal } = useWindfall();
@@ -19,7 +17,7 @@ setDate(new Date());
 const { data: totalPayment } = useConvexQuery(api.depts.getTotalPayment, {});
 
 const left_to_spend = computed(() => {
-  return 50 * 30 - (total.value ?? 0);
+  return dailyBudget.value * 30 - (total.value ?? 0);
 });
 </script>
 
@@ -54,7 +52,6 @@ const left_to_spend = computed(() => {
           <mini-card title="Spent Today" :amount="totalToday" />
           <mini-card indicator title="Burn Rate" :amount="burn_rate" />
           <mini-card indicator title="Variance" :amount="variance" />
-          <mini-card title="Daily Budget" :amount="50" />
         </template>
         <template #actions>
           <div class="drawer drawer-end w-full">

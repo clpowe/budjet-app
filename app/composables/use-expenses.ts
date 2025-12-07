@@ -4,6 +4,8 @@ import type { Doc } from "../../convex/_generated/dataModel";
 export function useExpenses() {
   const { queryDayBounds, queryMonthBounds, elapsedDays } = useDate();
 
+  const dailyBudget = ref(50);
+
   const params = computed(() => ({
     from: queryDayBounds.value.from,
     to: queryDayBounds.value.to,
@@ -30,23 +32,39 @@ export function useExpenses() {
     computed(() => ({
       from: queryDayBounds.value.from,
       to: queryDayBounds.value.to,
-      allowance: 50,
+      allowance: dailyBudget.value,
     })),
   );
 
   const totalToday = computed(() => {
-    return expenses.value?.reduce((acc, curr) => acc + curr.amount, 0) ?? 0;
+    const value =
+      expenses.value?.reduce((acc, curr) => acc + curr.amount, 0) ?? 0;
+    const positive = value <= dailyBudget.value;
+    return {
+      value,
+      positive,
+    };
   });
 
   const burn_rate = computed(() => {
     if (!elapsedDays.value || !total.value) {
       return 0;
     }
-    return total.value / elapsedDays.value;
+    const value = total.value / elapsedDays.value;
+    const positive = value <= dailyBudget.value;
+    return {
+      value,
+      positive,
+    };
   });
 
   const variance = computed(() => {
-    return 50 * elapsedDays.value - (total.value ?? 0);
+    const value = dailyBudget.value * elapsedDays.value - (total.value ?? 0);
+    const positive = value >= 0;
+    return {
+      value,
+      positive,
+    };
   });
 
   const remove = (id: Doc<"expenses">["_id"]) =>
@@ -58,6 +76,7 @@ export function useExpenses() {
     totalToday,
     burn_rate,
     variance,
+    dailyBudget,
     currentPosition,
     remove,
   };

@@ -16,6 +16,7 @@ const useConvexMutationMock = vi.fn();
 
 vi.mock("#imports", () => ({
   computed,
+  ref,
   useDate: () => ({
     queryDayBounds: computed(() => ({ from: 0, to: 1 })),
     queryMonthBounds: computed(() => ({ from: 2, to: 3 })),
@@ -31,6 +32,7 @@ describe("useExpenses", () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.stubGlobal("computed", computed);
+    vi.stubGlobal("ref", ref);
     vi.stubGlobal("useDate", () => ({
       queryDayBounds: computed(() => ({ from: 0, to: 1 })),
       queryMonthBounds: computed(() => ({ from: 2, to: 3 })),
@@ -71,9 +73,10 @@ describe("useExpenses", () => {
     const composable = useExpenses();
 
     expect(composable.expenses.value).toEqual(expensesRef.value);
-    expect(composable.totalToday.value).toBe(6);
-    expect(composable.burn_rate.value).toBe(50);
-    expect(composable.variance.value).toBe(0);
+    expect(composable.totalToday.value).toEqual({ value: 6, positive: true });
+    expect(composable.burn_rate.value).toEqual({ value: 50, positive: true });
+    expect(composable.variance.value).toEqual({ value: 0, positive: true });
+    expect(composable.dailyBudget.value).toBe(50);
     expect(composable.currentPosition.value).toBe(5);
   });
 
