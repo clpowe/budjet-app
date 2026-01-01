@@ -51,7 +51,7 @@ async function handleSubmit() {
 
     <label>
       Value
-      <input v-model.number="value" step="0.01" type="number" class="input" />
+      <input v-model.number="value" type="text" class="input" />
     </label>
 
     <label class="input">
