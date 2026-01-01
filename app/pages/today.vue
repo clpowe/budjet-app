@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { dayStart } from "@formkit/tempo";
 definePageMeta({
   middleware: ["auth"],
 });
 
-const { currentDate } = useDate();
+const { currentDate, backDay, forwardDay, appDay } = useDate();
 
 onMounted(() => {
   currentDate.value = new Date();
@@ -14,6 +15,21 @@ const { totalToday, burn_rate, variance, currentPosition } = useExpenses();
 
 <template>
   <div class="px-4 container mx-auto space-y-8">
+    <div class="flex items-center justify-between pt-4">
+      <button @click="backDay" class="btn btn-circle btn-ghost">
+        <Icon name="i-heroicons-chevron-left" class="size-6" />
+      </button>
+      <div class="text-center">
+        <h1 class="text-2xl font-bold">{{ appDay }}</h1>
+      </div>
+      <button 
+        @click="forwardDay" 
+        class="btn btn-circle btn-ghost text-primary"
+        :disabled="dayStart(currentDate).getTime() >= dayStart(new Date()).getTime()"
+      >
+        <Icon name="i-heroicons-chevron-right" class="size-6" />
+      </button>
+    </div>
     <app-main-card
       title="Budget Overview"
       subtitle="Your current budget status"

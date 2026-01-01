@@ -52,8 +52,12 @@ export function useDate() {
     currentDate.value = addDay(currentDate.value, -1);
   }
   function forwardDay() {
-    if (currentDate.value.getDate() === new Date().getDate()) return;
-    if (currentDate.value === monthEnd(new Date())) return;
+    const today = dayStart(new Date());
+    const current = dayStart(currentDate.value);
+
+    // Prevent going past today
+    if (current.getTime() >= today.getTime()) return;
+
     currentDate.value = addDay(currentDate.value, 1);
   }
 
