@@ -46,5 +46,8 @@ export default defineSchema({
     isPriority: v.boolean(),
     householdId: v.id("households"),
     payment: v.number(),
-  }).index("by_household", ["householdId"]),
+    order: v.number(),
+  })
+    .index("by_household", ["householdId"])
+    .index("by_household_order", ["householdId", "order"]),
 });

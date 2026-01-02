@@ -5,6 +5,7 @@ export function useDepts() {
   const { data: totalPayment } = useConvexQuery(api.depts.getTotalPayment, {});
   const { mutate: update } = useConvexMutation(api.depts.updateDebt);
   const { mutate: remove } = useConvexMutation(api.depts.deleteDepts);
+  const { mutate: reorder } = useConvexMutation(api.depts.reorderDebts);
 
-  return { depts, totalPayment, update, remove };
+  return { depts, totalPayment, update, remove, reorder };
 }

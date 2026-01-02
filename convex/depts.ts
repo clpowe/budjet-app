@@ -16,7 +16,7 @@ export const listMyDepts = query({
 
     return await ctx.db
       .query("debts")
-      .withIndex("by_household", (q) => q.eq("householdId", householdId))
+      .withIndex("by_household_order", (q) => q.eq("householdId", householdId))
       .collect();
   },
 });
@@ -74,11 +74,22 @@ export const createDebt = mutation({
 
     const householdId = await getHouseholdId(ctx, identity);
 
+    const existingDebts = await ctx.db
+      .query("debts")
+      .withIndex("by_household", (q) => q.eq("householdId", householdId))
+      .collect();
+
+    const maxOrder = existingDebts.reduce(
+      (max, debt) => (debt.order > max ? debt.order : max),
+      0,
+    );
+
     const newDebt = await ctx.db.insert("debts", {
       creditor: args.creditor,
       payment: args.payment,
       isPriority: args.isPriority,
       householdId: householdId,
+      order: maxOrder + 1,
     });
 
     if (!newDebt) {
@@ -100,6 +111,29 @@ export const deleteDepts = mutation({
     if (!debt) throw new Error("Debt not found");
 
     await ctx.db.delete(args.id);
+
+    return { success: true };
+  },
+});
+
+export const reorderDebts = mutation({
+  args: {
+    updates: v.array(
+      v.object({
+        id: v.id("debts"),
+        order: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    await Promise.all(
+      args.updates.map((update) =>
+        ctx.db.patch(update.id, { order: update.order }),
+      ),
+    );
 
     return { success: true };
   },

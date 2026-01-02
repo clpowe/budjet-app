@@ -1,10 +1,28 @@
 <script setup lang="ts">
 import type { Id } from "../../../convex/_generated/dataModel";
+import { VueDraggable } from "vue-draggable-plus";
 
 // biome-ignore lint/correctness/noUnusedVariables: used by template click handler
-const { depts, update, remove } = useDepts();
+const { depts, update, remove, reorder } = useDepts();
 
 const drawerToggles = ref<HTMLInputElement[]>([]);
+const localDepts = ref<any[]>([]);
+
+watch(
+  depts,
+  (newVal) => {
+    if (newVal) localDepts.value = [...newVal];
+  },
+  { immediate: true },
+);
+
+async function onSort() {
+  const updates = localDepts.value.map((item, index) => ({
+    id: item._id as Id<"debts">,
+    order: index,
+  }));
+  await reorder({ updates });
+}
 
 // biome-ignore lint/correctness/noUnusedVariables: used by template click handler
 async function onPriorityToggle(id: Id<"debts">, value: boolean) {
@@ -33,14 +51,25 @@ function onDelete(id: Id<"debts">) {
   <table class="table">
     <thead>
       <tr>
+        <th></th>
         <th>In Snowball</th>
         <th class="w-full">Creditor</th>
         <th>Payment</th>
         <th>Actions</th>
       </tr>
     </thead>
-    <tbody>
-      <tr v-for="item in depts" :key="item._id">
+    <VueDraggable
+      v-model="localDepts"
+      tag="tbody"
+      handle=".drag-handle"
+      @end="onSort"
+    >
+      <tr v-for="item in localDepts" :key="item._id">
+        <td class="w-8">
+          <button class="drag-handle cursor-move btn btn-ghost btn-sm">
+            <Icon name="lucide:grip-vertical" size="20" />
+          </button>
+        </td>
         <td>
           <button @click="onPriorityToggle(item._id, !item.isPriority)">
             <Icon
@@ -96,6 +125,6 @@ function onDelete(id: Id<"debts">) {
           </button>
         </td>
       </tr>
-    </tbody>
+    </VueDraggable>
   </table>
 </template>
