@@ -14,16 +14,18 @@ export function useDate() {
   const currentDate = useState<Date>("currentDate", () => new Date());
 
   const queryDayBounds = computed(() => {
+    const d = new Date(currentDate.value);
     return {
-      from: dayStart(currentDate.value).getTime(),
-      to: dayEnd(currentDate.value).getTime(),
+      from: dayStart(d).getTime(),
+      to: dayEnd(d).getTime(),
     };
   });
 
   const queryMonthBounds = computed(() => {
+    const d = new Date(currentDate.value);
     return {
-      from: monthStart(currentDate.value).getTime(),
-      to: monthEnd(currentDate.value).getTime(),
+      from: monthStart(d).getTime(),
+      to: monthEnd(d).getTime(),
     };
   });
 
@@ -61,6 +63,13 @@ export function useDate() {
     currentDate.value = addDay(currentDate.value, 1);
   }
 
+  function backMonth() {
+    currentDate.value = addMonth(currentDate.value, -1);
+  }
+  function forwardMonth() {
+    currentDate.value = addMonth(currentDate.value, 1);
+  }
+
   return {
     currentDate,
     queryDayBounds,
@@ -68,6 +77,8 @@ export function useDate() {
     appDay: today,
     backDay,
     forwardDay,
+    backMonth,
+    forwardMonth,
     setDate,
     elapsedDays,
   };

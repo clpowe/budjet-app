@@ -27,6 +27,7 @@ export const addWindfallTransaction = mutation({
     notes: v.string(),
     amount: v.number(),
     householdId: v.id("households"),
+    date: v.number(),
   },
   handler: async (ctx, args) => {
     const windfallTransaction = await ctx.db.insert("windfall", {
@@ -34,6 +35,7 @@ export const addWindfallTransaction = mutation({
       notes: args.notes,
       householdId: args.householdId,
       amount: args.amount,
+      date: args.date,
     });
 
     return windfallTransaction;
@@ -51,6 +53,7 @@ export const updateWindfall = mutation({
     notes: v.string(),
     amount: v.number(),
     householdId: v.id("households"),
+    date: v.number(),
   },
   handler: async (ctx, args) => {
     const windfall = await ctx.db.get(args.windfallId);
@@ -61,6 +64,7 @@ export const updateWindfall = mutation({
       notes: args.notes,
       amount: args.amount,
       householdId: args.householdId,
+      date: args.date,
     });
 
     return { success: true };

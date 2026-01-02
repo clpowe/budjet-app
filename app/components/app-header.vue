@@ -2,7 +2,10 @@
 
 <template>
   <header class="flex justify-between">
-    <NuxtLink to="/home"> Home </NuxtLink>
+    <div class="flex gap-4">
+      <NuxtLink to="/home"> Home </NuxtLink>
+      <NuxtLink to="/monthly"> Monthly </NuxtLink>
+    </div>
     <div>
       <ClientOnly>
         <SignedIn>

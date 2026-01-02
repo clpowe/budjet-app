@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { api } from "../../../convex/_generated/api";
+import { format, tzDate } from "@formkit/tempo";
 
 const props = defineProps<{
   drawerId?: string;
@@ -7,9 +8,16 @@ const props = defineProps<{
 
 const { data: user } = useConvexQuery(api.users.getCurrentUser, {});
 
+const today = format({
+  date: new Date(),
+  format: "YYYY-MM-DD",
+  tz: "America/New_York",
+});
+
 const name = ref("");
 const notes = ref("");
 const value = ref(0);
+const date = ref(today);
 const { mutate: add } = useConvexMutation(api.windfall.addWindfallTransaction);
 
 async function handleSubmit() {
@@ -19,6 +27,7 @@ async function handleSubmit() {
     notes: notes.value,
     amount: value.value,
     householdId: user.value?.householdId,
+    date: new Date(tzDate(date.value, "America/New_York")).getTime(),
   });
 
   // Reset form and close the drawer if provided.
@@ -35,7 +44,7 @@ async function handleSubmit() {
 }
 </script>
 <template>
-  <form @submit.prevent="handleSubmit">
+  <form @submit.prevent="handleSubmit" class="flex flex-col space-y-4">
     <label>
       Name
       <input v-model="name" class="input" />
@@ -49,6 +58,11 @@ async function handleSubmit() {
     <label>
       Value
       <input v-model.number="value" type="text" class="input" />
+    </label>
+
+    <label class="input">
+      <span class="label">Date</span>
+      <input type="date" v-model="date" />
     </label>
 
     <button class="btn btn-primary" type="submit">Add Dollars</button>

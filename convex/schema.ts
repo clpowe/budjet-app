@@ -38,7 +38,8 @@ export default defineSchema({
     notes: v.string(),
     householdId: v.id("households"),
     amount: v.number(),
-  }).index("by_household", ["householdId"]),
+    date: v.optional(v.number()),
+  }).index("by_household_date", ["householdId", "date"]),
 
   // 5. Debts (was 'snowball')
   debts: defineTable({
@@ -46,7 +47,7 @@ export default defineSchema({
     isPriority: v.boolean(),
     householdId: v.id("households"),
     payment: v.number(),
-    order: v.number(),
+    order: v.optional(v.number()),
   })
     .index("by_household", ["householdId"])
     .index("by_household_order", ["householdId", "order"]),

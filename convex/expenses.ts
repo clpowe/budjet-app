@@ -176,3 +176,50 @@ export const deleteExpense = mutation({
     return { success: true };
   },
 });
+export const listMonthlyTransactions = query({
+  args: {
+    from: v.number(),
+    to: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const householdId = await getHouseholdId(ctx, identity);
+
+    const expenses = await ctx.db
+      .query("expenses")
+      .withIndex("by_household", (q) =>
+        q
+          .eq("householdId", householdId)
+          .gte("date", args.from)
+          .lt("date", args.to),
+      )
+      .collect();
+
+    const windfalls = await ctx.db
+      .query("windfall")
+      .withIndex("by_household_date", (q) =>
+        q
+          .eq("householdId", householdId)
+          .gte("date", args.from)
+          .lt("date", args.to),
+      )
+      .collect();
+
+    const windfallMapped = (windfalls ?? []).map((w) => ({
+      ...w,
+      name: w.source,
+      type: "windfall" as const,
+    }));
+
+    const expensesMapped = (expenses ?? []).map((e) => ({
+      ...e,
+      type: "expense" as const,
+    }));
+
+    return [...expensesMapped, ...windfallMapped].sort(
+      (a, b) => (b.date ?? 0) - (a.date ?? 0),
+    );
+  },
+});
