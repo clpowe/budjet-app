@@ -4,7 +4,8 @@ import type { Doc } from "../../convex/_generated/dataModel";
 export function useExpenses() {
   const { queryDayBounds, queryMonthBounds, elapsedDays } = useDate();
 
-  const dailyBudget = ref(50);
+  const { data: household } = useConvexQuery(api.households.getMyHousehold, {});
+  const dailyBudget = computed(() => household.value?.allowance ?? 50);
 
   const params = computed(() => ({
     from: queryDayBounds.value.from,
@@ -60,12 +61,33 @@ export function useExpenses() {
 
   const variance = computed(() => {
     const value = dailyBudget.value * elapsedDays.value - (total.value ?? 0);
+    console.log(dailyBudget.value, elapsedDays.value, total.value);
     const positive = value >= 0;
     return {
       value,
       positive,
     };
   });
+
+  const { totalDaysInMonth, remainingDaysInMonth } = useDate();
+
+  const rollingBudget = computed(() => {
+    // remaining budget divided by remaining days
+    const totalMonthAllowance = dailyBudget.value * totalDaysInMonth.value;
+    const spentSoFar = total.value ?? 0;
+    const remainingBudget = totalMonthAllowance - spentSoFar;
+
+    if (remainingDaysInMonth.value <= 0) return { value: 0, positive: false };
+
+    const value = remainingBudget / remainingDaysInMonth.value;
+    const positive = value >= dailyBudget.value;
+
+    return {
+      value,
+      positive,
+    };
+  });
+
 
   const remove = (id: Doc<"expenses">["_id"]) =>
     deleteExpense({ expenseId: id });
@@ -78,6 +100,7 @@ export function useExpenses() {
     variance,
     dailyBudget,
     currentPosition,
+    rollingBudget,
     remove,
   };
 }

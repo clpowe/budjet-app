@@ -10,7 +10,7 @@ onMounted(() => {
   currentDate.value = new Date();
 });
 
-const { totalToday, burn_rate, variance, currentPosition } = useExpenses();
+const { totalToday, burn_rate, variance, currentPosition, rollingBudget, dailyBudget } = useExpenses();
 </script>
 
 <template>
@@ -39,7 +39,8 @@ const { totalToday, burn_rate, variance, currentPosition } = useExpenses();
         <mini-card title="Spent Today" :amount="totalToday" />
         <mini-card title="Burn Rate" :amount="burn_rate" />
         <mini-card title="Variance" :amount="variance" />
-        <mini-card title="Daily Budget" :amount="50" />
+        <mini-card title="Daily Budget" :amount="dailyBudget" />
+        <mini-card title="Rolling Budget" :amount="rollingBudget" />
       </template>
       <template #actions> </template>
     </app-main-card>

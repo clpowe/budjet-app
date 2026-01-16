@@ -80,7 +80,7 @@ This is a personal budget tracking application built with Nuxt.js for the fronte
 - [ ] Integrate Components into Home Screen
 - [ ] Forms Integration
 - [ ] Add item to snowball list
-- [ ] Update daily spending total
+- [x] Update daily spending total
 
 # Instructions
 

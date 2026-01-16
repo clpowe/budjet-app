@@ -70,6 +70,17 @@ export function useDate() {
     currentDate.value = addMonth(currentDate.value, 1);
   }
 
+  const totalDaysInMonth = computed(() => {
+    const d = new Date(currentDate.value);
+    const start = monthStart(d);
+    const end = monthEnd(d);
+    return diffDays(end, start) + 1;
+  });
+
+  const remainingDaysInMonth = computed(() => {
+    return totalDaysInMonth.value - elapsedDays.value + 1;
+  });
+
   return {
     currentDate,
     queryDayBounds,
@@ -81,5 +92,7 @@ export function useDate() {
     forwardMonth,
     setDate,
     elapsedDays,
+    totalDaysInMonth,
+    remainingDaysInMonth,
   };
 }
