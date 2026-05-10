@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vite-plus/test";
 import { computed, ref } from "vue";
 import type { Doc } from "../../convex/_generated/dataModel";
 
@@ -9,6 +9,7 @@ const expensesRef = ref<Doc<"expenses">[]>([
 const totalRef = ref(100);
 const currentPositionRef = ref(5);
 const elapsedDaysRef = ref(2);
+const householdRef = ref({ allowance: 50 });
 
 const deleteExpenseMock = vi.fn();
 const useConvexQueryMock = vi.fn();
@@ -21,6 +22,8 @@ vi.mock("#imports", () => ({
     queryDayBounds: computed(() => ({ from: 0, to: 1 })),
     queryMonthBounds: computed(() => ({ from: 2, to: 3 })),
     elapsedDays: computed(() => elapsedDaysRef.value),
+    totalDaysInMonth: computed(() => 30),
+    remainingDaysInMonth: computed(() => 29),
   }),
   useConvexQuery: (...args: unknown[]) => useConvexQueryMock(...args),
   useConvexMutation: (...args: unknown[]) => useConvexMutationMock(...args),
@@ -37,19 +40,17 @@ describe("useExpenses", () => {
       queryDayBounds: computed(() => ({ from: 0, to: 1 })),
       queryMonthBounds: computed(() => ({ from: 2, to: 3 })),
       elapsedDays: computed(() => elapsedDaysRef.value),
+      totalDaysInMonth: computed(() => 30),
+      remainingDaysInMonth: computed(() => 29),
     }));
-    vi.stubGlobal("useConvexQuery", (...args: unknown[]) =>
-      useConvexQueryMock(...args),
-    );
-    vi.stubGlobal("useConvexMutation", (...args: unknown[]) =>
-      useConvexMutationMock(...args),
-    );
+    vi.stubGlobal("useConvexQuery", (...args: unknown[]) => useConvexQueryMock(...args));
+    vi.stubGlobal("useConvexMutation", (...args: unknown[]) => useConvexMutationMock(...args));
     useConvexQueryMock.mockReset();
     useConvexMutationMock.mockReset();
     deleteExpenseMock.mockReset();
 
     useConvexQueryMock.mockImplementation(() => {
-      const responses = [expensesRef, totalRef, currentPositionRef];
+      const responses = [householdRef, expensesRef, totalRef, currentPositionRef];
       const idx = (useConvexQueryMock.mock.calls.length - 1) % responses.length;
       return { data: responses[idx] };
     });
@@ -60,13 +61,11 @@ describe("useExpenses", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    expensesRef.value = [
-      { amount: 10 } as Doc<"expenses">,
-      { amount: -4 } as Doc<"expenses">,
-    ];
+    expensesRef.value = [{ amount: 10 } as Doc<"expenses">, { amount: -4 } as Doc<"expenses">];
     totalRef.value = 100;
     currentPositionRef.value = 5;
     elapsedDaysRef.value = 2;
+    householdRef.value = { allowance: 50 };
   });
 
   it("computes totals and burn rate based on convex data", () => {
@@ -83,12 +82,23 @@ describe("useExpenses", () => {
   it("returns 0 burn rate when missing totals or elapsed days", () => {
     totalRef.value = null as unknown as number;
     const composable = useExpenses();
-    expect(composable.burn_rate.value).toBe(0);
+    expect(composable.burn_rate.value).toEqual({ value: 0, positive: true });
 
     totalRef.value = 100;
     elapsedDaysRef.value = 0;
     const composable2 = useExpenses();
-    expect(composable2.burn_rate.value).toBe(0);
+    expect(composable2.burn_rate.value).toEqual({ value: 0, positive: true });
+  });
+
+  it("returns 0 burn rate when total or elapsed days are not finite numbers", () => {
+    totalRef.value = Number.NaN;
+    const composable = useExpenses();
+    expect(composable.burn_rate.value).toEqual({ value: 0, positive: true });
+
+    totalRef.value = 100;
+    elapsedDaysRef.value = Number.NaN;
+    const composable2 = useExpenses();
+    expect(composable2.burn_rate.value).toEqual({ value: 0, positive: true });
   });
 
   it("calls convex mutation when removing an expense", () => {

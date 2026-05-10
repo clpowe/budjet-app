@@ -7,8 +7,7 @@ definePageMeta({
 
 const { appDay, setDate } = useDate();
 
-const { total, totalToday, burn_rate, variance, currentPosition, dailyBudget } =
-  useExpenses();
+const { total, totalToday, burn_rate, variance, currentPosition, dailyBudget } = useExpenses();
 
 const { windfallTotal } = useWindfall();
 
@@ -16,95 +15,220 @@ setDate(new Date());
 
 const { data: totalPayment } = useConvexQuery(api.depts.getTotalPayment, {});
 
-const left_to_spend = computed(() => {
+const leftToSpend = computed(() => {
   return dailyBudget.value * 30 - (total.value ?? 0);
+});
+
+const safeToSpendState = computed(() => {
+  if (leftToSpend.value < 0) {
+    return {
+      label: "Over plan",
+      tone: "text-error",
+      helper: "Pull back on spending until this returns above zero.",
+    };
+  }
+
+  return {
+    label: "Safe to spend",
+    tone: "text-success",
+    helper: "Budget left in your 30-day plan after recorded spending.",
+  };
 });
 </script>
 
 <template>
-  <div>
-    <div class="container mx-auto p-4 space-y-8">
-      <div class="flex justify-between flex-wrap">
-        <div>
-          <p class="text-2xl font-bold">
-            {{ appDay }}
-          </p>
-        </div>
-        <div>
-          <p v-if="total" class="text-2xl font-bold">
-            {{ formatMoney(total) }}<br />
-            <span class="text-base-content font-normal text-base">
-              total spent
-            </span>
-          </p>
+  <main class="container mx-auto space-y-6 px-4 py-5 sm:space-y-8 sm:py-8">
+    <section
+      class="rounded-sm border border-base-300 bg-base-100 p-5 shadow-sm sm:p-8"
+      aria-labelledby="today-position-heading"
+    >
+      <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+        <div class="space-y-5">
+          <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <p class="text-sm font-semibold uppercase text-base-content/60">
+              {{ appDay }}
+            </p>
+            <p class="text-sm text-base-content/60">Today&apos;s position</p>
+          </div>
+
           <div>
-            {{ formatMoney(left_to_spend) }}<br />
-            left to spend
+            <p id="today-position-heading" class="text-sm font-semibold text-base-content/70">
+              {{ safeToSpendState.label }}
+            </p>
+            <p
+              class="mt-2 text-5xl font-black leading-none sm:text-7xl"
+              :class="safeToSpendState.tone"
+            >
+              {{ formatMoney(leftToSpend) }}
+            </p>
+            <p class="mt-3 max-w-lg text-sm text-base-content/70">
+              {{ safeToSpendState.helper }}
+            </p>
+          </div>
+        </div>
+
+        <div class="drawer drawer-end w-full lg:w-auto">
+          <input id="transaction-drawer" type="checkbox" class="drawer-toggle" />
+          <div class="drawer-content flex flex-col items-stretch gap-3 sm:items-start lg:items-end">
+            <label
+              for="transaction-drawer"
+              class="drawer-button btn btn-primary min-h-12 w-full gap-2 px-6 text-base shadow-md sm:w-auto"
+            >
+              <Icon name="i-heroicons-plus" class="size-5" />
+              Add transaction
+            </label>
+            <NuxtLink
+              to="/today"
+              class="link link-hover inline-flex min-h-9 items-center justify-center text-sm font-semibold text-base-content/70 sm:justify-start"
+            >
+              View today&apos;s spending
+            </NuxtLink>
+          </div>
+          <div class="drawer-side">
+            <label
+              for="transaction-drawer"
+              aria-label="close sidebar"
+              class="drawer-overlay"
+            ></label>
+            <div class="menu min-h-full w-80 bg-base-200 p-4">
+              <expenses-add />
+            </div>
           </div>
         </div>
       </div>
-      <app-main-card
-        title="Budget Overview"
-        subtitle="Your current budget status"
-        :amount="currentPosition"
-      >
-        <template #items>
-          <mini-card title="Spent Today" :amount="totalToday" />
-          <mini-card indicator title="Burn Rate" :amount="burn_rate" />
-          <mini-card indicator title="Variance" :amount="variance" />
-        </template>
-        <template #actions>
-          <div class="drawer drawer-end w-full">
-            <input
-              id="my-drawer-5"
-              type="checkbox"
-              class="drawer-toggle w-full"
-            />
-            <div class="drawer-content">
-              <label for="my-drawer-5" class="drawer-button btn btn-primary"
-                >Add transaction</label
-              >
-            </div>
-            <div class="drawer-side">
-              <label
-                for="my-drawer-5"
-                aria-label="close sidebar"
-                class="drawer-overlay"
-              ></label>
-              <ul class="menu bg-base-200 min-h-full w-80 p-4">
-                <expenses-add />
-              </ul>
-            </div>
-          </div>
-          <NuxtLink to="/today">Show todays Spending</NuxtLink>
-        </template>
-      </app-main-card>
-      <div class="flex gap-4">
-        <app-main-card
-          class="basis-1/2"
-          title="Windfall"
-          :amount="windfallTotal"
-        >
-          <template #actions>
-            <app-drawer title="windfall-drawer" label="Add Windfall">
-              <windfall-add drawer-id="windfall-drawer" />
-            </app-drawer>
-            <NuxtLink to="/windfall">Show Windfall</NuxtLink>
-          </template>
-        </app-main-card>
-        <app-main-card
-          class="basis-1/2"
-          title="Snowball"
-          :amount="totalPayment"
-        >
-          <template #actions>
-            <app-drawer title="snowball-drawer" label="Add Dept">
-              <depts-add />
-            </app-drawer>
-            <NuxtLink to="/mydepts">Show Depts</NuxtLink>
-          </template>
-        </app-main-card>
+
+      <div class="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div class="border-t border-base-300 pt-4">
+          <p class="text-sm text-base-content/60">Total spent</p>
+          <p class="mt-1 text-2xl font-bold">
+            {{ formatMoney(total ?? 0) }}
+          </p>
+        </div>
+        <div class="border-t border-base-300 pt-4">
+          <p class="text-sm text-base-content/60">Current position</p>
+          <p class="mt-1 text-2xl font-bold">
+            {{ formatMoney(currentPosition ?? 0) }}
+          </p>
+        </div>
+        <div class="border-t border-base-300 pt-4">
+          <p class="text-sm text-base-content/60">Spent today</p>
+          <p class="mt-1 text-2xl font-bold">
+            {{ formatMoney(totalToday.value) }}
+          </p>
+        </div>
+        <div class="border-t border-base-300 pt-4">
+          <p class="text-sm text-base-content/60">Burn rate</p>
+          <p
+            class="mt-1 text-2xl font-bold"
+            :class="burn_rate.positive ? 'text-success' : 'text-error'"
+          >
+            {{ formatMoney(burn_rate.value) }}
+          </p>
+        </div>
+        <div class="border-t border-base-300 pt-4">
+          <p class="text-sm text-base-content/60">Variance</p>
+          <p
+            class="mt-1 text-2xl font-bold"
+            :class="variance.positive ? 'text-success' : 'text-error'"
+          >
+            {{ formatMoney(variance.value) }}
+          </p>
+        </div>
       </div>
-    </div>
-  </div>
+    </section>
+
+    <section class="grid gap-x-8 gap-y-4 lg:grid-cols-2" aria-label="Secondary balances">
+      <article class="border-t border-base-300 py-5">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 class="text-sm font-semibold text-base-content/70">Windfall</h2>
+            <p class="mt-1 text-3xl font-bold">
+              {{ formatMoney(windfallTotal ?? 0) }}
+            </p>
+          </div>
+
+          <div class="flex min-h-10 items-center gap-1">
+            <div class="drawer drawer-end w-auto">
+              <input id="windfall-drawer" type="checkbox" class="drawer-toggle" />
+              <div class="drawer-content">
+                <label
+                  for="windfall-drawer"
+                  class="drawer-button btn btn-ghost btn-circle btn-sm"
+                  aria-label="Add windfall"
+                  title="Add windfall"
+                >
+                  <Icon name="i-heroicons-plus" class="size-4" />
+                </label>
+              </div>
+              <div class="drawer-side">
+                <label
+                  for="windfall-drawer"
+                  aria-label="close sidebar"
+                  class="drawer-overlay"
+                ></label>
+                <div class="menu min-h-full w-80 bg-base-200 p-4">
+                  <windfall-add drawer-id="windfall-drawer" />
+                </div>
+              </div>
+            </div>
+
+            <NuxtLink
+              to="/windfall"
+              class="btn btn-ghost btn-circle btn-sm"
+              aria-label="View windfall"
+              title="View windfall"
+            >
+              <Icon name="i-heroicons-arrow-top-right-on-square" class="size-4" />
+            </NuxtLink>
+          </div>
+        </div>
+      </article>
+
+      <article class="border-t border-base-300 py-5">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 class="text-sm font-semibold text-base-content/70">Debt snowball</h2>
+            <p class="mt-1 text-3xl font-bold">
+              {{ formatMoney(totalPayment ?? 0) }}
+            </p>
+          </div>
+
+          <div class="flex min-h-10 items-center gap-1">
+            <div class="drawer drawer-end w-auto">
+              <input id="snowball-drawer" type="checkbox" class="drawer-toggle" />
+              <div class="drawer-content">
+                <label
+                  for="snowball-drawer"
+                  class="drawer-button btn btn-ghost btn-circle btn-sm"
+                  aria-label="Add debt"
+                  title="Add debt"
+                >
+                  <Icon name="i-heroicons-plus" class="size-4" />
+                </label>
+              </div>
+              <div class="drawer-side">
+                <label
+                  for="snowball-drawer"
+                  aria-label="close sidebar"
+                  class="drawer-overlay"
+                ></label>
+                <div class="menu min-h-full w-80 bg-base-200 p-4">
+                  <depts-add />
+                </div>
+              </div>
+            </div>
+
+            <NuxtLink
+              to="/mydepts"
+              class="btn btn-ghost btn-circle btn-sm"
+              aria-label="View debts"
+              title="View debts"
+            >
+              <Icon name="i-heroicons-arrow-top-right-on-square" class="size-4" />
+            </NuxtLink>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
 </template>

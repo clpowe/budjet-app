@@ -1,10 +1,20 @@
 export function useMonthNavigation() {
   // Nuxt useState for shared state across components
-  const selectedMonth = useState('selectedMonth', () => {
+  const selectedMonth = useState("selectedMonth", () => {
     const now = new Date();
     const months = [
-      'january', 'february', 'march', 'april', 'may', 'june',
-      'july', 'august', 'september', 'october', 'november', 'december'
+      "january",
+      "february",
+      "march",
+      "april",
+      "may",
+      "june",
+      "july",
+      "august",
+      "september",
+      "october",
+      "november",
+      "december",
     ];
     return `${months[now.getMonth()]} ${now.getFullYear()}`;
   });
@@ -12,27 +22,50 @@ export function useMonthNavigation() {
   const setCurrentMonth = () => {
     const now = new Date();
     const months = [
-      'january', 'february', 'march', 'april', 'may', 'june',
-      'july', 'august', 'september', 'october', 'november', 'december'
+      "january",
+      "february",
+      "march",
+      "april",
+      "may",
+      "june",
+      "july",
+      "august",
+      "september",
+      "october",
+      "november",
+      "december",
     ];
     selectedMonth.value = `${months[now.getMonth()]} ${now.getFullYear()}`;
   };
 
   const getPreviousMonth = () => {
     // Parse the month string (e.g., "november 2025")
-    const [monthName, yearStr] = selectedMonth.value.toLowerCase().split(' ');
+    const [monthName, yearStr] = selectedMonth.value.toLowerCase().split(" ");
+
+    if (yearStr == undefined) return;
     const year = parseInt(yearStr);
 
     // Map month names to numbers (0-11)
     const months = [
-      'january', 'february', 'march', 'april', 'may', 'june',
-      'july', 'august', 'september', 'october', 'november', 'december'
+      "january",
+      "february",
+      "march",
+      "april",
+      "may",
+      "june",
+      "july",
+      "august",
+      "september",
+      "october",
+      "november",
+      "december",
     ];
 
+    if (monthName == undefined) return;
     const currentMonthIndex = months.indexOf(monthName);
 
     if (currentMonthIndex === -1) {
-      throw new Error('Invalid month name');
+      throw new Error("Invalid month name");
     }
 
     // Calculate previous month
@@ -50,18 +83,31 @@ export function useMonthNavigation() {
   };
 
   const getNextMonth = () => {
-    const [monthName, yearStr] = selectedMonth.value.toLowerCase().split(' ');
+    const [monthName, yearStr] = selectedMonth.value.toLowerCase().split(" ");
+
+    if (yearStr == undefined) return;
     const year = parseInt(yearStr);
 
     const months = [
-      'january', 'february', 'march', 'april', 'may', 'june',
-      'july', 'august', 'september', 'october', 'november', 'december'
+      "january",
+      "february",
+      "march",
+      "april",
+      "may",
+      "june",
+      "july",
+      "august",
+      "september",
+      "october",
+      "november",
+      "december",
     ];
 
+    if (monthName == undefined) return;
     const currentMonthIndex = months.indexOf(monthName);
 
     if (currentMonthIndex === -1) {
-      throw new Error('Invalid month name');
+      throw new Error("Invalid month name");
     }
 
     // Calculate next month
@@ -82,8 +128,6 @@ export function useMonthNavigation() {
     selectedMonth,
     setCurrentMonth,
     getPreviousMonth,
-    getNextMonth
+    getNextMonth,
   };
 }
-
-

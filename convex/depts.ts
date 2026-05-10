@@ -79,10 +79,7 @@ export const createDebt = mutation({
       .withIndex("by_household", (q) => q.eq("householdId", householdId))
       .collect();
 
-    const maxOrder = existingDebts.reduce(
-      (max, debt) => (debt.order > max ? debt.order : max),
-      0,
-    );
+    const maxOrder = existingDebts.reduce((max, debt) => Math.max(max, debt.order ?? 0), 0);
 
     const newDebt = await ctx.db.insert("debts", {
       creditor: args.creditor,
@@ -130,9 +127,7 @@ export const reorderDebts = mutation({
     if (!identity) throw new Error("Not authenticated");
 
     await Promise.all(
-      args.updates.map((update) =>
-        ctx.db.patch(update.id, { order: update.order }),
-      ),
+      args.updates.map((update) => ctx.db.patch(update.id, { order: update.order })),
     );
 
     return { success: true };

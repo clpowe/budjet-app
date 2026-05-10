@@ -1,6 +1,3 @@
-import type { AuthConfig } from "convex/server";
-
-
 // convex/auth.config.ts
 export default {
   providers: [
@@ -10,5 +7,3 @@ export default {
     },
   ],
 };
-
-
