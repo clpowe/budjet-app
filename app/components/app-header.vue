@@ -46,7 +46,12 @@
           <UserButton />
         </SignedIn>
       </ClientOnly>
-      <input type="checkbox" value="light" class="toggle theme-controller" />
+      <input
+        type="checkbox"
+        value="light"
+        class="toggle theme-controller"
+        aria-label="Toggle light theme"
+      />
     </div>
   </header>
 </template>

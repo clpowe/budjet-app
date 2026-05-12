@@ -31,8 +31,8 @@ export default defineNuxtRouteMiddleware((to) => {
   }
 
   const profileComplete =
-    (sessionClaims.value?.unsafeMetadata as Record<string, unknown> | null)
-      ?.profileComplete === true;
+    (sessionClaims.value?.unsafeMetadata as Record<string, unknown> | null)?.profileComplete ===
+    true;
 
   const { isComplete, loading } = useProfileStatus();
 

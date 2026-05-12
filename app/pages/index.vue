@@ -1,5 +1,7 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import AuthSignInPage from "~/components/auth-sign-in-page.vue";
+</script>
 
 <template>
-  <SignIn afterSignInUrl="/home" afterSignUpUrl="/home" />
+  <AuthSignInPage />
 </template>

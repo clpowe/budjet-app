@@ -78,6 +78,9 @@ importers:
       happy-dom:
         specifier: ^20.8.3
         version: 20.9.0
+      nitro-cloudflare-dev:
+        specifier: ^0.2.2
+        version: 0.2.2
       playwright-core:
         specifier: ^1.58.2
         version: 1.59.1
@@ -88,7 +91,7 @@ importers:
         specifier: npm:@voidzero-dev/vite-plus-test@latest
         version: '@voidzero-dev/vite-plus-test@0.1.20(@types/node@25.6.2)(esbuild@0.28.0)(happy-dom@20.9.0)(jiti@2.7.0)(terser@5.47.1)(typescript@5.9.3)(vite@7.3.3(@types/node@25.6.2)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.47.1)(yaml@2.8.4))(yaml@2.8.4)'
       wrangler:
-        specifier: ^4.71.0
+        specifier: ^4.90.0
         version: 4.90.0(@cloudflare/workers-types@4.20260509.1)
 
 packages:

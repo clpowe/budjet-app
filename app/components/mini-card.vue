@@ -1,27 +1,34 @@
 <script setup lang="ts">
-defineProps<{
-  amount:
-    | {
-        value: number;
-        positive: boolean;
-      }
-    | number;
+type MoneyState = {
+  value: number;
+  positive: boolean;
+};
+
+const props = defineProps<{
+  amount: MoneyState | number;
   title: string;
 }>();
+
+const displayAmount = computed(() => {
+  if (typeof props.amount === "number") {
+    return {
+      value: props.amount,
+      toneClass: "",
+    };
+  }
+
+  return {
+    value: props.amount.value,
+    toneClass: props.amount.positive ? "text-success" : "text-error",
+  };
+});
 </script>
 
 <template>
-  <div
-    class="card bg-base-100"
-    :class="[
-      amount.positive ? 'border-t-8' : '',
-      amount.positive && amount.value < 0 ? 'border-red-500' : '',
-      amount.positive && amount.value >= 0 ? 'border-green-500' : '',
-    ]"
-  >
-    <div class="card-body text-center justify-center">
-      <h3 class="card-title mx-auto">{{ title }}</h3>
-      {{ formatMoney(amount.value) }}
-    </div>
+  <div class="min-w-0 border-t border-base-300 pt-4">
+    <h3 class="text-sm text-base-content/60">{{ title }}</h3>
+    <p class="mt-1 text-2xl font-bold" :class="displayAmount.toneClass">
+      {{ formatMoney(displayAmount.value) }}
+    </p>
   </div>
 </template>

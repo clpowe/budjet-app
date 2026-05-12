@@ -7,25 +7,32 @@ defineProps<{
 </script>
 
 <template>
-  <div class="card bg-base-200 shadow-lg">
-    <div class="card-body gap-4">
-      <h2 class="card-title mx-auto text-3xl">{{ title }}</h2>
-      <div class="grid gap-3">
-        <div class="mx-auto text-center">
-          <p v-if="amount" class="text-4xl font-bold">
+  <section
+    class="rounded-sm border border-base-300 bg-base-100 p-5 shadow-sm sm:p-8"
+    :aria-labelledby="`${title}-heading`"
+  >
+    <div class="grid gap-6">
+      <div>
+        <h2 :id="`${title}-heading`" class="text-sm font-semibold text-base-content/70">
+          {{ title }}
+        </h2>
+        <div class="mt-2">
+          <p v-if="amount !== undefined" class="text-5xl font-black leading-none sm:text-6xl">
             {{ formatMoney(amount) }}
           </p>
-          <p class="text-base-content">{{ subtitle }}</p>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          <slot name="items" />
+          <p v-if="subtitle" class="mt-3 max-w-lg text-sm text-base-content/70">
+            {{ subtitle }}
+          </p>
         </div>
       </div>
-      <div
-        class="card-actions w-full grid grid-cols-1 sm:grid-cols-2 items-center gap-2 md:gap-4"
-      >
+
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <slot name="items" />
+      </div>
+
+      <div class="card-actions w-full grid grid-cols-1 sm:grid-cols-2 items-center gap-2 md:gap-4">
         <slot name="actions"></slot>
       </div>
     </div>
-  </div>
+  </section>
 </template>
