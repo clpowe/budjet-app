@@ -1,38 +1,33 @@
 <script setup lang="ts">
-
 import { api } from "../../../convex/_generated/api";
 
 // Get the logged-in user's data from our `users` table
-const { data: myUser, isPending } = useConvexQuery(api.users.getCurrentUser, {})
-console.log(myUser.value)
+const { data: myUser, isPending } = useConvexQuery(api.users.getCurrentUser, {});
+console.log(myUser.value);
 
 // Get the mutations
-const createHousehold = useConvexMutation(api.households.createHousehold)
-const joinHousehold = useConvexMutation(api.households.joinHousehold)
+const createHousehold = useConvexMutation(api.households.createHousehold);
+const joinHousehold = useConvexMutation(api.households.joinHousehold);
 
 // Form state
-const newHouseholdName = ref('')
-const inviteCode = ref('')
+const newHouseholdName = ref("");
+const inviteCode = ref("");
 
 // Handle form submissions
 async function handleCreate() {
-  if (!newHouseholdName.value) return
+  if (!newHouseholdName.value) return;
   try {
-    await createHousehold.mutate({ name: newHouseholdName.value })
+    await createHousehold.mutate({ name: newHouseholdName.value });
     // The query will automatically re-run, and the watcher below will redirect.
   } catch (e) {
-    alert(e.message)
+    alert(e.message);
   }
 }
 
-
-
 // Watch the user data
-
 </script>
 
 <template>
-
   <div>
     <SignOutButton />
     <div>Loading...</div>
@@ -47,9 +42,7 @@ async function handleCreate() {
           Household Name:
           <input v-model="newHouseholdName" type="text" />
         </label>
-        <button type="submit" :disabled="createHousehold.isPending">
-          Create
-        </button>
+        <button type="submit" :disabled="createHousehold.isPending">Create</button>
       </form>
 
       <hr />
@@ -60,9 +53,7 @@ async function handleCreate() {
           Invite Code:
           <input v-model="inviteCode" type="text" />
         </label>
-        <button type="submit" :disabled="joinHousehold.isPending">
-          Join
-        </button>
+        <button type="submit" :disabled="joinHousehold.isPending">Join</button>
       </form>
     </div>
   </div>

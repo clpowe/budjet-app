@@ -4,5 +4,14 @@ export default defineConfig({
   staged: {
     "*": "vp check --fix",
   },
-  lint: { options: { typeAware: true, typeCheck: true } },
+  fmt: {
+    ignorePatterns: ["convex/_generated/**"],
+  },
+  lint: {
+    ignorePatterns: ["convex/_generated/**"],
+    options: {
+      typeAware: true,
+      typeCheck: true,
+    },
+  },
 });

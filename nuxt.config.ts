@@ -17,12 +17,12 @@ export default defineNuxtConfig({
   css: ["~/assets/css/main.css"],
 
   runtimeConfig: {
-    // server only
     clerkSecretKey: "",
     convexDeployment: "",
     public: {
       clerkPublishableKey: "",
       convexUrl: "",
+      convexSiteUrl: "",
     },
   },
 

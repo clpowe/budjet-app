@@ -3,7 +3,5 @@ const { selectedMonth, getPreviousMonth, getNextMonth } = useMonthNavigation();
 </script>
 
 <template>
-  <footer>
-    footer
-  </footer>
+  <footer>footer</footer>
 </template>

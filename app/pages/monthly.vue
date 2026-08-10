@@ -13,10 +13,7 @@ const params = computed(() => ({
   to: queryMonthBounds.value.to,
 }));
 
-const { data: transactions, error } = useConvexQuery(
-  api.expenses.listMonthlyTransactions,
-  params
-);
+const { data: transactions, error } = useConvexQuery(api.expenses.listMonthlyTransactions, params);
 
 watch(error, (newErr) => {
   if (newErr) console.error("Monthly query failed:", newErr);
@@ -24,25 +21,25 @@ watch(error, (newErr) => {
 
 const groupedTransactions = computed(() => {
   if (!transactions.value) return {};
-  
+
   const groups: Record<string, any[]> = {};
-  
+
   transactions.value.forEach((tx) => {
     if (!tx.date) return;
-    
+
     // Use YYYY-MM-DD for stable internal keys
     const dateKey = format({
       date: new Date(tx.date),
       format: "YYYY-MM-DD",
       tz: "America/New_York",
     });
-    
+
     if (!groups[dateKey]) {
       groups[dateKey] = [];
     }
     groups[dateKey].push(tx);
   });
-  
+
   return groups;
 });
 
@@ -52,7 +49,7 @@ const sortedDateKeys = computed(() => {
 
 const formatDate = (dateKey: string) => {
   return format({
-    date: new Date(dateKey + 'T00:00:00'),
+    date: new Date(dateKey + "T00:00:00"),
     format: "dddd, MMM D, YYYY",
     tz: "America/New_York",
   });
@@ -62,7 +59,7 @@ const calculateDayTotal = (dateKey: string) => {
   const group = groupedTransactions.value[dateKey];
   if (!group) return 0;
   return group.reduce((acc, tx) => {
-    return acc + (tx.type === 'expense' ? -tx.amount : tx.amount);
+    return acc + (tx.type === "expense" ? -tx.amount : tx.amount);
   }, 0);
 };
 
@@ -98,8 +95,12 @@ const currentMonthYear = computed(() => {
 
     <!-- Grouped Transactions -->
     <div v-if="transactions && transactions.length > 0" class="space-y-4">
-      <div v-for="dateKey in sortedDateKeys" :key="dateKey" class="collapse collapse-arrow bg-base-200">
-        <input type="checkbox" checked /> 
+      <div
+        v-for="dateKey in sortedDateKeys"
+        :key="dateKey"
+        class="collapse collapse-arrow bg-base-200"
+      >
+        <input type="checkbox" checked />
         <div class="collapse-title flex justify-between items-center pr-12">
           <span class="font-medium">{{ formatDate(dateKey) }}</span>
           <span :class="calculateDayTotal(dateKey) >= 0 ? 'text-success' : 'text-error'">
@@ -117,11 +118,15 @@ const currentMonthYear = computed(() => {
                   </td>
                   <td class="text-right">
                     <span :class="tx.type === 'expense' ? 'text-error' : 'text-success'">
-                      {{ tx.type === 'expense' ? '-' : '+' }}{{ formatMoney(tx.amount) }}
+                      {{ tx.type === "expense" ? "-" : "+" }}{{ formatMoney(tx.amount) }}
                     </span>
                   </td>
                   <td class="w-10">
-                    <span v-if="tx.type === 'windfall'" class="badge badge-success badge-outline badge-sm">Windfall</span>
+                    <span
+                      v-if="tx.type === 'windfall'"
+                      class="badge badge-success badge-outline badge-sm"
+                      >Windfall</span
+                    >
                   </td>
                 </tr>
               </tbody>
@@ -136,7 +141,7 @@ const currentMonthYear = computed(() => {
       <Icon name="i-heroicons-banknotes" class="size-12 mx-auto mb-4" />
       <p>No transactions found for this month.</p>
     </div>
-    
+
     <!-- Loading State -->
     <div v-else class="flex justify-center py-20">
       <span class="loading loading-spinner loading-lg"></span>

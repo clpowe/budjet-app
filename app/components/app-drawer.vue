@@ -14,11 +14,7 @@ defineProps<{
       </label>
     </div>
     <div class="drawer-side">
-      <label
-        :for="title"
-        aria-label="close sidebar"
-        class="drawer-overlay"
-      ></label>
+      <label :for="title" aria-label="close sidebar" class="drawer-overlay"></label>
       <div class="menu bg-base-200 min-h-full w-80 p-4">
         <slot />
       </div>

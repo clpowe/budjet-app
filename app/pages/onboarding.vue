@@ -12,9 +12,7 @@ const error = ref<string | null>(null);
 
 const router = useRouter();
 const { syncUser } = useHousehold();
-const { mutate: createHousehold } = useConvexMutation(
-  api.households.createHousehold,
-);
+const { mutate: createHousehold } = useConvexMutation(api.households.createHousehold);
 const { user } = useUser();
 const { isComplete } = useProfileStatus();
 
@@ -70,18 +68,8 @@ watchEffect(() => {
         />
       </label>
 
-      <button
-        class="btn btn-primary w-full"
-        type="submit"
-        :disabled="loading || isComplete"
-      >
-        {{
-          loading
-            ? "Saving..."
-            : isComplete
-              ? "Already set"
-              : "Save and continue"
-        }}
+      <button class="btn btn-primary w-full" type="submit" :disabled="loading || isComplete">
+        {{ loading ? "Saving..." : isComplete ? "Already set" : "Save and continue" }}
       </button>
     </form>
 

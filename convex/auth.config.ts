@@ -1,9 +1,6 @@
-// convex/auth.config.ts
+import { getAuthConfigProvider } from "@convex-dev/better-auth/auth-config";
+import type { AuthConfig } from "convex/server";
+
 export default {
-  providers: [
-    {
-      domain: "https://current-duck-78.clerk.accounts.dev",
-      applicationID: "convex",
-    },
-  ],
-};
+  providers: [getAuthConfigProvider()],
+} satisfies AuthConfig;

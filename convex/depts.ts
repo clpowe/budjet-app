@@ -12,7 +12,7 @@ export const listMyDepts = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    const householdId = await getHouseholdId(ctx, identity);
+    const householdId = await getHouseholdId(ctx);
 
     return await ctx.db
       .query("debts")
@@ -26,7 +26,7 @@ export const getTotalPayment = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
-    const householdId = await getHouseholdId(ctx, identity);
+    const householdId = await getHouseholdId(ctx);
 
     const spending = await ctx.db
       .query("debts")
@@ -72,7 +72,7 @@ export const createDebt = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    const householdId = await getHouseholdId(ctx, identity);
+    const householdId = await getHouseholdId(ctx);
 
     const existingDebts = await ctx.db
       .query("debts")

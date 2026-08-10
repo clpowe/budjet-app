@@ -36,9 +36,7 @@ async function handleSubmit() {
   value.value = 0;
 
   if (props.drawerId) {
-    const toggle = document.getElementById(
-      props.drawerId,
-    ) as HTMLInputElement | null;
+    const toggle = document.getElementById(props.drawerId) as HTMLInputElement | null;
     if (toggle) toggle.checked = false;
   }
 }

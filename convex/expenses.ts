@@ -16,17 +16,12 @@ export const listMyExpenses = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    const householdId = await getHouseholdId(ctx, identity);
+    const householdId = await getHouseholdId(ctx);
     // Use the combined index for fast range lookup
     const expenses = await ctx.db
       .query("expenses")
       .withIndex("by_household", (q) => q.eq("householdId", householdId))
-      .filter((q) =>
-        q.and(
-          q.gte(q.field("date"), args.from),
-          q.lt(q.field("date"), args.to),
-        ),
-      )
+      .filter((q) => q.and(q.gte(q.field("date"), args.from), q.lt(q.field("date"), args.to)))
       .collect();
 
     // Sort Descending (newest first) usually preferred for UI
@@ -44,17 +39,12 @@ export const getMyTotal = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    const householdId = await getHouseholdId(ctx, identity);
+    const householdId = await getHouseholdId(ctx);
 
     const expenses = await ctx.db
       .query("expenses")
       .withIndex("by_household", (q) => q.eq("householdId", householdId))
-      .filter((q) =>
-        q.and(
-          q.gte(q.field("date"), args.from),
-          q.lt(q.field("date"), args.to),
-        ),
-      )
+      .filter((q) => q.and(q.gte(q.field("date"), args.from), q.lt(q.field("date"), args.to)))
       .collect();
 
     return expenses.reduce((acc, curr) => acc + curr.amount, 0);
@@ -72,7 +62,7 @@ export const getMyCurrentPosition = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    const householdId = await getHouseholdId(ctx, identity);
+    const householdId = await getHouseholdId(ctx);
 
     const now = Date.now();
 
@@ -91,12 +81,7 @@ export const getMyCurrentPosition = query({
     const expenses = await ctx.db
       .query("expenses")
       .withIndex("by_household", (q) => q.eq("householdId", householdId))
-      .filter((q) =>
-        q.and(
-          q.gte(q.field("date"), args.from),
-          q.lt(q.field("date"), args.to),
-        ),
-      )
+      .filter((q) => q.and(q.gte(q.field("date"), args.from), q.lt(q.field("date"), args.to)))
       .collect();
 
     const totalSpent = expenses.reduce((acc, curr) => acc + curr.amount, 0);
@@ -122,7 +107,7 @@ export const createExpense = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    const householdId = await getHouseholdId(ctx, identity);
+    const householdId = await getHouseholdId(ctx);
 
     const newExpense = await ctx.db.insert("expenses", {
       name: args.name,
@@ -185,25 +170,19 @@ export const listMonthlyTransactions = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
-    const householdId = await getHouseholdId(ctx, identity);
+    const householdId = await getHouseholdId(ctx);
 
     const expenses = await ctx.db
       .query("expenses")
       .withIndex("by_household", (q) =>
-        q
-          .eq("householdId", householdId)
-          .gte("date", args.from)
-          .lt("date", args.to),
+        q.eq("householdId", householdId).gte("date", args.from).lt("date", args.to),
       )
       .collect();
 
     const windfalls = await ctx.db
       .query("windfall")
       .withIndex("by_household_date", (q) =>
-        q
-          .eq("householdId", householdId)
-          .gte("date", args.from)
-          .lt("date", args.to),
+        q.eq("householdId", householdId).gte("date", args.from).lt("date", args.to),
       )
       .collect();
 
@@ -218,8 +197,6 @@ export const listMonthlyTransactions = query({
       type: "expense" as const,
     }));
 
-    return [...expensesMapped, ...windfallMapped].sort(
-      (a, b) => (b.date ?? 0) - (a.date ?? 0),
-    );
+    return [...expensesMapped, ...windfallMapped].sort((a, b) => (b.date ?? 0) - (a.date ?? 0));
   },
 });

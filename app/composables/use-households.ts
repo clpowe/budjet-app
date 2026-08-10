@@ -1,19 +1,16 @@
 // composables/useHousehold.ts
 import { api } from "../../convex/_generated/api";
 
+const getErrorMessage = (error: unknown) => {
+  return error instanceof Error ? error.message : "An unexpected error occurred";
+};
+
 export const useHousehold = () => {
   const convex = useConvexClient();
-  const user = useAuth();
 
   // Sync user with Convex when they sign in
   const syncUser = async () => {
-    if (!user.userId.value) return;
-    const u = await convex.mutation(api.users.syncUser, {
-      clerkId: user.userId.value,
-      email: "",
-      name: user.sessionId.value!,
-    });
-    console.log(u);
+    return await convex.mutation(api.users.syncUser, {});
   };
 
   // Get current user's household
@@ -26,15 +23,14 @@ export const useHousehold = () => {
   const createHousehold = async (name: string) => {
     try {
       await syncUser();
-      const householdId = await convex.mutation(
-        api.households.createHousehold,
-        {
-          name,
-        },
-      );
+
+      const householdId = await convex.mutation(api.households.createHousehold, {
+        name,
+      });
+
       return { success: true, householdId };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   };
 
@@ -42,15 +38,12 @@ export const useHousehold = () => {
   const joinHousehold = async (inviteCode: string) => {
     try {
       await syncUser();
-      const householdId = await convex.mutation(
-        api.households.updateHouseholdMembers,
-        {
-          inviteCode,
-        },
-      );
+      const householdId = await convex.mutation(api.households.updateHouseholdMembers, {
+        inviteCode,
+      });
       return { success: true, householdId };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   };
 
@@ -58,9 +51,13 @@ export const useHousehold = () => {
   const leaveHousehold = async () => {
     try {
       await convex.mutation(api.households.updateHouseholdMembership, {});
+
       return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return {
+        success: false,
+        error: getErrorMessage(error),
+      };
     }
   };
 

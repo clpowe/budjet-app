@@ -1,49 +1,50 @@
-// convex/users.ts
-import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { findUserByIdentity, getAuthenticatedIdentity } from "./lib/helpers";
 
-// Sync user from Clerk
 export const syncUser = mutation({
-  args: {
-    clerkId: v.string(),
-    email: v.string(),
-    name: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    console.log("syncUser 2");
-    const existingUser = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
-      .first();
+  args: {},
+  handler: async (ctx) => {
+    const identity = await getAuthenticatedIdentity(ctx);
+
+    if (!identity.email) {
+      throw new Error("Authenticated account does not have an email address");
+    }
+
+    const existingUser = await findUserByIdentity(ctx, identity);
 
     if (existingUser) {
+      if (existingUser.identityKey && existingUser.identityKey !== identity.tokenIdentifier) {
+        throw new Error("Existing user is linked to a different identity");
+      }
+
+      await ctx.db.patch(existingUser._id, {
+        identityKey: identity.tokenIdentifier,
+        email: identity.email,
+        ...(identity.name !== undefined ? { name: identity.name } : {}),
+      });
+
       return existingUser._id;
     }
 
-    const userId = await ctx.db.insert("users", {
-      clerkId: args.clerkId,
-      email: args.email,
-      name: args.name,
+    return await ctx.db.insert("users", {
+      identityKey: identity.tokenIdentifier,
+      email: identity.email,
+      ...(identity.name !== undefined ? { name: identity.name } : {}),
       role: "member",
       createdAt: Date.now(),
     });
-
-    return userId;
   },
 });
 
-// Get current user
 export const getCurrentUser = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
 
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .first();
+    if (!identity) {
+      return null;
+    }
 
-    return user;
+    return await findUserByIdentity(ctx, identity);
   },
 });
