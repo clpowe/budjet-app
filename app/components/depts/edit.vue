@@ -13,19 +13,27 @@ const makeFormState = (dept: Doc<"debts">) => ({
 });
 
 const formState = ref(makeFormState(props.depts));
+const isSaving = ref(false);
 const { update } = useDepts();
 
 // biome-ignore lint/correctness/noUnusedVariables: used as submit handler in template
 async function handleSubmit() {
+  if (isSaving.value) return;
+
   const { name, amount } = formState.value;
 
-  await update({
-    id: props.depts._id,
-    creditor: name,
-    payment: amount,
-  });
+  try {
+    isSaving.value = true;
+    await update({
+      id: props.depts._id,
+      creditor: name,
+      payment: amount,
+    });
 
-  emit("updated", props.depts._id);
+    emit("updated", props.depts._id);
+  } finally {
+    isSaving.value = false;
+  }
 }
 </script>
 
@@ -34,6 +42,7 @@ async function handleSubmit() {
     v-model="formState"
     :show-date="false"
     :show-priority="false"
+    :is-submitting="isSaving"
     submit-label="Update"
     @submit="handleSubmit"
   />

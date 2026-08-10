@@ -23,7 +23,7 @@ const makeFormState = (expense: Doc<"expenses">) => ({
 
 const formState = ref(makeFormState(props.expense));
 
-const { mutate: editSpending } = useConvexMutation(api.expenses.updateExpense);
+const { mutate: editSpending, isPending: isSaving } = useConvexMutation(api.expenses.updateExpense);
 
 // Keep form in sync if parent passes a new expense
 watch(
@@ -36,6 +36,8 @@ watch(
 );
 
 async function handleSubmit() {
+  if (isSaving.value) return;
+
   const { name, notes, amount, date } = formState.value;
 
   await editSpending({
@@ -54,6 +56,7 @@ async function handleSubmit() {
   <transactions-form
     v-model="formState"
     :show-date="true"
+    :is-submitting="isSaving"
     submit-label="Update Spending"
     @submit="handleSubmit"
   />

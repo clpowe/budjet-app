@@ -18,7 +18,9 @@ const makeFormState = (windfall: Doc<"windfall">) => ({
 
 const formState = ref(makeFormState(props.windfall));
 
-const { mutate: editWindfall } = useConvexMutation(api.windfall.updateWindfall);
+const { mutate: editWindfall, isPending: isSaving } = useConvexMutation(
+  api.windfall.updateWindfall,
+);
 
 watch(
   () => props.windfall,
@@ -30,6 +32,8 @@ watch(
 );
 
 async function handleSubmit() {
+  if (isSaving.value) return;
+
   const { name, notes, amount } = formState.value;
 
   await editWindfall({
@@ -48,6 +52,7 @@ async function handleSubmit() {
   <transactions-form
     v-model="formState"
     :show-date="false"
+    :is-submitting="isSaving"
     submit-label="Update"
     @submit="handleSubmit"
   />
