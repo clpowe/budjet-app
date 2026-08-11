@@ -1,7 +1,19 @@
 <script setup lang="ts">
-import AuthSignInPage from "~/components/auth-sign-in-page.vue";
+definePageMeta({
+  layout: "auth",
+});
+
+useHead({
+  title: "Sign in | Daily Funds",
+  meta: [
+    {
+      name: "description",
+      content: "Sign in to Daily Funds to manage your household budget.",
+    },
+  ],
+});
 </script>
 
 <template>
-  <AuthSignInPage />
+  <AuthCredentialsForm mode="sign-in" />
 </template>
