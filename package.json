@@ -27,7 +27,7 @@
     "convex-nuxt": "0.1.5",
     "convex-vue": "^0.1.5",
     "daisyui": "^5.5.19",
-    "nuxt": "^4.3.1",
+    "nuxt": "^4.5.2",
     "nuxt-auth-utils": "0.5.25",
     "svix": "^1.86.0",
     "tailwindcss": "^4.2.1",

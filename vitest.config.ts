@@ -1,4 +1,4 @@
-import { defineConfig } from "vite-plus";
+import { defineConfig, type TestProjectConfiguration } from "vite-plus";
 import { defineVitestProject } from "@nuxt/test-utils/config";
 
 export default defineConfig({
@@ -17,7 +17,7 @@ export default defineConfig({
           include: ["test/nuxt/*.{test,spec}.ts", "tests/nuxt/*.{test,spec}.ts"],
           environment: "nuxt",
         },
-      }),
+      }) as unknown as TestProjectConfiguration,
     ],
   },
 });
