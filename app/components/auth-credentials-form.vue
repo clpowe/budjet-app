@@ -10,6 +10,8 @@ const props = defineProps<{
 const route = useRoute();
 const { isPending: isSessionPending, signIn, signUp } = useBudgetAuth();
 
+const authGate = useAuthGate();
+
 const showPassword = shallowRef(false);
 const submitError = shallowRef<string | null>(null);
 
@@ -32,17 +34,11 @@ const secondaryLabel = computed(() =>
 const secondaryRoute = computed(() => (isSignUp.value ? "/auth/sign-in" : "/auth/sign-up"));
 
 const destination = computed(() => {
-  const requestedDestination = route.query.redirect;
-
-  if (
-    typeof requestedDestination === "string" &&
-    requestedDestination.startsWith("/") &&
-    !requestedDestination.startsWith("//")
-  ) {
-    return requestedDestination;
+  if (authGate.status.value === "needs-onboarding") {
+    return "/onboarding";
   }
 
-  return isSignUp.value ? "/onboarding" : "/home";
+  return getSafeAuthRedirect(route.query.redirect) ?? "/home";
 });
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -69,7 +65,9 @@ const form = useForm({
       return;
     }
 
-    await navigateTo(destination.value);
+    await navigateTo(destination.value, {
+      replace: true,
+    });
   },
 });
 </script>

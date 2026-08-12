@@ -5,31 +5,6 @@ const publicRoutes = new Set(["/", "/auth/sign-in", "/auth/sign-up"]);
 const onboardingRoute = "/onboarding";
 const homeRoute = "/home";
 
-const blockedRedirectPaths = new Set([...publicRoutes, onboardingRoute]);
-
-const getSafeRedirect = (value: unknown) => {
-  if (
-    typeof value !== "string" ||
-    !value.startsWith("/") ||
-    value.startsWith("//") ||
-    value.includes("\\")
-  ) {
-    return null;
-  }
-
-  try {
-    const url = new URL(value, window.location.origin);
-
-    if (url.origin !== window.location.origin || blockedRedirectPaths.has(url.pathname)) {
-      return null;
-    }
-
-    return `${url.pathname}${url.search}${url.hash}`;
-  } catch {
-    return null;
-  }
-};
-
 type Status = Exclude<AuthGateStatus, "loading">;
 
 type RouteKind = "onboarding" | "public" | "protected";
@@ -57,7 +32,7 @@ const table: Record<Status, Record<RouteKind, (r: RouteLocationNormalized) => Ou
   },
   ready: {
     onboarding: () => go(homeRoute),
-    public: (r) => go(getSafeRedirect(r.query.redirect) ?? homeRoute),
+    public: (route) => go(getSafeAuthRedirect(route.query.redirect) ?? homeRoute),
     protected: () => allow,
   },
 };
