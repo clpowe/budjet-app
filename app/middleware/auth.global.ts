@@ -1,51 +1,78 @@
-const publicRoutes = createRouteMatcher([
-  "/",
-  "/auth/sign-in",
-  "/auth/sign-up",
-  "/auth/complete-profile",
-]);
+import type { RouteLocationNormalized, RouteLocationRaw } from "vue-router";
+import type { AuthGateStatus } from "~/composables/use-auth-gate";
 
+const publicRoutes = new Set(["/", "/auth/sign-in", "/auth/sign-up"]);
 const onboardingRoute = "/onboarding";
 const homeRoute = "/home";
 
-export default defineNuxtRouteMiddleware((to) => {
-  // Clerk composables are client-only; skip during SSR.
+const blockedRedirectPaths = new Set([...publicRoutes, onboardingRoute]);
+
+const getSafeRedirect = (value: unknown) => {
+  if (
+    typeof value !== "string" ||
+    !value.startsWith("/") ||
+    value.startsWith("//") ||
+    value.includes("\\")
+  ) {
+    return null;
+  }
+
+  try {
+    const url = new URL(value, window.location.origin);
+
+    if (url.origin !== window.location.origin || blockedRedirectPaths.has(url.pathname)) {
+      return null;
+    }
+
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return null;
+  }
+};
+
+type Status = Exclude<AuthGateStatus, "loading">;
+
+type RouteKind = "onboarding" | "public" | "protected";
+
+const routeKind = (path: string): RouteKind =>
+  path === onboardingRoute ? "onboarding" : publicRoutes.has(path) ? "public" : "protected";
+
+type Outcome = { kind: "allow" } | { kind: "redirect"; to: RouteLocationRaw };
+
+const allow = { kind: "allow" } as const;
+const go = (to: RouteLocationRaw): Outcome => ({ kind: "redirect", to });
+const signIn = (r: RouteLocationNormalized) =>
+  go({ path: "/auth/sign-in", query: { redirect: r.fullPath } });
+
+const table: Record<Status, Record<RouteKind, (r: RouteLocationNormalized) => Outcome>> = {
+  "signed-out": {
+    onboarding: signIn,
+    public: () => allow,
+    protected: signIn,
+  },
+  "needs-onboarding": {
+    onboarding: () => allow,
+    public: () => go(onboardingRoute),
+    protected: () => go(onboardingRoute),
+  },
+  ready: {
+    onboarding: () => go(homeRoute),
+    public: (r) => go(getSafeRedirect(r.query.redirect) ?? homeRoute),
+    protected: () => allow,
+  },
+};
+
+export default defineNuxtRouteMiddleware(async (to) => {
   if (import.meta.server) return;
 
-  const { isLoaded, isSignedIn, sessionClaims } = useAuth();
-
-  // Wait for Clerk to hydrate before making decisions.
-  if (!isLoaded.value) return;
-
-  // Let public pages render; optionally fast-forward authenticated users off landing.
-  if (publicRoutes(to)) {
-    if (isSignedIn.value && to.path === "/") {
-      return navigateTo(homeRoute);
-    }
-    return;
+  const status = await useAuthGate().resolve();
+  if (status === "loading") {
+    throw new Error("The auth gate resolved without reaching a terminal status.");
   }
 
-  // Protect everything else.
-  if (!isSignedIn.value) {
-    return navigateTo("/auth/sign-in");
-  }
+  const outcome = table[status][routeKind(to.path)](to);
 
-  const profileComplete =
-    (sessionClaims.value?.unsafeMetadata as Record<string, unknown> | null)?.profileComplete ===
-    true;
-
-  const { isComplete, loading } = useProfileStatus();
-
-  // Treat either Clerk metadata or backend household as completion.
-  const complete = profileComplete || (isComplete.value && !loading.value);
-
-  // Force onboarding until complete (only when we know status).
-  if (!complete && !loading.value && to.path !== onboardingRoute) {
-    return navigateTo(onboardingRoute);
-  }
-
-  // Keep completed users off onboarding page.
-  if (complete && to.path === onboardingRoute) {
-    return navigateTo(homeRoute);
+  if (outcome.kind === "redirect") {
+    return navigateTo(outcome.to, { replace: true });
   }
 });

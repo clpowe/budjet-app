@@ -1,4 +1,3 @@
-// composables/useHousehold.ts
 import { api } from "../../convex/_generated/api";
 
 const getErrorMessage = (error: unknown) => {
@@ -7,6 +6,7 @@ const getErrorMessage = (error: unknown) => {
 
 export const useHousehold = () => {
   const convex = useConvexClient();
+  const authGate = useAuthGate();
 
   // Sync user with Convex when they sign in
   const syncUser = async () => {
@@ -28,6 +28,8 @@ export const useHousehold = () => {
         name,
       });
 
+      authGate.invalidate();
+
       return { success: true, householdId };
     } catch (error: unknown) {
       return { success: false, error: getErrorMessage(error) };
@@ -41,6 +43,9 @@ export const useHousehold = () => {
       const householdId = await convex.mutation(api.households.updateHouseholdMembers, {
         inviteCode,
       });
+
+      authGate.invalidate();
+
       return { success: true, householdId };
     } catch (error: unknown) {
       return { success: false, error: getErrorMessage(error) };
@@ -52,6 +57,7 @@ export const useHousehold = () => {
     try {
       await convex.mutation(api.households.updateHouseholdMembership, {});
 
+      authGate.invalidate();
       return { success: true };
     } catch (error: unknown) {
       return {

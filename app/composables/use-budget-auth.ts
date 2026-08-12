@@ -31,7 +31,10 @@ const getErrorMessage = (error: unknown) => {
 
 export const useBudgetAuth = () => {
   const authClient = useAuthClient();
+  const authGate = useAuthGate();
   const convex = useConvexClient();
+  const { $refreshConvexAuth } = useNuxtApp();
+
   const sessionState = authClient.useSession();
 
   const session = computed(() => sessionState.value.data);
@@ -39,16 +42,28 @@ export const useBudgetAuth = () => {
   const isPending = computed(() => sessionState.value.isPending);
   const isAuthenticated = computed(() => Boolean(session.value?.session));
 
-  const refreshSession = async () => {
-    await authClient.getSession();
-    await authClient.updateSession();
+  const refreshAuthenticatedSession = async () => {
+    await sessionState.value.refetch();
 
-    // Allow the token bridge's session watcher to refresh Convex authentication.
-    await nextTick();
+    if (!sessionState.value.data?.session) {
+      throw new Error("Unable to load the authenticated session.");
+    }
+
+    const isConvexAuthenticated = await $refreshConvexAuth();
+
+    if (!isConvexAuthenticated) {
+      throw new Error("Unable to authenticate the current session with Convex.");
+    }
   };
 
   const syncUser = async () => {
     await convex.mutation(api.users.syncUser, {});
+  };
+
+  const finishAuthentication = async () => {
+    await refreshAuthenticatedSession();
+    await syncUser();
+    await authGate.refresh();
   };
 
   const signIn = async (credentials: Credentials): Promise<AuthActionResult> => {
@@ -66,8 +81,7 @@ export const useBudgetAuth = () => {
         };
       }
 
-      await refreshSession();
-      await syncUser();
+      await finishAuthentication();
 
       return { success: true };
     } catch (error: unknown) {
@@ -93,8 +107,7 @@ export const useBudgetAuth = () => {
         };
       }
 
-      await refreshSession();
-      await syncUser();
+      await finishAuthentication();
 
       return { success: true };
     } catch (error: unknown) {
@@ -116,7 +129,21 @@ export const useBudgetAuth = () => {
         };
       }
 
-      await authClient.updateSession();
+      authGate.invalidate();
+
+      await sessionState.value.refetch();
+
+      const isStillConvexAuthenticated = await $refreshConvexAuth();
+
+      if (isStillConvexAuthenticated) {
+        throw new Error("Unable to clear the Convex authentication state.");
+      }
+
+      const status = await authGate.resolve();
+
+      if (status !== "signed-out") {
+        throw new Error("Unable to clear the authenticated session.");
+      }
 
       return { success: true };
     } catch (error: unknown) {
