@@ -2,10 +2,6 @@
 import { api } from "../../convex/_generated/api";
 import { format } from "@formkit/tempo";
 
-definePageMeta({
-  middleware: ["auth"],
-});
-
 const { currentDate, queryMonthBounds, backMonth, forwardMonth } = useDate();
 
 const params = computed(() => ({

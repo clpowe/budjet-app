@@ -18,19 +18,9 @@ export async function findUserByIdentity(
   ctx: DatabaseCtx,
   identity: UserIdentity,
 ): Promise<Doc<"users"> | null> {
-  const currentUser = await ctx.db
-    .query("users")
-    .withIndex("by_identity_key", (q) => q.eq("identityKey", identity.tokenIdentifier))
-    .unique();
-
-  if (currentUser) {
-    return currentUser;
-  }
-
-  // Temporary fallback for imported Clerk users whose IDs were preserved.
   return await ctx.db
     .query("users")
-    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+    .withIndex("by_identity_key", (q) => q.eq("identityKey", identity.tokenIdentifier))
     .unique();
 }
 

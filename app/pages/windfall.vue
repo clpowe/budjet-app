@@ -2,10 +2,6 @@
 import { api } from "../../convex/_generated/api";
 
 const { data } = useConvexQuery(api.windfall.getMyWindfallTotal);
-
-definePageMeta({
-  middleware: ["auth"],
-});
 </script>
 
 <template>

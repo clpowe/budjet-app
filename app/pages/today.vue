@@ -1,8 +1,5 @@
 <script setup lang="ts">
 import { dayStart } from "@formkit/tempo";
-definePageMeta({
-  middleware: ["auth"],
-});
 
 const { currentDate, backDay, forwardDay, appDay } = useDate();
 

@@ -5,10 +5,6 @@ export default defineSchema({
   // 1. Users
   users: defineTable({
     identityKey: v.optional(v.string()),
-
-    // Deprecated migration field; retained until Clerk users are relinked.
-    clerkId: v.optional(v.string()),
-
     email: v.string(),
     name: v.optional(v.string()),
     householdId: v.optional(v.id("households")),
@@ -16,7 +12,6 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_identity_key", ["identityKey"])
-    .index("by_clerk_id", ["clerkId"])
     .index("by_household", ["householdId"]),
 
   // 2. Households

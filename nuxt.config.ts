@@ -8,7 +8,7 @@ export default defineNuxtConfig({
   experimental: {
     viteEnvironmentApi: true,
   },
-  modules: ["@clerk/nuxt", "convex-nuxt", "@nuxt/icon", "nitro-cloudflare-dev"],
+  modules: ["convex-nuxt", "@nuxt/icon", "nitro-cloudflare-dev"],
 
   vite: {
     plugins: [tailwindcss()],
@@ -17,10 +17,8 @@ export default defineNuxtConfig({
   css: ["~/assets/css/main.css"],
 
   runtimeConfig: {
-    clerkSecretKey: "",
     convexDeployment: "",
     public: {
-      clerkPublishableKey: "",
       convexUrl: "",
       convexSiteUrl: "",
     },

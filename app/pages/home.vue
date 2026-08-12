@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import { api } from "../../convex/_generated/api";
 
-definePageMeta({
-  middleware: ["auth"],
-});
-
 const { appDay, setDate } = useDate();
 
 const { total, totalToday, burn_rate, variance, currentPosition, dailyBudget } = useExpenses();
