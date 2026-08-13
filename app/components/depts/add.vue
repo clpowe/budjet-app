@@ -1,39 +1,37 @@
 <script setup lang="ts">
 import { api } from "../../../convex/_generated/api";
 
-const name = ref("");
-const value = ref(0);
+const makeFormState = () => ({
+  name: "",
+  amount: 0,
+});
 
-const { mutate } = useConvexMutation(api.depts.createDebt);
+const formState = ref(makeFormState());
+const { mutate, isPending: isSaving, error: createError } = useConvexMutation(api.depts.createDebt);
 
 async function handleSubmit() {
+  if (isSaving.value) return;
+
   const res = await mutate({
-    creditor: name.value,
-    payment: value.value,
+    creditor: formState.value.name,
+    payment: formState.value.amount,
     isPriority: false,
   });
 
   if (res.success) {
-    name.value = "";
-    value.value = 0;
+    formState.value = makeFormState();
   }
-
-  console.log(res);
 }
 </script>
 
 <template>
-  <form @submit.prevent="handleSubmit" class="flex flex-col space-y-4">
-    <label>
-      Name
-      <input v-model="name" class="input" />
-    </label>
-
-    <label>
-      Value
-      <input v-model.number="value" type="text" class="input" />
-    </label>
-
-    <button class="btn btn-primary" type="submit">Add Spending</button>
-  </form>
+  <transactions-form
+    v-model="formState"
+    :show-date="false"
+    :show-priority="false"
+    :is-submitting="isSaving"
+    :errors="{ form: createError?.message }"
+    submit-label="Add Spending"
+    @submit="handleSubmit"
+  />
 </template>

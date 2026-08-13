@@ -4,6 +4,11 @@ import { betterAuth } from "better-auth/minimal";
 import { components } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
 import authConfig from "./auth.config";
+import { normalizeSiteOrigin } from "./lib/auth-origin";
+
+declare const process: {
+  env: Record<string, string | undefined>;
+};
 
 const requireEnv = (name: "SITE_URL" | "CONVEX_SITE_URL" | "BETTER_AUTH_SECRET") => {
   const value = process.env[name];
@@ -18,7 +23,7 @@ const requireEnv = (name: "SITE_URL" | "CONVEX_SITE_URL" | "BETTER_AUTH_SECRET")
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
 export const createAuth = (ctx: GenericCtx<DataModel>) => {
-  const siteUrl = requireEnv("SITE_URL");
+  const siteUrl = normalizeSiteOrigin(requireEnv("SITE_URL"));
 
   return betterAuth({
     appName: "Budget App",

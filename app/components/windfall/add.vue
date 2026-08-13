@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { api } from "../../../convex/_generated/api";
 import { format, tzDate } from "@formkit/tempo";
+import { api } from "../../../convex/_generated/api";
 
 const props = defineProps<{
   drawerId?: string;
 }>();
 
-const { data: user } = useConvexQuery(api.users.getCurrentUser, {});
+const { data: user, isPending: userLoading } = useConvexQuery(api.users.getCurrentUser, {});
 
 const today = format({
   date: new Date(),
@@ -14,55 +14,62 @@ const today = format({
   tz: "America/New_York",
 });
 
-const name = ref("");
-const notes = ref("");
-const value = ref(0);
-const date = ref(today);
-const { mutate: add } = useConvexMutation(api.windfall.addWindfallTransaction);
+const makeFormState = () => ({
+  name: "",
+  notes: "",
+  amount: 0,
+  date: today,
+});
+
+const formState = ref(makeFormState());
+const submitError = ref("");
+const { mutate: add, isPending: isSaving } = useConvexMutation(api.windfall.addWindfallTransaction);
+
+const isDisabled = computed(() => userLoading.value || isSaving.value || !user.value?.householdId);
 
 async function handleSubmit() {
-  if (!user || !user.value?.householdId) return;
-  await add({
-    source: name.value,
-    notes: notes.value,
-    amount: value.value,
-    householdId: user.value?.householdId,
-    date: new Date(tzDate(date.value, "America/New_York")).getTime(),
-  });
+  submitError.value = "";
+  if (isDisabled.value) return;
 
-  // Reset form and close the drawer if provided.
-  name.value = "";
-  notes.value = "";
-  value.value = 0;
+  const householdId = user.value?.householdId;
+  if (!householdId) {
+    submitError.value = "Finish household setup before adding a windfall.";
+    return;
+  }
 
-  if (props.drawerId) {
-    const toggle = document.getElementById(props.drawerId) as HTMLInputElement | null;
-    if (toggle) toggle.checked = false;
+  const { name, notes, amount, date } = formState.value;
+
+  try {
+    await add({
+      source: name,
+      notes,
+      amount,
+      householdId,
+      date: new Date(tzDate(date, "America/New_York")).getTime(),
+    });
+
+    formState.value = makeFormState();
+
+    if (props.drawerId) {
+      const toggle = document.getElementById(props.drawerId) as HTMLInputElement | null;
+      if (toggle) toggle.checked = false;
+    }
+  } catch (error) {
+    submitError.value =
+      error instanceof Error ? error.message : "Could not add the windfall. Try again.";
   }
 }
 </script>
+
 <template>
-  <form @submit.prevent="handleSubmit" class="flex flex-col space-y-4">
-    <label>
-      Name
-      <input v-model="name" class="input" />
-    </label>
-
-    <label>
-      Notes
-      <textarea v-model="notes" class="textarea" />
-    </label>
-
-    <label>
-      Value
-      <input v-model.number="value" type="text" class="input" />
-    </label>
-
-    <label class="input">
-      <span class="label">Date</span>
-      <input type="date" v-model="date" />
-    </label>
-
-    <button class="btn btn-primary" type="submit">Add Dollars</button>
-  </form>
+  <transactions-form
+    v-model="formState"
+    :show-date="true"
+    :show-priority="false"
+    :is-submitting="isSaving"
+    :disabled="isDisabled"
+    :errors="{ form: submitError || undefined }"
+    submit-label="Add Dollars"
+    @submit="handleSubmit"
+  />
 </template>

@@ -5,6 +5,9 @@
   "observability": {
     "enabled": true,
   },
+  "vars": {
+    "NUXT_PUBLIC_CONVEX_SITE_URL": "https://tidy-fox-761.convex.site",
+  },
   "main": "./.output/server/index.mjs",
   "assets": {
     "binding": "ASSETS",

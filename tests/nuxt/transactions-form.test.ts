@@ -1,4 +1,4 @@
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { describe, expect, it } from "vite-plus/test";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
 import TransactionsForm from "../../app/components/transactions/form.vue";
@@ -43,6 +43,7 @@ describe("TransactionsForm", () => {
     });
 
     await wrapper.find("form").trigger("submit");
+    await flushPromises();
 
     expect(wrapper.emitted("submit")).toHaveLength(1);
   });
@@ -62,6 +63,28 @@ describe("TransactionsForm", () => {
     expect(updates).toHaveLength(0);
     expect(wrapper.emitted("submit")).toBeUndefined();
     expect(wrapper.text()).toContain("Enter an amount.");
+  });
+
+  it("resets TanStack field state when the parent supplies a different transaction", async () => {
+    const wrapper = mount(TransactionsForm, {
+      props: {
+        modelValue,
+        showDate: true,
+      },
+    });
+
+    await wrapper.find('input[name="name"]').setValue("Changed locally");
+    await wrapper.setProps({
+      modelValue: {
+        ...modelValue,
+        name: "Refund",
+        amount: 55,
+      },
+    });
+    await flushPromises();
+
+    expect(wrapper.find<HTMLInputElement>('input[name="name"]').element.value).toBe("Refund");
+    expect(wrapper.find<HTMLInputElement>('input[name="amount"]').element.value).toBe("55");
   });
 
   it("uses mobile-friendly constraints for amount entry", () => {

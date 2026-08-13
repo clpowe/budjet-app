@@ -133,6 +133,8 @@ const safeToSpendState = computed(() => {
       </div>
     </section>
 
+    <SpendingMonthlyChart />
+
     <section class="grid gap-x-8 gap-y-4 lg:grid-cols-2" aria-label="Secondary balances">
       <article class="border-t border-base-300 py-5">
         <div class="flex flex-wrap items-start justify-between gap-4">
