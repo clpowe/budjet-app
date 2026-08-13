@@ -28,7 +28,6 @@ export function buildMonthlySpendingRows(
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const currentDay = currentDate.getDate();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
   const dailyTotals = new Map<number, number>();
 
   for (const expense of expenses) {
@@ -40,6 +39,44 @@ export function buildMonthlySpendingRows(
     dailyTotals.set(day, (dailyTotals.get(day) ?? 0) + finiteAmount(expense.amount));
   }
 
+  return buildCumulativeRows(dailyTotals, year, month, dailyBudget, currentDay);
+}
+
+export function buildPreviousMonthSpendingRows(
+  expenses: readonly ExpenseAmount[],
+  currentDate: Date,
+): MonthlySpendingRow[] {
+  const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+  const dailyTotals = collectDailyTotals(expenses, previousMonth);
+
+  return buildCumulativeRows(dailyTotals, previousMonth.getFullYear(), previousMonth.getMonth(), 0);
+}
+
+function collectDailyTotals(expenses: readonly ExpenseAmount[], monthDate: Date) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const dailyTotals = new Map<number, number>();
+
+  for (const expense of expenses) {
+    const expenseDate = new Date(expense.date);
+
+    if (expenseDate.getFullYear() !== year || expenseDate.getMonth() !== month) continue;
+
+    const day = expenseDate.getDate();
+    dailyTotals.set(day, (dailyTotals.get(day) ?? 0) + finiteAmount(expense.amount));
+  }
+
+  return dailyTotals;
+}
+
+function buildCumulativeRows(
+  dailyTotals: Map<number, number>,
+  year: number,
+  month: number,
+  dailyBudget: number,
+  throughDay = Number.POSITIVE_INFINITY,
+) {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
   let cumulativeSpend = 0;
   const safeDailyBudget = Math.max(0, finiteAmount(dailyBudget));
 
@@ -47,14 +84,14 @@ export function buildMonthlySpendingRows(
     const day = index + 1;
     const date = new Date(year, month, day);
 
-    if (day <= currentDay) cumulativeSpend += dailyTotals.get(day) ?? 0;
+    if (day <= throughDay) cumulativeSpend += dailyTotals.get(day) ?? 0;
 
     return {
       budget: safeDailyBudget * day,
       day,
       id: `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
       label: dayFormatter.format(date),
-      spent: day <= currentDay ? cumulativeSpend : null,
+      spent: day <= throughDay ? cumulativeSpend : null,
     };
   });
 }

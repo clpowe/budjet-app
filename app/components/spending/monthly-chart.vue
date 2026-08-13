@@ -6,11 +6,22 @@ import { decorative } from "@tanstack/charts/mark/decorative";
 import { scaleLinear } from "@tanstack/charts/scales/linear";
 import { tooltip } from "@tanstack/charts/tooltip";
 import { Chart } from "@tanstack/charts/vue";
+import { monthStart } from "@formkit/tempo";
 import { curveMonotoneX } from "d3-shape";
 import { api } from "../../../convex/_generated/api";
-import { buildMonthlySpendingRows } from "../../utils/monthly-spending";
+import {
+  buildMonthlySpendingRows,
+  buildPreviousMonthSpendingRows,
+} from "../../utils/monthly-spending";
 
 const { currentDate, queryMonthBounds } = useDate();
+const previousMonthBounds = computed(() => {
+  const date = new Date(currentDate.value);
+  const currentMonthStart = monthStart(date);
+  const previousMonthStart = monthStart(new Date(date.getFullYear(), date.getMonth() - 1, 1));
+
+  return { from: previousMonthStart.getTime(), to: currentMonthStart.getTime() };
+});
 const { data: household } = useConvexQuery(api.households.getMyHousehold, {});
 const dailyBudget = computed(() => {
   const allowance = household.value?.allowance;
@@ -25,8 +36,16 @@ const { data: monthlyExpenses } = useConvexQuery(
   })),
 );
 
+const { data: previousMonthExpenses } = useConvexQuery(
+  api.expenses.listMyExpenses,
+  previousMonthBounds,
+);
+
 const rows = computed(() =>
   buildMonthlySpendingRows(monthlyExpenses.value ?? [], currentDate.value, dailyBudget.value),
+);
+const previousRows = computed(() =>
+  buildPreviousMonthSpendingRows(previousMonthExpenses.value ?? [], currentDate.value),
 );
 
 const currentRow = computed(() => rows.value.findLast((row) => row.spent !== null));
@@ -53,9 +72,13 @@ const definition = computed(() => {
   );
   const finalBudget = chartRows.at(-1)?.budget ?? 0;
   const maximumSpend = Math.max(0, ...actualRows.map((row) => row.spent));
+  const previousActualRows = previousRows.value.filter(
+    (row): row is typeof row & { spent: number } => row.spent !== null,
+  );
+  const maximumPreviousSpend = Math.max(0, ...previousActualRows.map((row) => row.spent));
   const yMaximum = Math.max(
     100,
-    Math.ceil((Math.max(finalBudget, maximumSpend) * 1.08) / 100) * 100,
+    Math.ceil((Math.max(finalBudget, maximumSpend, maximumPreviousSpend) * 1.08) / 100) * 100,
   );
   const lastDay = chartRows.at(-1)?.day ?? 31;
 
@@ -94,6 +117,18 @@ const definition = computed(() => {
             key: "id",
             stroke: "var(--monthly-chart-spend)",
             strokeWidth: 3,
+            curve: smooth,
+          }),
+        ),
+        decorative(
+          lineY(previousActualRows, {
+            id: "monthly-previous-spending",
+            x: "day",
+            y: "spent",
+            key: "id",
+            stroke: "var(--monthly-chart-previous)",
+            strokeWidth: 2,
+            strokeDasharray: "2 5",
             curve: smooth,
           }),
         ),
@@ -217,6 +252,10 @@ const definition = computed(() => {
         ><i class="monthly-spend-card__swatch monthly-spend-card__swatch--budget"></i>Budget
         pace</span
       >
+      <span
+        ><i class="monthly-spend-card__swatch monthly-spend-card__swatch--previous"></i>Previous
+        month</span
+      >
     </div>
 
     <div class="monthly-spend-card__chart">
@@ -224,7 +263,7 @@ const definition = computed(() => {
         :definition="definition"
         :height="300"
         :initial-width="720"
-        aria-label="Cumulative spending and budget pace for the current month"
+        aria-label="Cumulative spending, previous month spending, and budget pace for the current month"
         aria-description="Use the arrow keys to inspect cumulative spending by day."
       />
     </div>
@@ -238,6 +277,7 @@ const definition = computed(() => {
   --monthly-chart-muted: color-mix(in srgb, var(--monthly-chart-foreground) 58%, transparent);
   --monthly-chart-grid: color-mix(in srgb, var(--monthly-chart-foreground) 16%, transparent);
   --monthly-chart-spend: #0f766e;
+  --monthly-chart-previous: #64748b;
   --monthly-chart-budget: #d97706;
   --ts-chart-tooltip-max-width: min(18rem, 82%);
   --ts-chart-tooltip-padding: 8px 10px;
@@ -329,6 +369,17 @@ const definition = computed(() => {
 
 .monthly-spend-card__swatch--budget {
   color: var(--monthly-chart-budget);
+}
+
+.monthly-spend-card__swatch--previous {
+  background: repeating-linear-gradient(
+    to right,
+    currentColor 0,
+    currentColor 0.2rem,
+    transparent 0.2rem,
+    transparent 0.4rem
+  );
+  color: var(--monthly-chart-previous);
 }
 
 .monthly-spend-card__chart {

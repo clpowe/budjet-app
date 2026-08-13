@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
-import { buildMonthlySpendingRows } from "../../app/utils/monthly-spending";
+import {
+  buildMonthlySpendingRows,
+  buildPreviousMonthSpendingRows,
+} from "../../app/utils/monthly-spending";
 
 describe("buildMonthlySpendingRows", () => {
   it("builds cumulative spend and budget rows through the current day", () => {
@@ -33,5 +36,20 @@ describe("buildMonthlySpendingRows", () => {
     );
 
     expect(rows[0]).toMatchObject({ budget: 0, spent: 0 });
+  });
+
+  it("builds a full cumulative comparison for the previous month", () => {
+    const rows = buildPreviousMonthSpendingRows(
+      [
+        { amount: 20, date: new Date(2026, 6, 1, 12).getTime() },
+        { amount: 15, date: new Date(2026, 6, 31, 12).getTime() },
+      ],
+      new Date(2026, 7, 3, 20),
+    );
+
+    expect(rows).toHaveLength(31);
+    expect(rows[0].spent).toBe(20);
+    expect(rows[2].spent).toBe(20);
+    expect(rows[30].spent).toBe(35);
   });
 });
