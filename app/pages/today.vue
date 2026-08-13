@@ -57,9 +57,9 @@ function openTransactionDrawer() {
       :amount="currentPosition!"
     >
       <template #items>
-        <mini-card title="Spent Today" :amount="totalToday" />
-        <mini-card title="Burn Rate" :amount="burn_rate" />
-        <mini-card title="Variance" :amount="variance" />
+        <mini-card title="Spent today" :amount="totalToday" />
+        <mini-card title="Average daily spending" :amount="burn_rate" />
+        <mini-card title="Over/under budget" :amount="variance" />
         <mini-card title="Daily Budget" :amount="dailyBudget" />
         <mini-card title="Rolling Budget" :amount="rollingBudget" />
       </template>

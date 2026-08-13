@@ -14,10 +14,10 @@ export const useHousehold = () => {
   };
 
   // Get current user's household
-  const household = convex.query(api.households.getMyHousehold, {});
+  const { data: household } = useConvexQuery(api.households.getMyHousehold, {});
 
   // Get household members
-  const members = convex.query(api.households.listHouseholdMembers, {});
+  const { data: members } = useConvexQuery(api.households.listHouseholdMembers, {});
 
   // Create a new household
   const createHousehold = async (name: string) => {

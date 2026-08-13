@@ -95,13 +95,13 @@ const safeToSpendState = computed(() => {
 
       <div class="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <div class="border-t border-base-300 pt-4">
-          <p class="text-sm text-base-content/60">Total spent</p>
+          <p class="text-sm text-base-content/60">Spent so far</p>
           <p class="mt-1 text-2xl font-bold">
             {{ formatMoney(total ?? 0) }}
           </p>
         </div>
         <div class="border-t border-base-300 pt-4">
-          <p class="text-sm text-base-content/60">Current position</p>
+          <p class="text-sm text-base-content/60">Money left</p>
           <p class="mt-1 text-2xl font-bold">
             {{ formatMoney(currentPosition ?? 0) }}
           </p>
@@ -113,7 +113,7 @@ const safeToSpendState = computed(() => {
           </p>
         </div>
         <div class="border-t border-base-300 pt-4">
-          <p class="text-sm text-base-content/60">Burn rate</p>
+          <p class="text-sm text-base-content/60">Average daily spending</p>
           <p
             class="mt-1 text-2xl font-bold"
             :class="burn_rate.positive ? 'text-success' : 'text-error'"
@@ -122,7 +122,7 @@ const safeToSpendState = computed(() => {
           </p>
         </div>
         <div class="border-t border-base-300 pt-4">
-          <p class="text-sm text-base-content/60">Variance</p>
+          <p class="text-sm text-base-content/60">Over/under budget</p>
           <p
             class="mt-1 text-2xl font-bold"
             :class="variance.positive ? 'text-success' : 'text-error'"

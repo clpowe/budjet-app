@@ -88,6 +88,14 @@ const handleSignOut = async () => {
         >
           Monthly
         </NuxtLink>
+
+        <NuxtLink
+          to="/household"
+          class="btn btn-ghost btn-sm"
+          exact-active-class="bg-base-200 font-bold text-base-content"
+        >
+          Household
+        </NuxtLink>
       </nav>
     </div>
 
