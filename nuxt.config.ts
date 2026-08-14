@@ -1,7 +1,22 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from "@tailwindcss/vite";
+import type { NuxtConfig, ViteOptions } from "nuxt/schema";
 
-export default defineNuxtConfig({
+const convexUrls = {
+  development: "https://hip-caribou-985.convex.cloud",
+  production: "https://tidy-fox-761.convex.cloud",
+} as const;
+
+type NuxtConfigWithEnvironments = NuxtConfig & {
+  $development?: { convex: { url: string } };
+  $production?: { convex: { url: string } };
+};
+
+const vite = {
+  plugins: tailwindcss(),
+} as ViteOptions;
+
+export default {
   compatibilityDate: "2025-07-15",
   ssr: false,
   devtools: { enabled: true },
@@ -10,9 +25,7 @@ export default defineNuxtConfig({
   },
   modules: ["convex-nuxt", "@nuxt/icon", "nitro-cloudflare-dev"],
 
-  vite: {
-    plugins: [tailwindcss()],
-  },
+  vite,
 
   css: ["~/assets/css/main.css"],
 
@@ -26,13 +39,13 @@ export default defineNuxtConfig({
 
   $development: {
     convex: {
-      url: "https://hip-caribou-985.convex.cloud",
+      url: convexUrls.development,
     },
   },
 
   $production: {
     convex: {
-      url: "https://tidy-fox-761.convex.cloud",
+      url: convexUrls.production,
     },
   },
 
@@ -44,4 +57,4 @@ export default defineNuxtConfig({
       nodeCompat: true,
     },
   },
-});
+} satisfies NuxtConfigWithEnvironments;

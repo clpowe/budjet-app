@@ -2,14 +2,27 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { findCurrentUser, getAuthenticatedUser } from "./lib/helpers";
 
+const DEFAULT_HOUSEHOLD_TIME_ZONE = "America/New_York";
+
 function generateInviteCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+export function isValidTimeZone(timeZone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format(0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export const createHousehold = mutation({
   args: {
     name: v.string(),
+    timeZone: v.optional(v.string()),
   },
+  returns: v.id("households"),
   handler: async (ctx, args) => {
     const user = await getAuthenticatedUser(ctx);
 
@@ -17,12 +30,22 @@ export const createHousehold = mutation({
       throw new Error("User already belongs to a household");
     }
 
+    const timeZone = args.timeZone ?? DEFAULT_HOUSEHOLD_TIME_ZONE;
+
+    if (!isValidTimeZone(timeZone)) {
+      throw new Error("Invalid time zone");
+    }
+
+    const now = Date.now();
     const householdId = await ctx.db.insert("households", {
       name: args.name,
       inviteCode: generateInviteCode(),
       ownerId: user._id,
-      createdAt: Date.now(),
+      createdAt: now,
       allowance: 55,
+      allowanceCents: 5_500n,
+      timeZone,
+      moneyMigrationCompletedAt: now,
     });
 
     await ctx.db.patch(user._id, {

@@ -13,6 +13,7 @@ import type * as depts from "../depts.js";
 import type * as expenses from "../expenses.js";
 import type * as households from "../households.js";
 import type * as http from "../http.js";
+import type * as lib_auth_origin from "../lib/auth_origin.js";
 import type * as lib_helpers from "../lib/helpers.js";
 import type * as users from "../users.js";
 import type * as windfall from "../windfall.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   expenses: typeof expenses;
   households: typeof households;
   http: typeof http;
+  "lib/auth_origin": typeof lib_auth_origin;
   "lib/helpers": typeof lib_helpers;
   users: typeof users;
   windfall: typeof windfall;

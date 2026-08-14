@@ -18,6 +18,13 @@ export default defineConfig({
           environment: "nuxt",
         },
       }) as unknown as TestProjectConfiguration,
+      {
+        test: {
+          name: "convex",
+          include: ["convex/**/*.test.ts"],
+          environment: "edge-runtime",
+        },
+      },
     ],
   },
 });

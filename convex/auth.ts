@@ -4,7 +4,7 @@ import { betterAuth } from "better-auth/minimal";
 import { components } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
 import authConfig from "./auth.config";
-import { normalizeSiteOrigin } from "./lib/auth-origin";
+import { normalizeSiteOrigin } from "./lib/auth_origin";
 
 declare const process: {
   env: Record<string, string | undefined>;
