@@ -24,6 +24,7 @@ let useHousehold: typeof import("../../app/composables/use-households").useHouse
 describe("useHousehold", () => {
   beforeEach(async () => {
     vi.resetModules();
+    vi.stubGlobal("useState", (_key: string, initialize: () => unknown) => ref(initialize()));
     vi.stubGlobal("useConvexQuery", (...args: unknown[]) => useConvexQueryMock(...args));
     vi.stubGlobal("useConvexClient", () => useConvexClientMock());
     vi.stubGlobal("useAuthGate", () => useAuthGateMock());
