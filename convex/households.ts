@@ -1,8 +1,54 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { findCurrentUser, getAuthenticatedUser } from "./lib/helpers";
+import type { Doc } from "./_generated/dataModel";
+import { getLocalDateKey, getLocalDayBounds, getNextLocalDate } from "./lib/want_reserve";
 
 const DEFAULT_HOUSEHOLD_TIME_ZONE = "America/New_York";
+
+type HouseholdTimeZoneSettings = Pick<
+  Doc<"households">,
+  "timeZone" | "pendingTimeZone" | "pendingTimeZoneEffectiveAt"
+>;
+
+const timeZoneUpdateResultValidator = v.object({
+  currentTimeZone: v.string(),
+  pendingTimeZone: v.string(),
+  pendingTimeZoneEffectiveAt: v.number(),
+});
+
+export function getEffectiveTimeZone(
+  household: Partial<HouseholdTimeZoneSettings>,
+  at: number,
+): string {
+  if (
+    household.pendingTimeZone &&
+    household.pendingTimeZoneEffectiveAt !== undefined &&
+    at >= household.pendingTimeZoneEffectiveAt
+  ) {
+    return household.pendingTimeZone;
+  }
+
+  return household.timeZone ?? DEFAULT_HOUSEHOLD_TIME_ZONE;
+}
+
+export function getNextLocalMidnightTimestamp(timestamp: number, timeZone: string): number {
+  const currentLocalDate = getLocalDateKey(timestamp, timeZone);
+  const nextLocalDate = getNextLocalDate(currentLocalDate, timeZone);
+
+  return getLocalDayBounds(nextLocalDate, timeZone).startTimestamp;
+}
+
+export function shouldPromotePendingTimeZone(
+  household: Partial<HouseholdTimeZoneSettings>,
+  at: number,
+): boolean {
+  return (
+    household.pendingTimeZone !== undefined &&
+    household.pendingTimeZoneEffectiveAt !== undefined &&
+    at >= household.pendingTimeZoneEffectiveAt
+  );
+}
 
 function generateInviteCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -54,6 +100,59 @@ export const createHousehold = mutation({
     });
 
     return householdId;
+  },
+});
+
+export const updateTimeZone = mutation({
+  args: {
+    timeZone: v.string(),
+  },
+  returns: timeZoneUpdateResultValidator,
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const user = await getAuthenticatedUser(ctx);
+
+    if (!user.householdId) {
+      throw new Error("User is not in a household");
+    }
+
+    const household = await ctx.db.get(user.householdId);
+
+    if (!household) {
+      throw new Error("Household not found");
+    }
+
+    if (household.ownerId !== user._id) {
+      throw new Error("Only the household owner can change the budget timezone");
+    }
+
+    if (!isValidTimeZone(args.timeZone)) {
+      throw new Error("Invalid time zone");
+    }
+
+    const currentTimeZone = getEffectiveTimeZone(household, now);
+
+    let pendingTimeZoneEffectiveAt: number;
+
+    if (
+      household.pendingTimeZoneEffectiveAt !== undefined &&
+      now < household.pendingTimeZoneEffectiveAt
+    ) {
+      pendingTimeZoneEffectiveAt = household.pendingTimeZoneEffectiveAt;
+    } else {
+      pendingTimeZoneEffectiveAt = getNextLocalMidnightTimestamp(now, currentTimeZone);
+    }
+
+    await ctx.db.patch(household._id, {
+      pendingTimeZone: args.timeZone,
+      pendingTimeZoneEffectiveAt,
+    });
+
+    return {
+      currentTimeZone,
+      pendingTimeZone: args.timeZone,
+      pendingTimeZoneEffectiveAt,
+    };
   },
 });
 
