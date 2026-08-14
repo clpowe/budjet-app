@@ -10,7 +10,7 @@ import {
   getLocalDayBounds,
   getNextLocalDate,
   getReorderUpdates,
-} from "../../convex/lib/want-reserve";
+} from "../../convex/lib/want_reserve";
 
 describe("allocateReserve", () => {
   it("funds active items in queue order", () => {

@@ -15,7 +15,9 @@ import type * as households from "../households.js";
 import type * as http from "../http.js";
 import type * as lib_auth_origin from "../lib/auth_origin.js";
 import type * as lib_helpers from "../lib/helpers.js";
+import type * as lib_want_reserve from "../lib/want_reserve.js";
 import type * as users from "../users.js";
+import type * as wants from "../wants.js";
 import type * as windfall from "../windfall.js";
 
 import type {
@@ -32,7 +34,9 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "lib/auth_origin": typeof lib_auth_origin;
   "lib/helpers": typeof lib_helpers;
+  "lib/want_reserve": typeof lib_want_reserve;
   users: typeof users;
+  wants: typeof wants;
   windfall: typeof windfall;
 }>;
 
