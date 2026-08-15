@@ -2,7 +2,7 @@
 import { api } from "../../convex/_generated/api";
 import { format } from "@formkit/tempo";
 
-const { currentDate, queryMonthBounds, backMonth, forwardMonth } = useDate();
+const { currentDate, queryMonthBounds, backMonth, forwardMonth, timeZone } = useDate();
 
 const params = computed(() => ({
   from: queryMonthBounds.value.from,
@@ -27,7 +27,7 @@ const groupedTransactions = computed(() => {
     const dateKey = format({
       date: new Date(tx.date),
       format: "YYYY-MM-DD",
-      tz: "America/New_York",
+      tz: timeZone.value,
     });
 
     if (!groups[dateKey]) {

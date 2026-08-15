@@ -104,9 +104,9 @@ export const useHousehold = () => {
         timeZone,
       });
 
-      return { success: true, ...result };
+      return { success: true as const, ...result };
     } catch (error: unknown) {
-      return { success: false, error: getErrorMessage(error) };
+      return { success: false as const, error: getErrorMessage(error) };
     }
   };
 

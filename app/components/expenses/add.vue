@@ -1,17 +1,8 @@
 <script setup lang="ts">
-import { format, tzDate } from "@formkit/tempo";
 import { api } from "../../../convex/_generated/api";
 
 const { data: user, isPending: userLoading } = useConvexQuery(api.users.getCurrentUser, {});
-const { currentDate } = useDate();
-
-function formatDateInput(date: Date) {
-  return format({
-    date,
-    format: "YYYY-MM-DD",
-    tz: "America/New_York",
-  });
-}
+const { currentDate, timeZone, formatDateInput, toTransactionTimestamp } = useDate();
 
 const makeFormState = (date: string) => ({
   name: "",
@@ -23,7 +14,7 @@ const makeFormState = (date: string) => ({
 const formState = ref(makeFormState(formatDateInput(currentDate.value)));
 const submitError = ref("");
 
-watch(currentDate, (nextDate) => {
+watch([currentDate, timeZone], ([nextDate]) => {
   formState.value = {
     ...formState.value,
     date: formatDateInput(nextDate),
@@ -65,7 +56,7 @@ async function handleSubmit() {
       name,
       notes,
       amount,
-      date: new Date(tzDate(date, "America/New_York")).getTime(),
+      date: toTransactionTimestamp(date),
       householdId,
     });
 

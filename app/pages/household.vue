@@ -1,9 +1,67 @@
 <script setup lang="ts">
-const { household, members } = useHousehold();
+const { household, members, effectiveTimeZone, updateTimeZone } = useHousehold();
 const { user } = useConvexUser();
 
 const inviteFeedback = shallowRef<string | null>(null);
 let feedbackTimeout: ReturnType<typeof setTimeout> | undefined;
+
+const fallbackTimeZones = [
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Phoenix",
+  "Pacific/Honolulu",
+];
+
+const timeZoneOptions = shallowRef(fallbackTimeZones);
+const timeZoneFeedback = shallowRef<string | null>(null);
+const isUpdatingTimeZone = shallowRef(false);
+
+const selectedTimeZone = computed(() => {
+  return household.value?.pendingTimeZone ?? effectiveTimeZone.value;
+});
+
+const pendingTimeZoneMessage = computed(() => {
+  const pendingTimeZone = household.value?.pendingTimeZone;
+  const effectiveAt = household.value?.pendingTimeZoneEffectiveAt;
+
+  if (!pendingTimeZone || effectiveAt === undefined) return null;
+
+  const boundary = new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: effectiveTimeZone.value,
+  }).format(new Date(effectiveAt));
+
+  return `${pendingTimeZone} takes effect at ${boundary}.`;
+});
+
+onMounted(() => {
+  if (typeof Intl.supportedValuesOf !== "function") return;
+
+  timeZoneOptions.value = Intl.supportedValuesOf("timeZone");
+});
+
+const requestTimeZone = async (event: Event) => {
+  const timeZone = (event.target as HTMLSelectElement).value;
+
+  if (!timeZone || timeZone === selectedTimeZone.value || isUpdatingTimeZone.value) return;
+
+  isUpdatingTimeZone.value = true;
+  timeZoneFeedback.value = null;
+
+  const result = await updateTimeZone(timeZone);
+
+  isUpdatingTimeZone.value = false;
+
+  if (!result.success) {
+    timeZoneFeedback.value = result.error;
+    return;
+  }
+
+  timeZoneFeedback.value = "Timezone update saved.";
+};
 
 useHead({
   title: "Household | Daily Funds",
@@ -194,6 +252,54 @@ const shareInvite = async () => {
           people you trust.
         </p>
       </aside>
+    </section>
+
+    <section
+      class="mt-8 rounded-sm border border-base-300 bg-base-100 p-5 shadow-sm sm:p-7"
+      aria-labelledby="timezone-heading"
+    >
+      <p class="text-sm font-semibold text-primary">Budget settings</p>
+      <h2 id="timezone-heading" class="mt-1 text-xl font-bold tracking-tight text-base-content">
+        Household timezone
+      </h2>
+      <p class="mt-2 max-w-2xl text-sm leading-6 text-base-content/65">
+        Spending dates, daily budget windows, and goal progress use this timezone.
+      </p>
+
+      <template v-if="isOwner">
+        <label class="mt-5 flex max-w-md flex-col gap-2" for="household-timezone">
+          <span class="text-sm font-semibold text-base-content">Timezone</span>
+          <select
+            id="household-timezone"
+            data-test="time-zone-select"
+            class="select w-full"
+            :value="selectedTimeZone"
+            :disabled="isUpdatingTimeZone || !household"
+            @change="requestTimeZone"
+          >
+            <option v-for="timeZone in timeZoneOptions" :key="timeZone" :value="timeZone">
+              {{ timeZone }}
+            </option>
+          </select>
+        </label>
+
+        <p v-if="pendingTimeZoneMessage" class="mt-3 text-sm text-base-content/65">
+          {{ pendingTimeZoneMessage }}
+        </p>
+        <p
+          v-if="timeZoneFeedback"
+          class="mt-3 text-sm font-medium"
+          :class="timeZoneFeedback === 'Timezone update saved.' ? 'text-success' : 'text-error'"
+          role="status"
+          aria-live="polite"
+        >
+          {{ timeZoneFeedback }}
+        </p>
+      </template>
+
+      <p v-else class="mt-5 text-sm leading-6 text-base-content/65">
+        Only the household owner can change the budget timezone.
+      </p>
     </section>
 
     <section class="mt-8" aria-labelledby="members-heading">

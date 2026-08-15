@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { format, tzDate } from "@formkit/tempo";
 import { api } from "../../../convex/_generated/api";
 
 const props = defineProps<{
@@ -7,23 +6,25 @@ const props = defineProps<{
 }>();
 
 const { data: user, isPending: userLoading } = useConvexQuery(api.users.getCurrentUser, {});
+const { currentDate, timeZone, formatDateInput, toTransactionTimestamp } = useDate();
 
-const today = format({
-  date: new Date(),
-  format: "YYYY-MM-DD",
-  tz: "America/New_York",
-});
-
-const makeFormState = () => ({
+const makeFormState = (date = formatDateInput(currentDate.value)) => ({
   name: "",
   notes: "",
   amount: 0,
-  date: today,
+  date,
 });
 
 const formState = ref(makeFormState());
 const submitError = ref("");
 const { mutate: add, isPending: isSaving } = useConvexMutation(api.windfall.addWindfallTransaction);
+
+watch([currentDate, timeZone], ([nextDate]) => {
+  formState.value = {
+    ...formState.value,
+    date: formatDateInput(nextDate),
+  };
+});
 
 const isDisabled = computed(() => userLoading.value || isSaving.value || !user.value?.householdId);
 
@@ -45,7 +46,7 @@ async function handleSubmit() {
       notes,
       amount,
       householdId,
-      date: new Date(tzDate(date, "America/New_York")).getTime(),
+      date: toTransactionTimestamp(date),
     });
 
     formState.value = makeFormState();

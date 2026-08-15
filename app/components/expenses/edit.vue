@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { format, tzDate } from "@formkit/tempo";
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
 
@@ -9,23 +8,19 @@ const props = defineProps<{
 
 const emit = defineEmits<(e: "updated", id: Doc<"expenses">["_id"]) => void>();
 
-// Build the initial form state
+const { formatDateInput, toTransactionTimestamp } = useDate();
+
 const makeFormState = (expense: Doc<"expenses">) => ({
   name: expense.name,
   notes: expense.notes,
   amount: expense.amount,
-  date: format({
-    date: new Date(expense.date),
-    format: "YYYY-MM-DD",
-    tz: "America/New_York",
-  }),
+  date: formatDateInput(new Date(expense.date)),
 });
 
 const formState = ref(makeFormState(props.expense));
 
 const { mutate: editSpending, isPending: isSaving } = useConvexMutation(api.expenses.updateExpense);
 
-// Keep form in sync if parent passes a new expense
 watch(
   () => props.expense,
   (updated) => {
@@ -46,7 +41,7 @@ async function handleSubmit() {
     name,
     notes,
     amount,
-    date: new Date(tzDate(date, "America/New_York")).getTime(),
+    date: toTransactionTimestamp(date),
   });
 
   emit("updated", props.expense._id);
