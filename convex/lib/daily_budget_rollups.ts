@@ -1,0 +1,157 @@
+import type { Id } from "../_generated/dataModel";
+import type { MutationCtx } from "../_generated/server";
+import { getLocalDateKey } from "./want_reserve";
+
+export type ExpenseFacts = {
+  date: number;
+  amountCents: bigint;
+  reserveUsedCents: bigint;
+};
+
+type ApplyExpenseDeltaArgs = {
+  householdId: Id<"households">;
+  timeZone: string;
+  before?: ExpenseFacts;
+  after?: ExpenseFacts;
+  now: number;
+  actorId: Id<"users">;
+  sourceExpenseId: Id<"expenses">;
+};
+
+type RollupDelta = {
+  expenseCents: bigint;
+  reserveFundedExpenseCents: bigint;
+  budgetImpactExpenseCents: bigint;
+};
+
+function getBudgetImpactCents(expense: ExpenseFacts): bigint {
+  if (expense.amountCents <= 0n) {
+    throw new Error("Expense amount must be greater than zero");
+  }
+
+  if (expense.reserveUsedCents < 0n || expense.reserveUsedCents > expense.amountCents) {
+    throw new Error("Reserve used must be between zero and the expense amount");
+  }
+
+  return expense.amountCents - expense.reserveUsedCents;
+}
+
+function addDelta(
+  deltas: Map<string, RollupDelta>,
+  localDate: string,
+  expense: ExpenseFacts,
+  direction: bigint,
+) {
+  const delta = deltas.get(localDate) ?? {
+    expenseCents: 0n,
+    reserveFundedExpenseCents: 0n,
+    budgetImpactExpenseCents: 0n,
+  };
+
+  delta.expenseCents += direction * expense.amountCents;
+  delta.reserveFundedExpenseCents += direction * expense.reserveUsedCents;
+  delta.budgetImpactExpenseCents += direction * getBudgetImpactCents(expense);
+
+  deltas.set(localDate, delta);
+}
+
+export async function applyExpenseDelta(
+  ctx: MutationCtx,
+  { householdId, timeZone, before, after, now, actorId, sourceExpenseId }: ApplyExpenseDeltaArgs,
+): Promise<void> {
+  const deltas = new Map<string, RollupDelta>();
+
+  if (before) {
+    addDelta(deltas, getLocalDateKey(before.date, timeZone), before, -1n);
+  }
+
+  if (after) {
+    addDelta(deltas, getLocalDateKey(after.date, timeZone), after, 1n);
+  }
+
+  for (const [localDate, delta] of deltas) {
+    if (
+      delta.expenseCents === 0n &&
+      delta.reserveFundedExpenseCents === 0n &&
+      delta.budgetImpactExpenseCents === 0n
+    ) {
+      continue;
+    }
+
+    const rollup = await ctx.db
+      .query("dailyBudgetRollups")
+      .withIndex("by_household_and_local_date", (q) =>
+        q.eq("householdId", householdId).eq("localDate", localDate),
+      )
+      .unique();
+
+    if (rollup) {
+      await ctx.db.patch(rollup._id, {
+        expenseCents: rollup.expenseCents + delta.expenseCents,
+        reserveFundedExpenseCents:
+          rollup.reserveFundedExpenseCents + delta.reserveFundedExpenseCents,
+        budgetImpactExpenseCents: rollup.budgetImpactExpenseCents + delta.budgetImpactExpenseCents,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert("dailyBudgetRollups", {
+        householdId,
+        localDate,
+        expenseCents: delta.expenseCents,
+        reserveFundedExpenseCents: delta.reserveFundedExpenseCents,
+        budgetImpactExpenseCents: delta.budgetImpactExpenseCents,
+        updatedAt: now,
+      });
+    }
+
+    if (delta.budgetImpactExpenseCents === 0n) {
+      continue;
+    }
+
+    const closedDay = await ctx.db
+      .query("goalReserveDays")
+      .withIndex("by_household_and_local_date", (q) =>
+        q.eq("householdId", householdId).eq("localDate", localDate),
+      )
+      .unique();
+
+    if (!closedDay) {
+      continue;
+    }
+
+    const reserveState = await ctx.db
+      .query("goalReserveStates")
+      .withIndex("by_household", (q) => q.eq("householdId", householdId))
+      .unique();
+
+    if (!reserveState) {
+      throw new Error("Closed reserve day is missing its reserve state");
+    }
+
+    const correctionCents = -delta.budgetImpactExpenseCents;
+    const spendingSnapshotCents = closedDay.spendingSnapshotCents + delta.budgetImpactExpenseCents;
+    const contributionCents = closedDay.contributionCents + correctionCents;
+
+    await ctx.db.patch(closedDay._id, {
+      spendingSnapshotCents,
+      contributionCents,
+      updatedAt: now,
+    });
+
+    await ctx.db.insert("goalReserveLedgerEntries", {
+      householdId,
+      kind: "correction",
+      amountCents: correctionCents,
+      localDate,
+      allowanceSnapshotCents: closedDay.allowanceSnapshotCents,
+      spendingSnapshotCents,
+      sourceExpenseId,
+      actorId,
+      createdAt: now,
+    });
+    await ctx.db.patch(reserveState._id, {
+      positionCents: reserveState.positionCents + correctionCents,
+      updatedAt: now,
+    });
+  }
+}

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { api } from "../../../convex/_generated/api";
+import { legacyDollarsToCents } from "../../../shared/utils/money-cents";
 
 const { data: user, isPending: userLoading } = useConvexQuery(api.users.getCurrentUser, {});
 const { currentDate, timeZone, formatDateInput, toTransactionTimestamp } = useDate();
@@ -55,9 +56,8 @@ async function handleSubmit() {
     const res = await mutate({
       name,
       notes,
-      amount,
+      amountCents: legacyDollarsToCents(amount),
       date: toTransactionTimestamp(date),
-      householdId,
     });
 
     if (res.success) {

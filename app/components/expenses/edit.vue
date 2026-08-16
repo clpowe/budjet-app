@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
+import { legacyDollarsToCents } from "../../../shared/utils/money-cents";
 
 const props = defineProps<{
   expense: Doc<"expenses">;
@@ -40,7 +41,7 @@ async function handleSubmit() {
     expenseId: props.expense._id,
     name,
     notes,
-    amount,
+    amountCents: legacyDollarsToCents(amount),
     date: toTransactionTimestamp(date),
   });
 

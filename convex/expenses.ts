@@ -1,10 +1,69 @@
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
-import { getHouseholdId } from "./lib/helpers";
+import { legacyDollarsToCents } from "../shared/utils/money-cents";
+import { getEffectiveTimeZone } from "./households";
+import { mutation, query } from "./_generated/server";
+import { applyExpenseDelta, type ExpenseFacts } from "./lib/daily_budget_rollups.ts";
+import { getAuthenticatedUser, getHouseholdId } from "./lib/helpers";
+import type { Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 
-// -------------------------
-// QUERIES
-// -------------------------
+const successValidator = v.object({
+  success: v.boolean(),
+});
+
+function assertPositiveAmountCents(amountCents: bigint): void {
+  if (amountCents <= 0n) {
+    throw new Error("Expense amount must be greater than zero");
+  }
+}
+
+function centsToLegacyDollars(amountCents: bigint): number {
+  return Number(amountCents) / 100;
+}
+
+function toExpenseFacts(expense: {
+  amount: number;
+  amountCents?: bigint;
+  date: number;
+  reserveUsedCents?: bigint;
+}): ExpenseFacts {
+  return {
+    date: expense.date,
+    amountCents: expense.amountCents ?? legacyDollarsToCents(expense.amount),
+    reserveUsedCents: expense.reserveUsedCents ?? 0n,
+  };
+}
+
+async function getAuthorizedHousehold(ctx: MutationCtx) {
+  const user = await getAuthenticatedUser(ctx);
+
+  if (!user.householdId) {
+    throw new Error("User is not in a household");
+  }
+
+  const household = await ctx.db.get(user.householdId);
+
+  if (!household) {
+    throw new Error("Household not found");
+  }
+
+  return { household, user };
+}
+
+async function getAuthorizedExpense(ctx: MutationCtx, expenseId: Id<"expenses">) {
+  const { household, user } = await getAuthorizedHousehold(ctx);
+  const expense = await ctx.db.get(expenseId);
+
+  if (!expense || expense.householdId !== household._id) {
+    throw new Error("Expense not found");
+  }
+
+  if (expense.wantItemId) {
+    throw new Error("Want purchases must be managed from the wants flow");
+  }
+
+  return { expense, household, user };
+}
 
 export const listMyExpenses = query({
   args: {
@@ -12,20 +71,15 @@ export const listMyExpenses = query({
     to: v.number(),
   },
   handler: async (ctx, args) => {
-    // Ensure user is authenticated and in the household (omitted for brevity)
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
     const householdId = await getHouseholdId(ctx);
-    // Use the combined index for fast range lookup
-    const expenses = await ctx.db
-      .query("expenses")
-      .withIndex("by_household", (q) => q.eq("householdId", householdId))
-      .filter((q) => q.and(q.gte(q.field("date"), args.from), q.lt(q.field("date"), args.to)))
-      .collect();
 
-    // Sort Descending (newest first) usually preferred for UI
-    return expenses.sort((a, b) => b.date - a.date);
+    return await ctx.db
+      .query("expenses")
+      .withIndex("by_household", (q) =>
+        q.eq("householdId", householdId).gte("date", args.from).lt("date", args.to),
+      )
+      .order("desc")
+      .collect();
   },
 });
 
@@ -35,23 +89,18 @@ export const getMyTotal = query({
     to: v.number(),
   },
   handler: async (ctx, args) => {
-    // Ensure user is authenticated and in the household (omitted for brevity)
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
     const householdId = await getHouseholdId(ctx);
-
     const expenses = await ctx.db
       .query("expenses")
-      .withIndex("by_household", (q) => q.eq("householdId", householdId))
-      .filter((q) => q.and(q.gte(q.field("date"), args.from), q.lt(q.field("date"), args.to)))
+      .withIndex("by_household", (q) =>
+        q.eq("householdId", householdId).gte("date", args.from).lt("date", args.to),
+      )
       .collect();
 
     return expenses.reduce((acc, curr) => acc + curr.amount, 0);
   },
 });
 
-// Cleaned up "Current Position" logic
 export const getMyCurrentPosition = query({
   args: {
     allowance: v.number(),
@@ -59,71 +108,63 @@ export const getMyCurrentPosition = query({
     to: v.number(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
     const householdId = await getHouseholdId(ctx);
-
     const now = Date.now();
-
-    // 1. Calculate how many days have passed within the requested window
-    // If the window is in the past, count all days. If "now" is inside the window, count up to now.
     const effectiveEnd = Math.min(now, args.to);
-    const effectiveStart = args.from;
 
-    // If we haven't started this month yet, result is 0
-    if (effectiveEnd < effectiveStart) return 0;
+    if (effectiveEnd < args.from) {
+      return 0;
+    }
 
-    const msElapsed = effectiveEnd - effectiveStart;
-    const daysElapsed = Math.ceil(msElapsed / (1000 * 60 * 60 * 24));
-
-    // 2. Get actual spending
+    const daysElapsed = Math.ceil((effectiveEnd - args.from) / (24 * 60 * 60 * 1_000));
     const expenses = await ctx.db
       .query("expenses")
-      .withIndex("by_household", (q) => q.eq("householdId", householdId))
-      .filter((q) => q.and(q.gte(q.field("date"), args.from), q.lt(q.field("date"), args.to)))
+      .withIndex("by_household", (q) =>
+        q.eq("householdId", householdId).gte("date", args.from).lt("date", args.to),
+      )
       .collect();
-
     const totalSpent = expenses.reduce((acc, curr) => acc + curr.amount, 0);
 
-    // 3. Math: (Days Passed * Daily Budget) - Actual Spending
     return daysElapsed * args.allowance - totalSpent;
   },
 });
-
-// -------------------------
-// MUTATIONS
-// -------------------------
 
 export const createExpense = mutation({
   args: {
     name: v.string(),
     notes: v.string(),
-    amount: v.number(),
-    householdId: v.id("households"),
-    date: v.number(), // UTC Timestamp
+    amountCents: v.int64(),
+    date: v.number(),
   },
+  returns: successValidator,
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    const now = Date.now();
+    assertPositiveAmountCents(args.amountCents);
 
-    const householdId = await getHouseholdId(ctx);
-
-    const newExpense = await ctx.db.insert("expenses", {
+    const { household, user } = await getAuthorizedHousehold(ctx);
+    const expenseId = await ctx.db.insert("expenses", {
       name: args.name,
       notes: args.notes,
-      householdId: householdId,
-      amount: args.amount,
+      amount: centsToLegacyDollars(args.amountCents),
+      amountCents: args.amountCents,
+      householdId: household._id,
       date: args.date,
     });
 
-    if (!newExpense) {
-      throw new Error("Failed to create expense");
-    }
+    await applyExpenseDelta(ctx, {
+      householdId: household._id,
+      timeZone: getEffectiveTimeZone(household, now),
+      after: {
+        date: args.date,
+        amountCents: args.amountCents,
+        reserveUsedCents: 0n,
+      },
+      now,
+      actorId: user._id,
+      sourceExpenseId: expenseId,
+    });
 
-    return {
-      success: true,
-    };
+    return { success: true };
   },
 });
 
@@ -132,18 +173,38 @@ export const updateExpense = mutation({
     expenseId: v.id("expenses"),
     name: v.string(),
     notes: v.string(),
-    amount: v.number(),
+    amountCents: v.int64(),
     date: v.number(),
   },
+  returns: successValidator,
   handler: async (ctx, args) => {
-    const expense = await ctx.db.get(args.expenseId);
-    if (!expense) throw new Error("Expense not found");
+    const now = Date.now();
+    assertPositiveAmountCents(args.amountCents);
 
-    await ctx.db.patch(args.expenseId, {
+    const { expense, household, user } = await getAuthorizedExpense(ctx, args.expenseId);
+    const before = toExpenseFacts(expense);
+    const after: ExpenseFacts = {
+      date: args.date,
+      amountCents: args.amountCents,
+      reserveUsedCents: 0n,
+    };
+
+    await ctx.db.patch(expense._id, {
       name: args.name,
       notes: args.notes,
-      amount: args.amount,
+      amount: centsToLegacyDollars(args.amountCents),
+      amountCents: args.amountCents,
       date: args.date,
+    });
+
+    await applyExpenseDelta(ctx, {
+      householdId: household._id,
+      timeZone: getEffectiveTimeZone(household, now),
+      before,
+      after,
+      now,
+      actorId: user._id,
+      sourceExpenseId: expense._id,
     });
 
     return { success: true };
@@ -151,25 +212,35 @@ export const updateExpense = mutation({
 });
 
 export const deleteExpense = mutation({
-  args: { expenseId: v.id("expenses") },
+  args: {
+    expenseId: v.id("expenses"),
+  },
+  returns: successValidator,
   handler: async (ctx, args) => {
-    const expense = await ctx.db.get(args.expenseId);
-    if (!expense) throw new Error("Expense not found");
+    const now = Date.now();
+    const { expense, household, user } = await getAuthorizedExpense(ctx, args.expenseId);
 
-    await ctx.db.delete(args.expenseId);
+    await applyExpenseDelta(ctx, {
+      householdId: household._id,
+      timeZone: getEffectiveTimeZone(household, now),
+      before: toExpenseFacts(expense),
+      now,
+      actorId: user._id,
+      sourceExpenseId: expense._id,
+    });
+
+    await ctx.db.delete(expense._id);
 
     return { success: true };
   },
 });
+
 export const listMonthlyTransactions = query({
   args: {
     from: v.number(),
     to: v.number(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
     const householdId = await getHouseholdId(ctx);
 
     const expenses = await ctx.db
@@ -178,7 +249,6 @@ export const listMonthlyTransactions = query({
         q.eq("householdId", householdId).gte("date", args.from).lt("date", args.to),
       )
       .collect();
-
     const windfalls = await ctx.db
       .query("windfall")
       .withIndex("by_household_date", (q) =>
@@ -186,17 +256,13 @@ export const listMonthlyTransactions = query({
       )
       .collect();
 
-    const windfallMapped = (windfalls ?? []).map((w) => ({
-      ...w,
-      name: w.source,
-      type: "windfall" as const,
-    }));
-
-    const expensesMapped = (expenses ?? []).map((e) => ({
-      ...e,
-      type: "expense" as const,
-    }));
-
-    return [...expensesMapped, ...windfallMapped].sort((a, b) => (b.date ?? 0) - (a.date ?? 0));
+    return [
+      ...expenses.map((expense) => ({ ...expense, type: "expense" as const })),
+      ...windfalls.map((windfall) => ({
+        ...windfall,
+        name: windfall.source,
+        type: "windfall" as const,
+      })),
+    ].sort((left, right) => (right.date ?? 0) - (left.date ?? 0));
   },
 });
