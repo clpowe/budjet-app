@@ -7,6 +7,9 @@ import { mutation, query } from "./_generated/server";
 import { getAuthenticatedUser } from "./lib/helpers";
 import { getReorderUpdates } from "./lib/want_reserve";
 
+import { getEffectiveTimeZone } from "./households";
+import { ensureGoalReserveActivated } from "./reserve";
+
 export const MAX_ACTIVE_WANTS = 100;
 export const INACTIVE_WANTS_PAGE_SIZE = 25;
 
@@ -342,6 +345,15 @@ export const changeStatus = mutation({
       updatedBy: user._id,
       updatedAt: now,
     });
+
+    if (args.status === "plan_for_it" && wantItem.status !== "plan_for_it") {
+      await ensureGoalReserveActivated(ctx, {
+        householdId: household._id,
+        actorId: user._id,
+        now,
+        timeZone: getEffectiveTimeZone(household, now),
+      });
+    }
 
     const updatedWantItem = await ctx.db.get(wantItem._id);
 
