@@ -1,5 +1,6 @@
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
@@ -43,6 +44,16 @@ const wantItemValidator = v.object({
   purchasedAt: v.optional(v.number()),
   expenseId: v.optional(v.id("expenses")),
 });
+
+const changeStatusResultValidator = v.union(
+  v.object({
+    kind: v.literal("updated"),
+    item: wantItemValidator,
+  }),
+  v.object({
+    kind: v.literal("money_migration_pending"),
+  }),
+);
 
 function normalizeName(name: string): string {
   const normalizedName = name.trim();
@@ -273,10 +284,7 @@ export const changeStatus = mutation({
     itemId: v.id("wantItems"),
     status: wantStatusValidator,
   },
-  returns: v.object({
-    kind: v.literal("updated"),
-    item: wantItemValidator,
-  }),
+  returns: changeStatusResultValidator,
   handler: async (ctx, args) => {
     const now = Date.now();
     const user = await getAuthenticatedUser(ctx);
@@ -286,6 +294,28 @@ export const changeStatus = mutation({
     }
 
     const wantItem = await requireHouseholdWant(ctx, args.itemId, user.householdId);
+
+    const household = await ctx.db.get(user.householdId);
+
+    if (!household) {
+      throw new Error("Household not found");
+    }
+
+    if (
+      args.status === "plan_for_it" &&
+      wantItem.status !== "plan_for_it" &&
+      household.moneyMigrationCompletedAt === undefined
+    ) {
+      await ctx.scheduler.runAfter(0, internal.migrations.backfillMoney.processHousehold, {
+        householdId: household._id,
+        expenseCursor: null,
+        timeZone: null,
+      });
+
+      return {
+        kind: "money_migration_pending" as const,
+      };
+    }
 
     if (wantItem.status === "bought" || args.status === "bought") {
       throw new Error("Bought items can only be changed through purchase actions");

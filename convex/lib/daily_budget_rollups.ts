@@ -18,13 +18,88 @@ type ApplyExpenseDeltaArgs = {
   sourceExpenseId: Id<"expenses">;
 };
 
+type DailyBudgetRollupValues = {
+  expenseCents: bigint;
+  reserveFundedExpenseCents: bigint;
+  budgetImpactExpenseCents: bigint;
+};
+
+type DailyBudgetRollupArgs = {
+  householdId: Id<"households">;
+  localDate: string;
+  now: number;
+};
+
+export async function ensureDailyBudgetRollup(
+  ctx: MutationCtx,
+  { householdId, localDate, now }: DailyBudgetRollupArgs,
+): Promise<void> {
+  const existing = await ctx.db
+    .query("dailyBudgetRollups")
+    .withIndex("by_household_and_local_date", (q) =>
+      q.eq("householdId", householdId).eq("localDate", localDate),
+    )
+    .unique();
+
+  if (existing) {
+    return;
+  }
+
+  await ctx.db.insert("dailyBudgetRollups", {
+    householdId,
+    localDate,
+    expenseCents: 0n,
+    reserveFundedExpenseCents: 0n,
+    budgetImpactExpenseCents: 0n,
+    updatedAt: now,
+  });
+}
+
+export async function replaceDailyBudgetRollup(
+  ctx: MutationCtx,
+  {
+    householdId,
+    localDate,
+    now,
+    expenseCents,
+    reserveFundedExpenseCents,
+    budgetImpactExpenseCents,
+  }: DailyBudgetRollupArgs & DailyBudgetRollupValues,
+): Promise<void> {
+  const existing = await ctx.db
+    .query("dailyBudgetRollups")
+    .withIndex("by_household_and_local_date", (q) =>
+      q.eq("householdId", householdId).eq("localDate", localDate),
+    )
+    .unique();
+
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      expenseCents,
+      reserveFundedExpenseCents,
+      budgetImpactExpenseCents,
+      updatedAt: now,
+    });
+    return;
+  }
+
+  await ctx.db.insert("dailyBudgetRollups", {
+    householdId,
+    localDate,
+    expenseCents,
+    reserveFundedExpenseCents,
+    budgetImpactExpenseCents,
+    updatedAt: now,
+  });
+}
+
 type RollupDelta = {
   expenseCents: bigint;
   reserveFundedExpenseCents: bigint;
   budgetImpactExpenseCents: bigint;
 };
 
-function getBudgetImpactCents(expense: ExpenseFacts): bigint {
+export function getBudgetImpactCents(expense: ExpenseFacts): bigint {
   if (expense.amountCents <= 0n) {
     throw new Error("Expense amount must be greater than zero");
   }
