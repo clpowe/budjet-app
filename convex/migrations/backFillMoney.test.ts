@@ -5,7 +5,10 @@ import { expect, test } from "vitest";
 import { api, internal } from "../_generated/api";
 import schema from "../schema";
 
-const modules = import.meta.glob("../**/*.ts");
+const modules = {
+  ...import.meta.glob("../**/*.ts"),
+  "../migrations/backfillMoney.ts": () => import("./backfillMoney"),
+};
 
 const march8 = Date.UTC(2026, 2, 8, 16);
 const march9 = Date.UTC(2026, 2, 9, 16);
@@ -122,7 +125,8 @@ test("backfills cents and exact local-day rollups across pages without double co
     expenseCursor: null,
     timeZone: null,
   });
-  await t.finishInProgressScheduledFunctions();
+
+  await t.finishAllScheduledFunctions(() => {});
 
   const completed = await readMigrationState(t, seeded.householdId);
 

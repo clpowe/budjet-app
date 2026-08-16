@@ -280,6 +280,11 @@ test("appends planned items and removes queue order when they leave the active q
       status: "considering",
     },
   });
+
+  if (movedOut.kind !== "updated") {
+    throw new Error("Expected the want status update to complete");
+  }
+
   expect(movedOut.item.order).toBeUndefined();
 });
 
