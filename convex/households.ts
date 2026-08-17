@@ -17,6 +17,10 @@ const timeZoneUpdateResultValidator = v.object({
   pendingTimeZoneEffectiveAt: v.number(),
 });
 
+export function getStoredHouseholdTimeZone(household: Partial<HouseholdTimeZoneSettings>): string {
+  return household.timeZone ?? DEFAULT_HOUSEHOLD_TIME_ZONE;
+}
+
 export function getEffectiveTimeZone(
   household: Partial<HouseholdTimeZoneSettings>,
   at: number,
@@ -29,7 +33,7 @@ export function getEffectiveTimeZone(
     return household.pendingTimeZone;
   }
 
-  return household.timeZone ?? DEFAULT_HOUSEHOLD_TIME_ZONE;
+  return getStoredHouseholdTimeZone(household);
 }
 
 export function getNextLocalMidnightTimestamp(timestamp: number, timeZone: string): number {

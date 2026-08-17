@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as crons from "../crons.js";
 import type * as depts from "../depts.js";
 import type * as expenses from "../expenses.js";
 import type * as households from "../households.js";
@@ -19,6 +20,7 @@ import type * as lib_helpers from "../lib/helpers.js";
 import type * as lib_want_reserve from "../lib/want_reserve.js";
 import type * as migrations_backfillMoney from "../migrations/backfillMoney.js";
 import type * as reserve from "../reserve.js";
+import type * as reserveMaintenance from "../reserveMaintenance.js";
 import type * as users from "../users.js";
 import type * as wants from "../wants.js";
 import type * as windfall from "../windfall.js";
@@ -31,6 +33,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  crons: typeof crons;
   depts: typeof depts;
   expenses: typeof expenses;
   households: typeof households;
@@ -41,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   "lib/want_reserve": typeof lib_want_reserve;
   "migrations/backfillMoney": typeof migrations_backfillMoney;
   reserve: typeof reserve;
+  reserveMaintenance: typeof reserveMaintenance;
   users: typeof users;
   wants: typeof wants;
   windfall: typeof windfall;

@@ -74,6 +74,63 @@ export async function ensureGoalReserveActivated(
   });
 }
 
+type RecordReserveLedgerEntryArgs = {
+  householdId: Id<"households">;
+  reserveStateId: Id<"goalReserveStates">;
+  previousPositionCents: bigint;
+  kind: "daily_close" | "correction" | "purchase" | "purchase_undo";
+  amountCents: bigint;
+  localDate: string;
+  now: number;
+  lastClosedLocalDate?: string;
+  allowanceSnapshotCents?: bigint;
+  spendingSnapshotCents?: bigint;
+  sourceExpenseId?: Id<"expenses">;
+  wantItemId?: Id<"wantItems">;
+  actorId?: Id<"users">;
+};
+
+export async function recordReserveLedgerEntry(
+  ctx: MutationCtx,
+  {
+    householdId,
+    reserveStateId,
+    previousPositionCents,
+    kind,
+    amountCents,
+    localDate,
+    now,
+    lastClosedLocalDate,
+    allowanceSnapshotCents,
+    spendingSnapshotCents,
+    sourceExpenseId,
+    wantItemId,
+    actorId,
+  }: RecordReserveLedgerEntryArgs,
+): Promise<bigint> {
+  const positionCents = previousPositionCents + amountCents;
+
+  await ctx.db.insert("goalReserveLedgerEntries", {
+    householdId,
+    kind,
+    amountCents,
+    localDate,
+    allowanceSnapshotCents,
+    spendingSnapshotCents,
+    sourceExpenseId,
+    wantItemId,
+    actorId,
+    createdAt: now,
+  });
+  await ctx.db.patch(reserveStateId, {
+    positionCents,
+    ...(lastClosedLocalDate !== undefined ? { lastClosedLocalDate } : {}),
+    updatedAt: now,
+  });
+
+  return positionCents;
+}
+
 function getProgressBasisPoints(allocatedCents: bigint, estimatedCostCents: bigint): number {
   if (estimatedCostCents <= 0n) {
     throw new Error("Active Want estimated cost must be greater than zero");
