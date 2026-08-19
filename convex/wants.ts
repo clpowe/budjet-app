@@ -2,13 +2,30 @@ import { paginationOptsValidator, paginationResultValidator } from "convex/serve
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
-import { getAuthenticatedUser } from "./lib/helpers";
-import { getReorderUpdates } from "./lib/want_reserve";
-
+import { centsToLegacyDollars } from "./expenses";
 import { getEffectiveTimeZone } from "./households";
-import { ensureGoalReserveActivated } from "./reserve";
+import { applyExpenseDelta, type ExpenseFacts } from "./lib/daily_budget_rollups";
+import { getAuthenticatedUser } from "./lib/helpers";
+import {
+  allocateReserve,
+  calculateLowerItemImpact,
+  calculatePurchaseFunding,
+  getLocalDateKey,
+  getLocalDayBounds,
+  getReorderUpdates,
+} from "./lib/want_reserve";
+import {
+  CLOSE_DAYS_PER_TRANSACTION,
+  closeDaysThrough,
+  scheduleReserveCatchUp,
+} from "./reserveMaintenance";
+import {
+  calculateLiveReserveAmounts,
+  ensureGoalReserveActivated,
+  recordReserveLedgerEntry,
+} from "./reserve";
 
 export const MAX_ACTIVE_WANTS = 100;
 export const INACTIVE_WANTS_PAGE_SIZE = 25;
@@ -58,6 +75,44 @@ const changeStatusResultValidator = v.union(
   }),
 );
 
+const lowerItemImpactValidator = v.object({
+  itemId: v.id("wantItems"),
+  name: v.string(),
+  lostCents: v.int64(),
+  allocatedCentsAfter: v.int64(),
+});
+
+const previewPurchaseResultValidator = v.object({
+  reserveUsedCents: v.int64(),
+  budgetImpactCents: v.int64(),
+  lowerItemImpacts: v.array(lowerItemImpactValidator),
+});
+
+const purchaseResultValidator = v.union(
+  v.object({
+    status: v.literal("reserve_syncing"),
+  }),
+  v.object({
+    status: v.literal("purchased"),
+    expenseId: v.id("expenses"),
+    reserveUsedCents: v.int64(),
+    budgetImpactCents: v.int64(),
+  }),
+);
+
+const correctPurchaseResultValidator = v.object({
+  success: v.literal(true),
+  expenseId: v.id("expenses"),
+  reserveUsedCents: v.int64(),
+  budgetImpactCents: v.int64(),
+});
+
+const undoPurchaseResultValidator = v.object({
+  success: v.literal(true),
+});
+
+type DatabaseCtx = MutationCtx | QueryCtx;
+
 function normalizeName(name: string): string {
   const normalizedName = name.trim();
 
@@ -91,7 +146,7 @@ function assertInactivePageSize(numItems: number): void {
 }
 
 async function requireHouseholdWant(
-  ctx: MutationCtx,
+  ctx: DatabaseCtx,
   wantItemId: Id<"wantItems">,
   householdId: Id<"households">,
 ): Promise<Doc<"wantItems">> {
@@ -105,7 +160,7 @@ async function requireHouseholdWant(
 }
 
 async function getActiveQueue(
-  ctx: MutationCtx,
+  ctx: DatabaseCtx,
   householdId: Id<"households">,
 ): Promise<Doc<"wantItems">[]> {
   const active = await ctx.db
@@ -125,6 +180,98 @@ async function getActiveQueue(
   }
 
   return active;
+}
+
+async function getPurchaseReserveContext(
+  ctx: DatabaseCtx,
+  household: Doc<"households">,
+  now: number,
+) {
+  if (household.allowanceCents === undefined) {
+    throw new Error("Household money migration is still in progress");
+  }
+
+  const timeZone = getEffectiveTimeZone(household, now);
+  const currentLocalDate = getLocalDateKey(now, timeZone);
+
+  const [state, currentDayRollup] = await Promise.all([
+    ctx.db
+      .query("goalReserveStates")
+      .withIndex("by_household", (q) => q.eq("householdId", household._id))
+      .unique(),
+    ctx.db
+      .query("dailyBudgetRollups")
+      .withIndex("by_household_and_local_date", (q) =>
+        q.eq("householdId", household._id).eq("localDate", currentLocalDate),
+      )
+      .unique(),
+  ]);
+
+  const positionCents = state?.positionCents ?? 0n;
+  const liveAmounts = calculateLiveReserveAmounts(
+    positionCents,
+    household.allowanceCents,
+    currentDayRollup?.budgetImpactExpenseCents ?? 0n,
+  );
+
+  return {
+    state,
+    timeZone,
+    currentLocalDate,
+    ...liveAmounts,
+  };
+}
+
+async function normalizeActiveQueue(
+  ctx: MutationCtx,
+  householdId: Id<"households">,
+  actorId: Id<"users">,
+  now: number,
+): Promise<void> {
+  const activeItems = await getActiveQueue(ctx, householdId);
+
+  for (const [order, item] of activeItems.entries()) {
+    if (item.order !== order) {
+      await ctx.db.patch(item._id, {
+        order,
+        updatedBy: actorId,
+        updatedAt: now,
+      });
+    }
+  }
+}
+
+async function requireLinkedPurchase(
+  ctx: MutationCtx,
+  itemId: Id<"wantItems">,
+  householdId: Id<"households">,
+): Promise<{
+  item: Doc<"wantItems">;
+  expense: Doc<"expenses">;
+}> {
+  const item = await requireHouseholdWant(ctx, itemId, householdId);
+
+  if (item.status !== "bought" || !item.expenseId) {
+    throw new Error("Want item does not have a linked purchase");
+  }
+
+  const expense = await ctx.db.get(item.expenseId);
+
+  if (!expense || expense.householdId !== householdId || expense.wantItemId !== item._id) {
+    throw new Error("Linked purchase expense not found");
+  }
+
+  if (expense.amountCents === undefined) {
+    throw new Error("Linked purchase is missing its cent-valued amount");
+  }
+
+  const reserveUsedCents = expense.reserveUsedCents ?? 0n;
+
+  if (reserveUsedCents < 0n || reserveUsedCents > expense.amountCents) {
+    throw new Error("Linked purchase contains invalid reserve funding");
+  }
+
+  return { item, expense };
 }
 
 export const list = query({
@@ -407,5 +554,471 @@ export const reorder = mutation({
     }
 
     return { success: true as const };
+  },
+});
+
+export const previewPurchase = query({
+  args: {
+    itemId: v.id("wantItems"),
+    actualAmountCents: v.int64(),
+    now: v.number(),
+  },
+  returns: previewPurchaseResultValidator,
+  handler: async (ctx, args) => {
+    assertPositiveCents(args.actualAmountCents, "Actual amount");
+
+    if (!Number.isFinite(args.now)) {
+      throw new Error("Preview time must be finite");
+    }
+
+    const user = await getAuthenticatedUser(ctx);
+
+    if (!user.householdId) {
+      throw new Error("User is not in a household");
+    }
+
+    const item = await requireHouseholdWant(ctx, args.itemId, user.householdId);
+
+    if (item.status !== "plan_for_it") {
+      throw new Error("Only planned Want items can be purchased");
+    }
+
+    const household = await ctx.db.get(user.householdId);
+
+    if (!household) {
+      throw new Error("Household not found");
+    }
+
+    const reserveContext = await getPurchaseReserveContext(ctx, household, args.now);
+    const activeItems = await getActiveQueue(ctx, household._id);
+    const selectedIndex = activeItems.findIndex((activeItem) => activeItem._id === item._id);
+
+    if (selectedIndex < 0) {
+      throw new Error("Want item is not in the active queue");
+    }
+
+    const allocations = allocateReserve(
+      reserveContext.availableReserveCents,
+      activeItems.map((activeItem) => ({
+        id: activeItem._id,
+        estimatedCostCents: activeItem.estimatedCostCents,
+      })),
+    );
+    const selectedAllocation = allocations[selectedIndex];
+
+    if (!selectedAllocation) {
+      throw new Error("Want item allocation is missing");
+    }
+
+    const funding = calculatePurchaseFunding(
+      args.actualAmountCents,
+      reserveContext.availableReserveCents,
+    );
+    const lowerReserveUseCents =
+      funding.reserveUsedCents > selectedAllocation.allocatedCents
+        ? funding.reserveUsedCents - selectedAllocation.allocatedCents
+        : 0n;
+    const lowerItemImpacts = calculateLowerItemImpact(
+      allocations.slice(selectedIndex + 1),
+      lowerReserveUseCents,
+    ).map((impact) => {
+      const impactedItem = activeItems.find((activeItem) => activeItem._id === impact.id);
+
+      if (!impactedItem) {
+        throw new Error("Impacted Want item is missing");
+      }
+
+      return {
+        itemId: impact.id,
+        name: impactedItem.name,
+        lostCents: impact.lostCents,
+        allocatedCentsAfter: impact.allocatedCentsAfter,
+      };
+    });
+
+    return {
+      ...funding,
+      lowerItemImpacts,
+    };
+  },
+});
+
+export const purchase = mutation({
+  args: {
+    itemId: v.id("wantItems"),
+    actualAmountCents: v.int64(),
+    purchaseLocalDate: v.string(),
+  },
+  returns: purchaseResultValidator,
+  handler: async (ctx, args) => {
+    const serverNow = Date.now();
+    assertPositiveCents(args.actualAmountCents, "Actual amount");
+
+    const user = await getAuthenticatedUser(ctx);
+
+    if (!user.householdId) {
+      throw new Error("User is not in a household");
+    }
+
+    const item = await requireHouseholdWant(ctx, args.itemId, user.householdId);
+
+    if (item.status !== "plan_for_it") {
+      throw new Error("Only planned Want items can be purchased");
+    }
+
+    const household = await ctx.db.get(user.householdId);
+
+    if (!household) {
+      throw new Error("Household not found");
+    }
+
+    const initialTimeZone = getEffectiveTimeZone(household, serverNow);
+    const initialCurrentLocalDate = getLocalDateKey(serverNow, initialTimeZone);
+
+    getLocalDayBounds(args.purchaseLocalDate, initialTimeZone);
+
+    if (args.purchaseLocalDate > initialCurrentLocalDate) {
+      throw new Error("Purchase date cannot be in the future");
+    }
+
+    const closeResult = await closeDaysThrough(ctx, {
+      householdId: household._id,
+      throughExclusiveTimestamp: serverNow,
+      maxDays: CLOSE_DAYS_PER_TRANSACTION,
+    });
+
+    if (!closeResult.complete) {
+      await scheduleReserveCatchUp(ctx);
+
+      return {
+        status: "reserve_syncing" as const,
+      };
+    }
+
+    const refreshedHousehold = await ctx.db.get(household._id);
+
+    if (!refreshedHousehold) {
+      throw new Error("Household disappeared during purchase");
+    }
+
+    const reserveContext = await getPurchaseReserveContext(ctx, refreshedHousehold, serverNow);
+
+    if (!reserveContext.state) {
+      throw new Error("Goal reserve is not active");
+    }
+
+    if (args.purchaseLocalDate > reserveContext.currentLocalDate) {
+      throw new Error("Purchase date cannot be in the future");
+    }
+
+    const { startTimestamp: expenseDate } = getLocalDayBounds(
+      args.purchaseLocalDate,
+      reserveContext.timeZone,
+    );
+    const funding = calculatePurchaseFunding(
+      args.actualAmountCents,
+      reserveContext.availableReserveCents,
+    );
+
+    const expenseId = await ctx.db.insert("expenses", {
+      householdId: refreshedHousehold._id,
+      name: item.name,
+      notes: item.notes,
+      amount: centsToLegacyDollars(args.actualAmountCents),
+      amountCents: args.actualAmountCents,
+      date: expenseDate,
+      wantItemId: item._id,
+      reserveUsedCents: funding.reserveUsedCents,
+    });
+
+    await recordReserveLedgerEntry(ctx, {
+      householdId: refreshedHousehold._id,
+      reserveStateId: reserveContext.state._id,
+      previousPositionCents: reserveContext.state.positionCents,
+      kind: "purchase",
+      amountCents: -funding.reserveUsedCents,
+      localDate: args.purchaseLocalDate,
+      now: serverNow,
+      sourceExpenseId: expenseId,
+      wantItemId: item._id,
+      actorId: user._id,
+    });
+
+    await applyExpenseDelta(ctx, {
+      householdId: refreshedHousehold._id,
+      timeZone: reserveContext.timeZone,
+      after: {
+        date: expenseDate,
+        amountCents: args.actualAmountCents,
+        reserveUsedCents: funding.reserveUsedCents,
+      },
+      now: serverNow,
+      actorId: user._id,
+      sourceExpenseId: expenseId,
+    });
+
+    await ctx.db.patch(item._id, {
+      status: "bought",
+      order: undefined,
+      purchasedBy: user._id,
+      purchasedAt: serverNow,
+      expenseId,
+      updatedBy: user._id,
+      updatedAt: serverNow,
+    });
+
+    await normalizeActiveQueue(ctx, refreshedHousehold._id, user._id, serverNow);
+
+    return {
+      status: "purchased" as const,
+      expenseId,
+      ...funding,
+    };
+  },
+});
+
+export const correctPurchase = mutation({
+  args: {
+    itemId: v.id("wantItems"),
+    actualAmountCents: v.int64(),
+  },
+  returns: correctPurchaseResultValidator,
+  handler: async (ctx, args) => {
+    const serverNow = Date.now();
+    assertPositiveCents(args.actualAmountCents, "Actual amount");
+
+    const user = await getAuthenticatedUser(ctx);
+
+    if (!user.householdId) {
+      throw new Error("User is not in a household");
+    }
+
+    const { item, expense } = await requireLinkedPurchase(ctx, args.itemId, user.householdId);
+    const household = await ctx.db.get(user.householdId);
+
+    if (!household) {
+      throw new Error("Household not found");
+    }
+
+    if (household.allowanceCents === undefined) {
+      throw new Error("Household money migration is still in progress");
+    }
+
+    const reserveState = await ctx.db
+      .query("goalReserveStates")
+      .withIndex("by_household", (q) => q.eq("householdId", household._id))
+      .unique();
+
+    if (!reserveState) {
+      throw new Error("Goal reserve is not active");
+    }
+
+    const oldAmountCents = expense.amountCents;
+
+    if (oldAmountCents === undefined) {
+      throw new Error("Linked purchase is missing its cent-valued amount");
+    }
+
+    const oldReserveUsedCents = expense.reserveUsedCents ?? 0n;
+    const oldBudgetImpactCents = oldAmountCents - oldReserveUsedCents;
+    const timeZone = getEffectiveTimeZone(household, serverNow);
+    const expenseLocalDate = getLocalDateKey(expense.date, timeZone);
+    const currentLocalDate = getLocalDateKey(serverNow, timeZone);
+
+    const [closedDay, currentDayRollup] = await Promise.all([
+      ctx.db
+        .query("goalReserveDays")
+        .withIndex("by_household_and_local_date", (q) =>
+          q.eq("householdId", household._id).eq("localDate", expenseLocalDate),
+        )
+        .unique(),
+      ctx.db
+        .query("dailyBudgetRollups")
+        .withIndex("by_household_and_local_date", (q) =>
+          q.eq("householdId", household._id).eq("localDate", currentLocalDate),
+        )
+        .unique(),
+    ]);
+
+    let restoredPositionCents = reserveState.positionCents + oldReserveUsedCents;
+
+    if (closedDay) {
+      restoredPositionCents += oldBudgetImpactCents;
+    }
+
+    let currentBudgetWithoutPurchaseCents = currentDayRollup?.budgetImpactExpenseCents ?? 0n;
+
+    if (expenseLocalDate === currentLocalDate) {
+      currentBudgetWithoutPurchaseCents -= oldBudgetImpactCents;
+    }
+
+    if (currentBudgetWithoutPurchaseCents < 0n) {
+      throw new Error("Current-day budget rollup is inconsistent");
+    }
+
+    const restoredLiveAmounts = calculateLiveReserveAmounts(
+      restoredPositionCents,
+      household.allowanceCents,
+      currentBudgetWithoutPurchaseCents,
+    );
+    const funding = calculatePurchaseFunding(
+      args.actualAmountCents,
+      restoredLiveAmounts.availableReserveCents,
+    );
+
+    const before: ExpenseFacts = {
+      date: expense.date,
+      amountCents: oldAmountCents,
+      reserveUsedCents: oldReserveUsedCents,
+    };
+    const after: ExpenseFacts = {
+      date: expense.date,
+      amountCents: args.actualAmountCents,
+      reserveUsedCents: funding.reserveUsedCents,
+    };
+
+    await ctx.db.patch(expense._id, {
+      amount: centsToLegacyDollars(args.actualAmountCents),
+      amountCents: args.actualAmountCents,
+      reserveUsedCents: funding.reserveUsedCents,
+    });
+
+    await recordReserveLedgerEntry(ctx, {
+      householdId: household._id,
+      reserveStateId: reserveState._id,
+      previousPositionCents: reserveState.positionCents,
+      kind: "correction",
+      amountCents: oldReserveUsedCents - funding.reserveUsedCents,
+      localDate: expenseLocalDate,
+      now: serverNow,
+      sourceExpenseId: expense._id,
+      wantItemId: item._id,
+      actorId: user._id,
+    });
+
+    await applyExpenseDelta(ctx, {
+      householdId: household._id,
+      timeZone,
+      before,
+      after,
+      now: serverNow,
+      actorId: user._id,
+      sourceExpenseId: expense._id,
+    });
+
+    await ctx.db.patch(item._id, {
+      updatedBy: user._id,
+      updatedAt: serverNow,
+    });
+
+    return {
+      success: true as const,
+      expenseId: expense._id,
+      ...funding,
+    };
+  },
+});
+
+export const undoPurchase = mutation({
+  args: {
+    itemId: v.id("wantItems"),
+  },
+  returns: undoPurchaseResultValidator,
+  handler: async (ctx, args) => {
+    const serverNow = Date.now();
+    const user = await getAuthenticatedUser(ctx);
+
+    if (!user.householdId) {
+      throw new Error("User is not in a household");
+    }
+
+    const { item, expense } = await requireLinkedPurchase(ctx, args.itemId, user.householdId);
+    const household = await ctx.db.get(user.householdId);
+
+    if (!household) {
+      throw new Error("Household not found");
+    }
+
+    const amountCents = expense.amountCents;
+
+    if (amountCents === undefined) {
+      throw new Error("Linked purchase is missing its cent-valued amount");
+    }
+
+    const reserveUsedCents = expense.reserveUsedCents ?? 0n;
+    const activeItems = await getActiveQueue(ctx, household._id);
+
+    if (activeItems.length >= MAX_ACTIVE_WANTS) {
+      throw new Error("Move an item to Considering or Not now before undoing this purchase");
+    }
+
+    const reserveState = await ctx.db
+      .query("goalReserveStates")
+      .withIndex("by_household", (q) => q.eq("householdId", household._id))
+      .unique();
+
+    if (!reserveState) {
+      throw new Error("Goal reserve is not active");
+    }
+
+    const timeZone = getEffectiveTimeZone(household, serverNow);
+    const purchaseLocalDate = getLocalDateKey(expense.date, timeZone);
+    const before: ExpenseFacts = {
+      date: expense.date,
+      amountCents,
+      reserveUsedCents,
+    };
+
+    await applyExpenseDelta(ctx, {
+      householdId: household._id,
+      timeZone,
+      before,
+      now: serverNow,
+      actorId: user._id,
+      sourceExpenseId: expense._id,
+    });
+
+    const correctedReserveState = await ctx.db
+      .query("goalReserveStates")
+      .withIndex("by_household", (q) => q.eq("householdId", household._id))
+      .unique();
+
+    if (!correctedReserveState) {
+      throw new Error("Goal reserve disappeared during purchase undo");
+    }
+
+    await recordReserveLedgerEntry(ctx, {
+      householdId: household._id,
+      reserveStateId: correctedReserveState._id,
+      previousPositionCents: correctedReserveState.positionCents,
+      kind: "purchase_undo",
+      amountCents: reserveUsedCents,
+      localDate: purchaseLocalDate,
+      now: serverNow,
+      sourceExpenseId: expense._id,
+      wantItemId: item._id,
+      actorId: user._id,
+    });
+
+    await ctx.db.delete(expense._id);
+
+    const lastActiveItem = activeItems.at(-1);
+    const restoredOrder = lastActiveItem ? (lastActiveItem.order ?? -1) + 1 : 0;
+
+    await ctx.db.patch(item._id, {
+      status: "plan_for_it",
+      order: restoredOrder,
+      purchasedBy: undefined,
+      purchasedAt: undefined,
+      expenseId: undefined,
+      updatedBy: user._id,
+      updatedAt: serverNow,
+    });
+
+    await normalizeActiveQueue(ctx, household._id, user._id, serverNow);
+
+    return {
+      success: true as const,
+    };
   },
 });

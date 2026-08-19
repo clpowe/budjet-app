@@ -17,7 +17,7 @@ function assertPositiveAmountCents(amountCents: bigint): void {
   }
 }
 
-function centsToLegacyDollars(amountCents: bigint): number {
+export function centsToLegacyDollars(amountCents: bigint): number {
   return Number(amountCents) / 100;
 }
 

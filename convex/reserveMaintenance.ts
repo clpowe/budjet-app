@@ -153,6 +153,12 @@ export const closeThrough = internalMutation({
   },
 });
 
+export async function scheduleReserveCatchUp(ctx: MutationCtx): Promise<void> {
+  await ctx.scheduler.runAfter(0, internal.reserveMaintenance.closeEligibleDays, {
+    cursor: null,
+  });
+}
+
 export const closeEligibleDays = internalMutation({
   args: {
     cursor: cursorValidator,

@@ -131,6 +131,49 @@ export async function recordReserveLedgerEntry(
   return positionCents;
 }
 
+export function calculateLiveReserveAmounts(
+  positionCents: bigint,
+  allowanceCents: bigint,
+  budgetImpactExpenseCents: bigint,
+): {
+  availableReserveCents: bigint;
+  recoveryAmountCents: bigint;
+  liveNegativeAdjustmentCents: bigint;
+  potentialTonightCents: bigint;
+} {
+  // 1. Determine overage vs remaining budget for today
+  let liveNegativeAdjustmentCents = 0n;
+  let potentialTonightCents = 0n;
+
+  if (budgetImpactExpenseCents > allowanceCents) {
+    // Over budget: adjustment is negative
+    liveNegativeAdjustmentCents = allowanceCents - budgetImpactExpenseCents;
+  } else {
+    // Under budget: remaining allowance
+    potentialTonightCents = allowanceCents - budgetImpactExpenseCents;
+  }
+
+  // 2. Calculate adjusted position
+  const visiblePositionCents = positionCents + liveNegativeAdjustmentCents;
+
+  // 3. Split into positive reserve vs recovery deficit
+  let availableReserveCents = 0n;
+  let recoveryAmountCents = 0n;
+
+  if (visiblePositionCents > 0n) {
+    availableReserveCents = visiblePositionCents;
+  } else if (visiblePositionCents < 0n) {
+    recoveryAmountCents = -visiblePositionCents;
+  }
+
+  return {
+    availableReserveCents,
+    recoveryAmountCents,
+    liveNegativeAdjustmentCents,
+    potentialTonightCents,
+  };
+}
+
 function getProgressBasisPoints(allocatedCents: bigint, estimatedCostCents: bigint): number {
   if (estimatedCostCents <= 0n) {
     throw new Error("Active Want estimated cost must be greater than zero");
@@ -193,19 +236,17 @@ export const getSummary = query({
     }
 
     const budgetImpactExpenseCents = currentDayRollup?.budgetImpactExpenseCents ?? 0n;
-    const liveNegativeAdjustmentCents =
-      budgetImpactExpenseCents > household.allowanceCents
-        ? household.allowanceCents - budgetImpactExpenseCents
-        : 0n;
-    const potentialTonightCents =
-      budgetImpactExpenseCents < household.allowanceCents
-        ? household.allowanceCents - budgetImpactExpenseCents
-        : 0n;
-
     const positionCents = state?.positionCents ?? 0n;
-    const visiblePositionCents = positionCents + liveNegativeAdjustmentCents;
-    const availableReserveCents = visiblePositionCents > 0n ? visiblePositionCents : 0n;
-    const recoveryAmountCents = visiblePositionCents < 0n ? -visiblePositionCents : 0n;
+    const {
+      availableReserveCents,
+      recoveryAmountCents,
+      liveNegativeAdjustmentCents,
+      potentialTonightCents,
+    } = calculateLiveReserveAmounts(
+      positionCents,
+      household.allowanceCents,
+      budgetImpactExpenseCents,
+    );
 
     const allocations = allocateReserve(
       availableReserveCents,
