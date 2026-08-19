@@ -1,6 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from "@tailwindcss/vite";
 import type { NuxtConfig, ViteOptions } from "nuxt/schema";
+import { fileURLToPath } from "url";
 
 const convexUrls = {
   development: "https://hip-caribou-985.convex.cloud",
@@ -26,6 +27,9 @@ export default {
   modules: ["convex-nuxt", "@nuxt/icon", "nitro-cloudflare-dev"],
 
   vite,
+  alias: {
+    "@generated": fileURLToPath(new URL("./convex/_generated/", import.meta.url)),
+  },
 
   css: ["~/assets/css/main.css"],
 
