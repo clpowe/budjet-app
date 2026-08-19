@@ -2,7 +2,7 @@
 import { api } from "../../convex/_generated/api";
 import { formatCents } from "../../shared/utils/money-cents";
 
-const { appDay, setDate } = useDate();
+const { appDay, formatDateInput, localDate, setDate } = useDate();
 
 const { summary, safeToSpendCents, totalToday, burn_rate, variance, currentPosition } =
   useExpenses();
@@ -27,6 +27,12 @@ const safeToSpendState = computed(() => {
     tone: "text-success",
     helper: "Your 30-day plan after budget-impact spending and finalized Want set-asides.",
   };
+});
+
+const topItemTargetLocalDate = computed(() => {
+  const targetDate = summary.value?.topItem?.targetDate;
+
+  return targetDate === undefined ? undefined : formatDateInput(new Date(targetDate));
 });
 </script>
 
@@ -154,6 +160,13 @@ const safeToSpendState = computed(() => {
         </div>
       </div>
     </section>
+
+    <WantsTopItemCard
+      v-if="summary"
+      :summary="summary"
+      :today-local-date="localDate"
+      :target-local-date="topItemTargetLocalDate"
+    />
 
     <SpendingMonthlyChart />
 
