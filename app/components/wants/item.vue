@@ -23,6 +23,7 @@ const emit = defineEmits<{
   (event: "move-up", itemId: Id<"wantItems">): void;
   (event: "move-down", itemId: Id<"wantItems">): void;
   (event: "edit", item: WantItem): void;
+  (event: "purchase", item: WantItem): void;
   (
     event: "change-status",
     value: {
@@ -113,6 +114,16 @@ const priorityLabel = computed(() => {
           Move down
         </button>
       </template>
+
+      <button
+        v-if="item.status === 'plan_for_it'"
+        type="button"
+        class="btn btn-primary btn-sm"
+        :aria-label="`Purchase ${item.name}`"
+        @click="emit('purchase', item)"
+      >
+        Purchase
+      </button>
 
       <button
         v-if="item.status !== 'bought'"

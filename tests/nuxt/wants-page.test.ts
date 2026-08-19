@@ -35,6 +35,7 @@ mockNuxtImport("useWantList", () => {
 mockNuxtImport("useDate", () => {
   return () => ({
     formatDateInput: (date: Date) => date.toISOString().slice(0, 10),
+    localDate: ref("2026-08-19"),
   });
 });
 mockNuxtImport("useBudgetAuth", () => {
@@ -203,7 +204,7 @@ describe("WantsPage", () => {
 
     const headings = wrapper.findAll("h2").map((heading) => heading.text());
 
-    expect(headings).toEqual(expect.arrayContaining(["Considering", "Not now", "Bought"]));
+    expect(headings).toEqual(expect.arrayContaining(["Considering", "Not now", "Bought history"]));
     expect(wrapper.text()).toContain("Bike");
     expect(wrapper.text()).toContain("Kayak");
     expect(wrapper.text()).toContain("Headphones");

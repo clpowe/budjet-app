@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import type { FunctionReturnType } from "convex/server";
+import { computed, nextTick, ref, shallowRef } from "vue";
+import { api } from "@generated/api";
 import type { Doc, Id } from "@generated/dataModel";
 import type { WantStatus } from "../utils/want-status";
 
@@ -21,10 +24,26 @@ type WantSubmitValues = {
   notes: string;
 };
 
-const { sections, summary, isLoading, createItem, updateItem, changeStatus, reorder } =
-  useWantList();
+type PurchasePreview = FunctionReturnType<typeof api.wants.previewPurchase> & {
+  actualAmountCents: bigint;
+};
+type PurchaseDialogMode = "purchase" | "correct";
 
-const { formatDateInput } = useDate();
+const {
+  sections,
+  summary,
+  isLoading,
+  createItem,
+  updateItem,
+  changeStatus,
+  reorder,
+  previewPurchase,
+  purchase,
+  correctPurchase,
+  undoPurchase,
+} = useWantList();
+
+const { formatDateInput, localDate } = useDate();
 
 const isFormOpen = ref(false);
 const isSavingForm = ref(false);
@@ -34,6 +53,16 @@ const formError = ref("");
 const reorderError = ref("");
 const pageError = ref("");
 const pageNotice = ref("");
+const boughtError = ref("");
+const purchaseItem = ref<WantItem | null>(null);
+const purchaseMode = ref<PurchaseDialogMode>("purchase");
+const purchasePreview = ref<PurchasePreview | null>(null);
+const isPreviewPending = ref(false);
+const isSubmittingPurchase = ref(false);
+const purchaseError = ref("");
+const undoPendingItemId = ref<Id<"wantItems"> | undefined>();
+const purchaseTrigger = shallowRef<HTMLElement | null>(null);
+let latestPreviewRequest = 0;
 
 function emptyFormModel(): WantFormModel {
   return {
@@ -75,6 +104,147 @@ function clearFeedback() {
   formError.value = "";
   pageError.value = "";
   pageNotice.value = "";
+}
+
+function openPurchase(item: WantItem, mode: PurchaseDialogMode = "purchase") {
+  if (import.meta.client && document.activeElement instanceof HTMLElement) {
+    purchaseTrigger.value = document.activeElement;
+  }
+
+  pageError.value = "";
+  pageNotice.value = "";
+  purchaseError.value = "";
+  purchasePreview.value = null;
+  purchaseMode.value = mode;
+  purchaseItem.value = item;
+}
+
+function closePurchaseDialog(force = false) {
+  if (isSubmittingPurchase.value && !force) return;
+
+  latestPreviewRequest += 1;
+  isPreviewPending.value = false;
+  purchasePreview.value = null;
+  purchaseError.value = "";
+  purchaseItem.value = null;
+
+  void nextTick(() => {
+    purchaseTrigger.value?.focus();
+    purchaseTrigger.value = null;
+  });
+}
+
+async function requestPurchasePreview(value: {
+  itemId: Id<"wantItems">;
+  actualAmountCents: bigint;
+}) {
+  if (
+    purchaseMode.value !== "purchase" ||
+    !purchaseItem.value ||
+    purchaseItem.value._id !== value.itemId
+  ) {
+    return;
+  }
+
+  const requestId = ++latestPreviewRequest;
+  isPreviewPending.value = true;
+  purchaseError.value = "";
+
+  try {
+    const result = await previewPurchase(value);
+
+    if (requestId !== latestPreviewRequest) return;
+
+    if (!result.success) {
+      purchaseError.value = result.error;
+      return;
+    }
+
+    purchasePreview.value = {
+      actualAmountCents: value.actualAmountCents,
+      ...result.data,
+    };
+  } finally {
+    if (requestId === latestPreviewRequest) {
+      isPreviewPending.value = false;
+    }
+  }
+}
+
+async function submitPurchase(
+  value:
+    | {
+        itemId: Id<"wantItems">;
+        actualAmountCents: bigint;
+        purchaseLocalDate: string;
+      }
+    | {
+        itemId: Id<"wantItems">;
+        actualAmountCents: bigint;
+      },
+) {
+  if (!purchaseItem.value || isSubmittingPurchase.value) return;
+
+  isSubmittingPurchase.value = true;
+  purchaseError.value = "";
+
+  try {
+    if (purchaseMode.value === "correct") {
+      const result = await correctPurchase({
+        itemId: value.itemId,
+        actualAmountCents: value.actualAmountCents,
+      });
+
+      if (!result.success) {
+        purchaseError.value = result.error;
+        return;
+      }
+
+      pageNotice.value = "Purchase correction saved.";
+      closePurchaseDialog(true);
+      return;
+    }
+
+    if (!("purchaseLocalDate" in value)) return;
+
+    const result = await purchase(value);
+
+    if (!result.success) {
+      purchaseError.value = result.error;
+      return;
+    }
+
+    if (result.data.status === "reserve_syncing") {
+      purchaseError.value = "The reserve is still syncing. Try this purchase again in a moment.";
+      return;
+    }
+
+    pageNotice.value = `${formatCents(value.actualAmountCents)} total · ${formatCents(result.data.reserveUsedCents)} from reserve · ${formatCents(result.data.budgetImpactCents)} budget impact.`;
+    closePurchaseDialog(true);
+  } finally {
+    isSubmittingPurchase.value = false;
+  }
+}
+
+async function undoPurchaseFromHistory(itemId: Id<"wantItems">) {
+  if (undoPendingItemId.value) return;
+
+  undoPendingItemId.value = itemId;
+  boughtError.value = "";
+  pageNotice.value = "";
+
+  try {
+    const result = await undoPurchase({ itemId });
+
+    if (!result.success) {
+      boughtError.value = result.error;
+      return;
+    }
+
+    pageNotice.value = "Purchase undone. The Want is back at the bottom of Plan for it.";
+  } finally {
+    undoPendingItemId.value = undefined;
+  }
 }
 
 function openCreateForm() {
@@ -256,6 +426,7 @@ async function saveOrder(itemIds: Id<"wantItems">[]) {
           :reorder-error="reorderError"
           @reorder="saveOrder"
           @edit="openEditForm"
+          @purchase="openPurchase"
           @change-status="updateStatus"
         />
 
@@ -275,12 +446,13 @@ async function saveOrder(itemIds: Id<"wantItems">[]) {
           @change-status="updateStatus"
         />
 
-        <WantsList
+        <WantsBoughtList
           v-if="sections.bought.length"
-          title="Bought"
           :items="sections.bought"
-          @edit="openEditForm"
-          @change-status="updateStatus"
+          :pending-item-id="undoPendingItemId"
+          :error="boughtError"
+          @correct="openPurchase($event, 'correct')"
+          @undo="undoPurchaseFromHistory"
         />
       </div>
     </template>
@@ -320,5 +492,20 @@ async function saveOrder(itemIds: Id<"wantItems">[]) {
         />
       </section>
     </div>
+
+    <WantsPurchaseDialog
+      v-if="purchaseItem"
+      :open="Boolean(purchaseItem)"
+      :item="purchaseItem"
+      :mode="purchaseMode"
+      :purchase-local-date="localDate"
+      :preview="purchasePreview"
+      :preview-pending="isPreviewPending"
+      :is-submitting="isSubmittingPurchase"
+      :error="purchaseError"
+      @request-preview="requestPurchasePreview"
+      @submit="submitPurchase"
+      @close="closePurchaseDialog"
+    />
   </main>
 </template>

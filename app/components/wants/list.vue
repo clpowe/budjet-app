@@ -31,6 +31,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (event: "reorder", itemIds: Id<"wantItems">[]): void;
   (event: "edit", item: WantItem): void;
+  (event: "purchase", item: WantItem): void;
   (
     event: "change-status",
     value: {
@@ -210,6 +211,7 @@ function moveItem(itemId: Id<"wantItems">, direction: -1 | 1) {
           @move-up="moveItem($event, -1)"
           @move-down="moveItem($event, 1)"
           @edit="emit('edit', $event)"
+          @purchase="emit('purchase', $event)"
           @change-status="emit('change-status', $event)"
         />
       </div>
