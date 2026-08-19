@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { api } from "../../convex/_generated/api";
 import { format } from "@formkit/tempo";
+import { formatCents } from "../../shared/utils/money-cents";
 
 const { currentDate, queryMonthBounds, backMonth, forwardMonth, timeZone } = useDate();
 
@@ -109,13 +110,32 @@ const currentMonthYear = computed(() => {
               <tbody>
                 <tr v-for="tx in groupedTransactions[dateKey]" :key="tx._id">
                   <td>
-                    <div class="font-bold">{{ tx.name }}</div>
+                    <div class="flex flex-wrap items-center gap-2 font-bold">
+                      <span>{{ tx.name }}</span>
+                      <span
+                        v-if="tx.type === 'expense' && tx.isWantPurchase"
+                        class="badge badge-primary badge-outline badge-sm"
+                      >
+                        Want purchase
+                      </span>
+                    </div>
                     <div v-if="tx.notes" class="text-sm opacity-50">{{ tx.notes }}</div>
                   </td>
                   <td class="text-right">
                     <span :class="tx.type === 'expense' ? 'text-error' : 'text-success'">
-                      {{ tx.type === "expense" ? "-" : "+" }}{{ formatMoney(tx.amount) }}
+                      {{ tx.type === "expense" ? "-" : "+"
+                      }}{{
+                        tx.type === "expense" ? formatCents(tx.amountCents) : formatMoney(tx.amount)
+                      }}
                     </span>
+                    <p
+                      v-if="tx.type === 'expense' && tx.reserveUsedCents > 0n"
+                      class="mt-1 text-xs text-base-content/60"
+                    >
+                      {{ formatCents(tx.amountCents) }} total ·
+                      {{ formatCents(tx.reserveUsedCents) }} from reserve ·
+                      {{ formatCents(tx.budgetImpactCents) }} budget impact
+                    </p>
                   </td>
                   <td class="w-10">
                     <span

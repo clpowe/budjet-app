@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { api } from "../../convex/_generated/api";
+import { formatCents } from "../../shared/utils/money-cents";
 
 const { appDay, setDate } = useDate();
 
-const { total, totalToday, burn_rate, variance, currentPosition, dailyBudget } = useExpenses();
+const { summary, safeToSpendCents, totalToday, burn_rate, variance, currentPosition } =
+  useExpenses();
 
 const { windfallTotal } = useWindfall();
 
@@ -11,12 +13,8 @@ setDate(new Date());
 
 const { data: totalPayment } = useConvexQuery(api.depts.getTotalPayment, {});
 
-const leftToSpend = computed(() => {
-  return dailyBudget.value * 30 - (total.value ?? 0);
-});
-
 const safeToSpendState = computed(() => {
-  if (leftToSpend.value < 0) {
+  if (safeToSpendCents.value < 0n) {
     return {
       label: "Over plan",
       tone: "text-error",
@@ -27,7 +25,7 @@ const safeToSpendState = computed(() => {
   return {
     label: "Safe to spend",
     tone: "text-success",
-    helper: "Budget left in your 30-day plan after recorded spending.",
+    helper: "Your 30-day plan after budget-impact spending and finalized Want set-asides.",
   };
 });
 </script>
@@ -55,7 +53,7 @@ const safeToSpendState = computed(() => {
               class="mt-2 text-5xl font-black leading-none sm:text-7xl"
               :class="safeToSpendState.tone"
             >
-              {{ formatMoney(leftToSpend) }}
+              {{ formatCents(safeToSpendCents) }}
             </p>
             <p class="mt-3 max-w-lg text-sm text-base-content/70">
               {{ safeToSpendState.helper }}
@@ -93,15 +91,39 @@ const safeToSpendState = computed(() => {
         </div>
       </div>
 
-      <div class="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div class="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div class="border-t border-base-300 pt-4">
           <p class="text-sm text-base-content/60">Spent so far</p>
           <p class="mt-1 text-2xl font-bold">
-            {{ formatMoney(total ?? 0) }}
+            {{ formatCents(summary?.expenseCents ?? 0n) }}
           </p>
         </div>
         <div class="border-t border-base-300 pt-4">
-          <p class="text-sm text-base-content/60">Money left</p>
+          <p class="text-sm text-base-content/60">Budget impact</p>
+          <p class="mt-1 text-2xl font-bold">
+            {{ formatCents(summary?.budgetImpactExpenseCents ?? 0n) }}
+          </p>
+        </div>
+        <div class="border-t border-base-300 pt-4">
+          <p class="text-sm text-base-content/60">Reserved this plan</p>
+          <p class="mt-1 text-2xl font-bold">
+            {{ formatCents(summary?.currentPlanSetAsideCents ?? 0n) }}
+          </p>
+        </div>
+        <div class="border-t border-base-300 pt-4">
+          <p class="text-sm text-base-content/60">Goal reserve</p>
+          <p class="mt-1 text-2xl font-bold">
+            {{ formatCents(summary?.availableReserveCents ?? 0n) }}
+          </p>
+        </div>
+        <div class="border-t border-base-300 pt-4">
+          <p class="text-sm text-base-content/60">Potential tonight</p>
+          <p class="mt-1 text-2xl font-bold">
+            {{ formatCents(summary?.potentialTonightCents ?? 0n) }}
+          </p>
+        </div>
+        <div class="border-t border-base-300 pt-4">
+          <p class="text-sm text-base-content/60">Money left today</p>
           <p class="mt-1 text-2xl font-bold">
             {{ formatMoney(currentPosition ?? 0) }}
           </p>

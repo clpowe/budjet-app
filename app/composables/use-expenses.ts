@@ -6,83 +6,68 @@ type MoneyState = {
   positive: boolean;
 };
 
-function finiteNumber(value: unknown, fallback = 0) {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+function centsToDollars(value: bigint | undefined): number {
+  return Number(value ?? 0n) / 100;
 }
 
-function moneyState(value: unknown, positive: boolean): MoneyState {
+function moneyState(value: number, positive: boolean): MoneyState {
   return {
-    value: finiteNumber(value),
+    value,
     positive,
   };
 }
 
 export function useExpenses() {
-  const { queryDayBounds, queryMonthBounds, elapsedDays, totalDaysInMonth, remainingDaysInMonth } =
-    useDate();
+  const { currentDate, queryDayBounds, queryMonthBounds, remainingDaysInMonth } = useDate();
 
-  const { data: household } = useConvexQuery(api.households.getMyHousehold, {});
-  const dailyBudget = computed(() => finiteNumber(household.value?.allowance, 50));
-
-  const params = computed(() => ({
+  const dayParams = computed(() => ({
     from: queryDayBounds.value.from,
     to: queryDayBounds.value.to,
   }));
 
-  const { data: expenses } = useConvexQuery(api.expenses.listMyExpenses, params);
+  const { data: expenses } = useConvexQuery(api.expenses.listMyExpenses, dayParams);
   const { mutate: deleteExpense } = useConvexMutation(api.expenses.deleteExpense);
 
-  const { data: total } = useConvexQuery(
-    api.expenses.getMyTotal,
+  const { data: summary } = useConvexQuery(
+    api.budget.getHomeSummary,
     computed(() => ({
       from: queryMonthBounds.value.from,
       to: queryMonthBounds.value.to,
+      now: currentDate.value.getTime(),
     })),
   );
 
-  const { data: currentPosition } = useConvexQuery(
-    api.expenses.getMyCurrentPosition,
-    computed(() => ({
-      from: queryDayBounds.value.from,
-      to: queryDayBounds.value.to,
-      allowance: dailyBudget.value,
-    })),
+  const dailyBudget = computed(() => centsToDollars(summary.value?.dailyAllowanceCents));
+  const total = computed(() => centsToDollars(summary.value?.expenseCents));
+  const safeToSpendCents = computed(() => summary.value?.safeToSpendCents ?? 0n);
+  const currentPosition = computed(
+    () =>
+      centsToDollars(summary.value?.dailyAllowanceCents) -
+      centsToDollars(summary.value?.todayBudgetImpactExpenseCents),
   );
 
   const totalToday = computed(() => {
-    const value = expenses.value?.reduce((acc, curr) => acc + finiteNumber(curr.amount), 0) ?? 0;
+    const value = centsToDollars(summary.value?.todayExpenseCents);
     const positive = value <= dailyBudget.value;
     return moneyState(value, positive);
   });
 
   const burn_rate = computed(() => {
-    const days = finiteNumber(elapsedDays.value);
-    const spent = finiteNumber(total.value);
-
-    if (days <= 0 || spent <= 0) {
-      return moneyState(0, true);
-    }
-
-    const value = spent / days;
+    const value = centsToDollars(summary.value?.averageDailySpendCents);
     const positive = value <= dailyBudget.value;
     return moneyState(value, positive);
   });
 
   const variance = computed(() => {
-    const value = dailyBudget.value * finiteNumber(elapsedDays.value) - finiteNumber(total.value);
+    const value = centsToDollars(summary.value?.varianceCents);
     const positive = value >= 0;
     return moneyState(value, positive);
   });
 
   const rollingBudget = computed(() => {
-    // remaining budget divided by remaining days
-    const totalMonthAllowance = dailyBudget.value * totalDaysInMonth.value;
-    const spentSoFar = finiteNumber(total.value);
-    const remainingBudget = totalMonthAllowance - spentSoFar;
-
     if (remainingDaysInMonth.value <= 0) return moneyState(0, false);
 
-    const value = remainingBudget / remainingDaysInMonth.value;
+    const value = centsToDollars(safeToSpendCents.value) / remainingDaysInMonth.value;
     const positive = value >= dailyBudget.value;
 
     return moneyState(value, positive);
@@ -92,6 +77,8 @@ export function useExpenses() {
 
   return {
     total,
+    summary,
+    safeToSpendCents,
     expenses,
     totalToday,
     burn_rate,

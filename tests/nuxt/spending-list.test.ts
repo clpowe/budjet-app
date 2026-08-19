@@ -43,6 +43,15 @@ function makeExpense(id: string, name: string, notes: string, amount: number): E
   };
 }
 
+function makeWantPurchase(): Expense {
+  return {
+    ...makeExpense("expense-want", "Camera", "Shared goal", 120),
+    amountCents: 12_000n,
+    reserveUsedCents: 10_000n,
+    wantItemId: "want-camera" as Expense["wantItemId"],
+  };
+}
+
 function mountList(items: Expense[]) {
   const expenses = ref<Expense[] | undefined>(items);
   const remove = vi.fn();
@@ -104,5 +113,16 @@ describe("SpendingList", () => {
     await wrapper.get('[data-test="emit-update"]').trigger("click");
     expect(closePopoverByIdMock).toHaveBeenCalledOnce();
     expect(closePopoverByIdMock).toHaveBeenCalledWith("expense-1");
+  });
+
+  it("marks a Want purchase and discloses its exact reserve funding", () => {
+    const { wrapper } = mountList([makeWantPurchase()]);
+
+    expect(wrapper.text()).toContain("Want purchase");
+    expect(wrapper.text()).toContain("$120.00 total");
+    expect(wrapper.text()).toContain("$100.00 from reserve");
+    expect(wrapper.text()).toContain("$20.00 budget impact");
+    expect(wrapper.find('button[popovertarget="expense-want"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("Delete");
   });
 });

@@ -4,6 +4,7 @@ import { getEffectiveTimeZone } from "./households";
 import { mutation, query } from "./_generated/server";
 import { applyExpenseDelta, type ExpenseFacts } from "./lib/daily_budget_rollups.ts";
 import { getAuthenticatedUser, getHouseholdId } from "./lib/helpers";
+import { getBudgetImpact } from "./lib/want_reserve";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 
@@ -257,7 +258,21 @@ export const listMonthlyTransactions = query({
       .collect();
 
     return [
-      ...expenses.map((expense) => ({ ...expense, type: "expense" as const })),
+      ...expenses.map((expense) => {
+        if (expense.amountCents === undefined) {
+          throw new Error("Household money migration is still in progress");
+        }
+
+        const reserveUsedCents = expense.reserveUsedCents ?? 0n;
+
+        return {
+          ...expense,
+          reserveUsedCents,
+          budgetImpactCents: getBudgetImpact(expense.amountCents, reserveUsedCents),
+          isWantPurchase: expense.wantItemId !== undefined,
+          type: "expense" as const,
+        };
+      }),
       ...windfalls.map((windfall) => ({
         ...windfall,
         name: windfall.source,

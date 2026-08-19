@@ -6,10 +6,27 @@ const expensesRef = ref<Doc<"expenses">[]>([
   { amount: 10 } as Doc<"expenses">,
   { amount: -4 } as Doc<"expenses">,
 ]);
-const totalRef = ref(100);
-const currentPositionRef = ref(5);
-const elapsedDaysRef = ref(2);
-const householdRef = ref({ allowance: 50 });
+const currentDateRef = ref(new Date(1_000));
+const summaryRef = ref({
+  dailyAllowanceCents: 5_000n,
+  planAllowanceCents: 150_000n,
+  expenseCents: 10_000n,
+  reserveFundedExpenseCents: 1_000n,
+  budgetImpactExpenseCents: 9_000n,
+  currentPlanSetAsideCents: 2_000n,
+  safeToSpendCents: 139_000n,
+  todayExpenseCents: 600n,
+  todayBudgetImpactExpenseCents: 500n,
+  positionCents: 4_000n,
+  availableReserveCents: 4_000n,
+  recoveryAmountCents: 0n,
+  liveNegativeAdjustmentCents: 0n,
+  potentialTonightCents: 4_500n,
+  elapsedDays: 2,
+  averageDailySpendCents: 5_000n,
+  varianceCents: 1_000n,
+  topItem: null,
+});
 
 const deleteExpenseMock = vi.fn();
 const useConvexQueryMock = vi.fn();
@@ -21,8 +38,7 @@ vi.mock("#imports", () => ({
   useDate: () => ({
     queryDayBounds: computed(() => ({ from: 0, to: 1 })),
     queryMonthBounds: computed(() => ({ from: 2, to: 3 })),
-    elapsedDays: computed(() => elapsedDaysRef.value),
-    totalDaysInMonth: computed(() => 30),
+    currentDate: currentDateRef,
     remainingDaysInMonth: computed(() => 29),
   }),
   useConvexQuery: (...args: unknown[]) => useConvexQueryMock(...args),
@@ -39,8 +55,7 @@ describe("useExpenses", () => {
     vi.stubGlobal("useDate", () => ({
       queryDayBounds: computed(() => ({ from: 0, to: 1 })),
       queryMonthBounds: computed(() => ({ from: 2, to: 3 })),
-      elapsedDays: computed(() => elapsedDaysRef.value),
-      totalDaysInMonth: computed(() => 30),
+      currentDate: currentDateRef,
       remainingDaysInMonth: computed(() => 29),
     }));
     vi.stubGlobal("useConvexQuery", (...args: unknown[]) => useConvexQueryMock(...args));
@@ -50,7 +65,7 @@ describe("useExpenses", () => {
     deleteExpenseMock.mockReset();
 
     useConvexQueryMock.mockImplementation(() => {
-      const responses = [householdRef, expensesRef, totalRef, currentPositionRef];
+      const responses = [expensesRef, summaryRef];
       const idx = (useConvexQueryMock.mock.calls.length - 1) % responses.length;
       return { data: responses[idx] };
     });
@@ -62,43 +77,57 @@ describe("useExpenses", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     expensesRef.value = [{ amount: 10 } as Doc<"expenses">, { amount: -4 } as Doc<"expenses">];
-    totalRef.value = 100;
-    currentPositionRef.value = 5;
-    elapsedDaysRef.value = 2;
-    householdRef.value = { allowance: 50 };
+    currentDateRef.value = new Date(1_000);
+    summaryRef.value = {
+      dailyAllowanceCents: 5_000n,
+      planAllowanceCents: 150_000n,
+      expenseCents: 10_000n,
+      reserveFundedExpenseCents: 1_000n,
+      budgetImpactExpenseCents: 9_000n,
+      currentPlanSetAsideCents: 2_000n,
+      safeToSpendCents: 139_000n,
+      todayExpenseCents: 600n,
+      todayBudgetImpactExpenseCents: 500n,
+      positionCents: 4_000n,
+      availableReserveCents: 4_000n,
+      recoveryAmountCents: 0n,
+      liveNegativeAdjustmentCents: 0n,
+      potentialTonightCents: 4_500n,
+      elapsedDays: 2,
+      averageDailySpendCents: 5_000n,
+      varianceCents: 1_000n,
+      topItem: null,
+    };
   });
 
   it("computes totals and burn rate based on convex data", () => {
     const composable = useExpenses();
 
     expect(composable.expenses.value).toEqual(expensesRef.value);
+    expect(composable.total.value).toBe(100);
     expect(composable.totalToday.value).toEqual({ value: 6, positive: true });
     expect(composable.burn_rate.value).toEqual({ value: 50, positive: true });
-    expect(composable.variance.value).toEqual({ value: 0, positive: true });
+    expect(composable.variance.value).toEqual({ value: 10, positive: true });
     expect(composable.dailyBudget.value).toBe(50);
-    expect(composable.currentPosition.value).toBe(5);
+    expect(composable.currentPosition.value).toBe(45);
+    expect(composable.safeToSpendCents.value).toBe(139_000n);
+    expect(composable.summary.value).toBe(summaryRef.value);
+    expect(useConvexQueryMock).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.objectContaining({ value: { from: 2, to: 3, now: 1_000 } }),
+    );
   });
 
-  it("returns 0 burn rate when missing totals or elapsed days", () => {
-    totalRef.value = null as unknown as number;
+  it("returns zeroed states while the centralized summary is loading", () => {
+    summaryRef.value = undefined as never;
     const composable = useExpenses();
+
+    expect(composable.total.value).toBe(0);
+    expect(composable.totalToday.value).toEqual({ value: 0, positive: true });
     expect(composable.burn_rate.value).toEqual({ value: 0, positive: true });
-
-    totalRef.value = 100;
-    elapsedDaysRef.value = 0;
-    const composable2 = useExpenses();
-    expect(composable2.burn_rate.value).toEqual({ value: 0, positive: true });
-  });
-
-  it("returns 0 burn rate when total or elapsed days are not finite numbers", () => {
-    totalRef.value = Number.NaN;
-    const composable = useExpenses();
-    expect(composable.burn_rate.value).toEqual({ value: 0, positive: true });
-
-    totalRef.value = 100;
-    elapsedDaysRef.value = Number.NaN;
-    const composable2 = useExpenses();
-    expect(composable2.burn_rate.value).toEqual({ value: 0, positive: true });
+    expect(composable.variance.value).toEqual({ value: 0, positive: true });
+    expect(composable.safeToSpendCents.value).toBe(0n);
   });
 
   it("calls convex mutation when removing an expense", () => {
