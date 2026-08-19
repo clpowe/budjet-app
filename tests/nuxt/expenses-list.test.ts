@@ -1,3 +1,4 @@
+import { mockComponent } from "@nuxt/test-utils/runtime";
 import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { Doc } from "../../convex/_generated/dataModel";
@@ -5,6 +6,17 @@ import type { Doc } from "../../convex/_generated/dataModel";
 import ExpensesList from "../../app/components/expenses/list.vue";
 
 type Expense = Doc<"expenses">;
+
+mockComponent("ExpensesEdit", {
+  props: {
+    expense: {
+      type: Object,
+      required: true,
+    },
+  },
+  emits: ["updated"],
+  template: "<div />",
+});
 
 function makeExpense(id: string, name: string, amount: number): Expense {
   return {
