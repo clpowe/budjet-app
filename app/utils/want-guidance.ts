@@ -17,33 +17,40 @@ export type WantGuidanceInput = {
   targetLocalDate?: string;
   recentDailyPaceCents: bigint;
   recoveryAmountCents: bigint;
-  liveNegativeAdjustmentCents: bigint;
+  todayOverageAdjustmentCents: bigint;
 };
 
 const LOCAL_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-function localDateToTimestamp(localDate: string): number {
+function localDateToTimestamp(localDate: string): number | undefined {
   if (!LOCAL_DATE_PATTERN.test(localDate)) {
-    throw new Error("Local dates must use YYYY-MM-DD format");
+    return undefined;
   }
 
   const timestamp = Date.parse(`${localDate}T00:00:00.000Z`);
 
   if (Number.isNaN(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== localDate) {
-    throw new Error("Local date is invalid");
+    return undefined;
   }
 
   return timestamp;
 }
 
-function dayDistance(fromLocalDate: string, toLocalDate: string): number {
-  return Math.round(
-    (localDateToTimestamp(toLocalDate) - localDateToTimestamp(fromLocalDate)) / 86_400_000,
-  );
+function dayDistance(fromLocalDate: string, toLocalDate: string): number | undefined {
+  const fromTimestamp = localDateToTimestamp(fromLocalDate);
+  const toTimestamp = localDateToTimestamp(toLocalDate);
+
+  if (fromTimestamp === undefined || toTimestamp === undefined) return undefined;
+
+  return Math.round((toTimestamp - fromTimestamp) / 86_400_000);
 }
 
-function addLocalDays(localDate: string, days: number): string {
-  const date = new Date(localDateToTimestamp(localDate));
+function addLocalDays(localDate: string, days: number): string | undefined {
+  const timestamp = localDateToTimestamp(localDate);
+
+  if (timestamp === undefined) return undefined;
+
+  const date = new Date(timestamp);
   date.setUTCDate(date.getUTCDate() + days);
 
   return date.toISOString().slice(0, 10);
@@ -59,7 +66,7 @@ export function getWantGuidance({
   targetLocalDate,
   recentDailyPaceCents,
   recoveryAmountCents,
-  liveNegativeAdjustmentCents,
+  todayOverageAdjustmentCents,
 }: WantGuidanceInput): WantGuidance {
   if (recoveryAmountCents > 0n) {
     return {
@@ -72,22 +79,26 @@ export function getWantGuidance({
     return { kind: "ready" };
   }
 
-  if (liveNegativeAdjustmentCents < 0n) {
+  if (todayOverageAdjustmentCents < 0n) {
     return {
       kind: "negative_today",
-      amountCents: -liveNegativeAdjustmentCents,
+      amountCents: -todayOverageAdjustmentCents,
     };
   }
 
   if (targetLocalDate) {
     const daysUntilTarget = dayDistance(todayLocalDate, targetLocalDate);
 
-    return {
-      kind: "target",
-      dailyCents:
-        daysUntilTarget > 0 ? ceilDivide(remainingCents, BigInt(daysUntilTarget)) : remainingCents,
-      targetLocalDate,
-    };
+    if (daysUntilTarget !== undefined) {
+      return {
+        kind: "target",
+        dailyCents:
+          daysUntilTarget > 0
+            ? ceilDivide(remainingCents, BigInt(daysUntilTarget))
+            : remainingCents,
+        targetLocalDate,
+      };
+    }
   }
 
   if (recentDailyPaceCents <= 0n) {
@@ -100,10 +111,16 @@ export function getWantGuidance({
     return { kind: "starter" };
   }
 
+  const readyLocalDate = addLocalDays(todayLocalDate, daysToReady);
+
+  if (readyLocalDate === undefined) {
+    return { kind: "starter" };
+  }
+
   return {
     kind: "pace",
     dailyCents: recentDailyPaceCents,
     daysToReady,
-    readyLocalDate: addLocalDays(todayLocalDate, daysToReady),
+    readyLocalDate,
   };
 }

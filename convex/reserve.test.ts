@@ -3,6 +3,7 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { convexTest, type TestConvex } from "convex-test";
 import { api } from "./_generated/api";
+import { reduceReserveEvent } from "./reserve";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -157,6 +158,58 @@ test("activates exactly once at zero and preserves the state after the queue emp
   });
 });
 
+test("reserve transitions reject invalid amounts and stale daily closes", async () => {
+  const t = convexTest(schema, modules);
+  const seeded = await seedHousehold(t);
+  const { state, expenseId } = await t.run(async (ctx) => {
+    const stateId = await ctx.db.insert("goalReserveStates", {
+      householdId: seeded.householdId,
+      positionCents: 3_000n,
+      activatedAt: 0,
+      firstEligibleLocalDate: "2026-03-10",
+      lastClosedLocalDate: "2026-03-11",
+      updatedAt: 0,
+    });
+    const expenseId = await ctx.db.insert("expenses", {
+      householdId: seeded.householdId,
+      name: "Camera",
+      notes: "",
+      amount: 10,
+      amountCents: 1_000n,
+      date: 0,
+    });
+
+    return {
+      state: await ctx.db.get("goalReserveStates", stateId),
+      expenseId,
+    };
+  });
+
+  if (!state) {
+    throw new Error("Expected reserve state");
+  }
+
+  expect(() =>
+    reduceReserveEvent(state, {
+      kind: "daily_close",
+      localDate: "2026-03-11",
+      allowanceCents: 5_500n,
+      spendingCents: 1_000n,
+    }),
+  ).toThrow("Reserve days must close after the recorded close cursor");
+
+  expect(() =>
+    reduceReserveEvent(state, {
+      kind: "purchase",
+      localDate: "2026-03-12",
+      reserveUsedCents: -1n,
+      expenseId,
+      wantItemId: seeded.cameraId,
+      actorId: seeded.ownerId,
+    }),
+  ).toThrow("Reserve used cannot be negative");
+});
+
 test("reports open-day underspending as potential instead of funded reserve", async () => {
   const t = convexTest(schema, modules);
   const seeded = await seedHousehold(t);
@@ -196,8 +249,8 @@ test("reports open-day underspending as potential instead of funded reserve", as
     positionCents: 3_000n,
     availableReserveCents: 3_000n,
     recoveryAmountCents: 0n,
-    liveNegativeAdjustmentCents: 0n,
-    potentialTonightCents: 2_500n,
+    todayOverageAdjustmentCents: 0n,
+    projectedEndOfDayContributionCents: 2_500n,
     activeAllocations: [
       {
         itemId: seeded.cameraId,
@@ -212,15 +265,9 @@ test("reports open-day underspending as potential instead of funded reserve", as
         progressBasisPoints: 0,
       },
     ],
-    topItem: {
-      itemId: seeded.cameraId,
-      name: "Camera",
-      estimatedCostCents: 5_000n,
-      allocatedCents: 3_000n,
-      remainingCents: 2_000n,
-      progressBasisPoints: 6_000,
-    },
   });
+
+  expect(summary).not.toHaveProperty("nextPlannedWant");
 });
 
 test("immediately reduces visible progress when open-day spending exceeds allowance", async () => {
@@ -258,8 +305,8 @@ test("immediately reduces visible progress when open-day spending exceeds allowa
     positionCents: 1_000n,
     availableReserveCents: 0n,
     recoveryAmountCents: 500n,
-    liveNegativeAdjustmentCents: -1_500n,
-    potentialTonightCents: 0n,
+    todayOverageAdjustmentCents: -1_500n,
+    projectedEndOfDayContributionCents: 0n,
     activeAllocations: [
       {
         itemId: seeded.cameraId,

@@ -1,14 +1,14 @@
 import { v } from "convex/values";
 import { getEffectiveTimeZone } from "./households";
 import { getAuthenticatedUser } from "./lib/helpers";
+import { getCurrentReserveSnapshot } from "./lib/live_reserve";
 import { getLocalDateKey } from "./lib/want_reserve";
-import { calculateLiveReserveAmounts } from "./reserve";
 import { query } from "./_generated/server";
 
 const DAYS_IN_PLAN = 30n;
 const MAX_MONTH_ROWS = 31;
 
-const topItemSummaryValidator = v.object({
+const nextPlannedWantSummaryValidator = v.object({
   itemId: v.id("wantItems"),
   name: v.string(),
   estimatedCostCents: v.int64(),
@@ -31,12 +31,12 @@ const homeSummaryValidator = v.object({
   positionCents: v.int64(),
   availableReserveCents: v.int64(),
   recoveryAmountCents: v.int64(),
-  liveNegativeAdjustmentCents: v.int64(),
-  potentialTonightCents: v.int64(),
+  todayOverageAdjustmentCents: v.int64(),
+  projectedEndOfDayContributionCents: v.int64(),
   elapsedDays: v.number(),
   averageDailySpendCents: v.int64(),
   varianceCents: v.int64(),
-  topItem: v.union(v.null(), topItemSummaryValidator),
+  nextPlannedWant: v.union(v.null(), nextPlannedWantSummaryValidator),
 });
 
 type SafeToSpendInputs = {
@@ -89,16 +89,11 @@ export const getHomeSummary = query({
       throw new Error("Household not found");
     }
 
-    if (household.allowanceCents === undefined) {
-      throw new Error("Household money migration is still in progress");
-    }
-
     const timeZone = getEffectiveTimeZone(household, args.now);
     const monthStartLocalDate = getLocalDateKey(args.from, timeZone);
     const monthEndLocalDate = getLocalDateKey(args.to, timeZone);
-    const currentLocalDate = getLocalDateKey(args.now, timeZone);
 
-    const [rollups, reserveDays, reserveState, topItem] = await Promise.all([
+    const [rollups, reserveDays] = await Promise.all([
       ctx.db
         .query("dailyBudgetRollups")
         .withIndex("by_household_and_local_date", (q) =>
@@ -117,17 +112,6 @@ export const getHomeSummary = query({
             .lt("localDate", monthEndLocalDate),
         )
         .take(MAX_MONTH_ROWS + 1),
-      ctx.db
-        .query("goalReserveStates")
-        .withIndex("by_household", (q) => q.eq("householdId", household._id))
-        .unique(),
-      ctx.db
-        .query("wantItems")
-        .withIndex("by_household_and_status_and_order", (q) =>
-          q.eq("householdId", household._id).eq("status", "plan_for_it"),
-        )
-        .order("asc")
-        .first(),
     ]);
 
     if (rollups.length > MAX_MONTH_ROWS) {
@@ -137,6 +121,18 @@ export const getHomeSummary = query({
     if (reserveDays.length > MAX_MONTH_ROWS) {
       throw new Error("Goal reserve days exceed the monthly invariant");
     }
+
+    const [currentReserve, nextPlannedWant] = await Promise.all([
+      getCurrentReserveSnapshot(ctx, household, args.now),
+      ctx.db
+        .query("wantItems")
+        .withIndex("by_household_and_status_and_order", (q) =>
+          q.eq("householdId", household._id).eq("status", "plan_for_it"),
+        )
+        .order("asc")
+        .first(),
+    ]);
+    const currentLocalDate = currentReserve.localDate;
 
     const totals = rollups.reduce(
       (sum, rollup) => ({
@@ -156,14 +152,8 @@ export const getHomeSummary = query({
     );
     const currentDayRollup = rollups.find((rollup) => rollup.localDate === currentLocalDate);
     const todayExpenseCents = currentDayRollup?.expenseCents ?? 0n;
-    const todayBudgetImpactExpenseCents = currentDayRollup?.budgetImpactExpenseCents ?? 0n;
-    const positionCents = reserveState?.positionCents ?? 0n;
-    const reserveAmounts = calculateLiveReserveAmounts(
-      positionCents,
-      household.allowanceCents,
-      todayBudgetImpactExpenseCents,
-    );
-    const planAllowanceCents = household.allowanceCents * DAYS_IN_PLAN;
+    const todayBudgetImpactExpenseCents = currentReserve.budgetImpactExpenseCents;
+    const planAllowanceCents = currentReserve.dailyAllowanceCents * DAYS_IN_PLAN;
     const safeToSpendCents = calculateSafeToSpendCents({
       planAllowanceCents,
       budgetImpactExpenseCents: totals.budgetImpactExpenseCents,
@@ -173,41 +163,44 @@ export const getHomeSummary = query({
     const averageDailySpendCents =
       elapsedDays > 0 ? totals.budgetImpactExpenseCents / BigInt(elapsedDays) : 0n;
     const varianceCents =
-      household.allowanceCents * BigInt(elapsedDays) - totals.budgetImpactExpenseCents;
-    const topItemAllocatedCents = topItem
-      ? reserveAmounts.availableReserveCents < topItem.estimatedCostCents
-        ? reserveAmounts.availableReserveCents
-        : topItem.estimatedCostCents
+      currentReserve.dailyAllowanceCents * BigInt(elapsedDays) - totals.budgetImpactExpenseCents;
+    const nextPlannedWantAllocatedCents = nextPlannedWant
+      ? currentReserve.availableCents < nextPlannedWant.estimatedCostCents
+        ? currentReserve.availableCents
+        : nextPlannedWant.estimatedCostCents
       : 0n;
-    const compactTopItem = topItem
+    const compactNextPlannedWant = nextPlannedWant
       ? {
-          itemId: topItem._id,
-          name: topItem.name,
-          estimatedCostCents: topItem.estimatedCostCents,
-          allocatedCents: topItemAllocatedCents,
-          remainingCents: topItem.estimatedCostCents - topItemAllocatedCents,
+          itemId: nextPlannedWant._id,
+          name: nextPlannedWant.name,
+          estimatedCostCents: nextPlannedWant.estimatedCostCents,
+          allocatedCents: nextPlannedWantAllocatedCents,
+          remainingCents: nextPlannedWant.estimatedCostCents - nextPlannedWantAllocatedCents,
           progressBasisPoints: getProgressBasisPoints(
-            topItemAllocatedCents,
-            topItem.estimatedCostCents,
+            nextPlannedWantAllocatedCents,
+            nextPlannedWant.estimatedCostCents,
           ),
-          targetDate: topItem.targetDate,
+          targetDate: nextPlannedWant.targetDate,
         }
       : null;
 
     return {
-      dailyAllowanceCents: household.allowanceCents,
+      dailyAllowanceCents: currentReserve.dailyAllowanceCents,
       planAllowanceCents,
       ...totals,
       currentPlanSetAsideCents,
       safeToSpendCents,
       todayExpenseCents,
       todayBudgetImpactExpenseCents,
-      positionCents,
-      ...reserveAmounts,
+      positionCents: currentReserve.positionCents,
+      availableReserveCents: currentReserve.availableCents,
+      recoveryAmountCents: currentReserve.recoveryCents,
+      todayOverageAdjustmentCents: currentReserve.todayOverageAdjustmentCents,
+      projectedEndOfDayContributionCents: currentReserve.projectedEndOfDayContributionCents,
       elapsedDays,
       averageDailySpendCents,
       varianceCents,
-      topItem: compactTopItem,
+      nextPlannedWant: compactNextPlannedWant,
     };
   },
 });

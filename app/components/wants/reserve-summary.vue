@@ -6,6 +6,7 @@ type ReserveSummary = FunctionReturnType<typeof api.reserve.getSummary>;
 
 defineProps<{
   summary: ReserveSummary;
+  nextItemName?: string;
 }>();
 </script>
 
@@ -23,10 +24,10 @@ defineProps<{
       </div>
 
       <p
-        v-if="summary.topItem"
+        v-if="nextItemName"
         class="rounded-lg bg-primary/10 px-3 py-2 text-sm font-semibold text-primary"
       >
-        Next: {{ summary.topItem.name }}
+        Next: {{ nextItemName }}
       </p>
     </div>
 
@@ -42,7 +43,7 @@ defineProps<{
       <div class="border-t border-base-300 pt-3">
         <dt class="text-sm text-base-content/65">Potential tonight</dt>
         <dd class="mt-1 text-2xl font-black">
-          {{ formatCents(summary.potentialTonightCents) }}
+          {{ formatCents(summary.projectedEndOfDayContributionCents) }}
         </dd>
         <p class="mt-1 text-xs text-base-content/60">An estimate until today closes.</p>
       </div>

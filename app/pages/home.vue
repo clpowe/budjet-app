@@ -29,8 +29,8 @@ const safeToSpendState = computed(() => {
   };
 });
 
-const topItemTargetLocalDate = computed(() => {
-  const targetDate = summary.value?.topItem?.targetDate;
+const nextPlannedWantTargetLocalDate = computed(() => {
+  const targetDate = summary.value?.nextPlannedWant?.targetDate;
 
   return targetDate === undefined ? undefined : formatDateInput(new Date(targetDate));
 });
@@ -125,7 +125,7 @@ const topItemTargetLocalDate = computed(() => {
         <div class="border-t border-base-300 pt-4">
           <p class="text-sm text-base-content/60">Potential tonight</p>
           <p class="mt-1 text-2xl font-bold">
-            {{ formatCents(summary?.potentialTonightCents ?? 0n) }}
+            {{ formatCents(summary?.projectedEndOfDayContributionCents ?? 0n) }}
           </p>
         </div>
         <div class="border-t border-base-300 pt-4">
@@ -161,11 +161,11 @@ const topItemTargetLocalDate = computed(() => {
       </div>
     </section>
 
-    <WantsTopItemCard
+    <WantsNextPlannedWantCard
       v-if="summary"
       :summary="summary"
       :today-local-date="localDate"
-      :target-local-date="topItemTargetLocalDate"
+      :target-local-date="nextPlannedWantTargetLocalDate"
     />
 
     <SpendingMonthlyChart />

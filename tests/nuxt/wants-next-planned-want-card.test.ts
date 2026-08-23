@@ -3,10 +3,10 @@ import { describe, expect, it } from "vite-plus/test";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "../../convex/_generated/api";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
-import TopItemCard from "../../app/components/wants/top-item-card.vue";
+import NextPlannedWantCard from "../../app/components/wants/next-planned-want-card.vue";
 
 type HomeSummary = FunctionReturnType<typeof api.budget.getHomeSummary>;
-type TopItem = NonNullable<HomeSummary["topItem"]>;
+type NextPlannedWant = NonNullable<HomeSummary["nextPlannedWant"]>;
 
 function makeSummary(): HomeSummary {
   return {
@@ -22,13 +22,13 @@ function makeSummary(): HomeSummary {
     positionCents: 4_000n,
     availableReserveCents: 4_000n,
     recoveryAmountCents: 0n,
-    liveNegativeAdjustmentCents: 0n,
-    potentialTonightCents: 1_000n,
+    todayOverageAdjustmentCents: 0n,
+    projectedEndOfDayContributionCents: 1_000n,
     elapsedDays: 10,
     averageDailySpendCents: 2_000n,
     varianceCents: 80_000n,
-    topItem: {
-      itemId: "want-camera" as TopItem["itemId"],
+    nextPlannedWant: {
+      itemId: "want-camera" as NextPlannedWant["itemId"],
       name: "Camera",
       estimatedCostCents: 10_000n,
       allocatedCents: 4_000n,
@@ -40,7 +40,7 @@ function makeSummary(): HomeSummary {
 }
 
 function mountCard(summary = makeSummary()) {
-  return mount(TopItemCard, {
+  return mount(NextPlannedWantCard, {
     props: {
       summary,
       todayLocalDate: "2026-08-19",
@@ -57,10 +57,10 @@ function mountCard(summary = makeSummary()) {
   });
 }
 
-describe("WantsTopItemCard", () => {
+describe("WantsNextPlannedWantCard", () => {
   it("offers a Wants link when no active item exists", () => {
     const summary = makeSummary();
-    summary.topItem = null;
+    summary.nextPlannedWant = null;
 
     const wrapper = mountCard(summary);
 
@@ -85,10 +85,10 @@ describe("WantsTopItemCard", () => {
   it("announces a ready Want without a discouraging affordability message", () => {
     const summary = makeSummary();
 
-    if (summary.topItem) {
-      summary.topItem.allocatedCents = 10_000n;
-      summary.topItem.remainingCents = 0n;
-      summary.topItem.progressBasisPoints = 10_000;
+    if (summary.nextPlannedWant) {
+      summary.nextPlannedWant.allocatedCents = 10_000n;
+      summary.nextPlannedWant.remainingCents = 0n;
+      summary.nextPlannedWant.progressBasisPoints = 10_000;
     }
 
     const wrapper = mountCard(summary);
@@ -100,7 +100,7 @@ describe("WantsTopItemCard", () => {
   it("explains reserve recovery constructively", () => {
     const summary = makeSummary();
     summary.recoveryAmountCents = 500n;
-    summary.liveNegativeAdjustmentCents = -500n;
+    summary.todayOverageAdjustmentCents = -500n;
 
     const wrapper = mountCard(summary);
 

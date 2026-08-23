@@ -1,5 +1,6 @@
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { applyReserveEvent } from "../reserve";
 import { getLocalDateKey } from "./want_reserve";
 
 export type ExpenseFacts = {
@@ -203,30 +204,17 @@ export async function applyExpenseDelta(
       throw new Error("Closed reserve day is missing its reserve state");
     }
 
-    const correctionCents = -delta.budgetImpactExpenseCents;
-    const spendingSnapshotCents = closedDay.spendingSnapshotCents + delta.budgetImpactExpenseCents;
-    const contributionCents = closedDay.contributionCents + correctionCents;
-
-    await ctx.db.patch(closedDay._id, {
-      spendingSnapshotCents,
-      contributionCents,
-      updatedAt: now,
-    });
-
-    await ctx.db.insert("goalReserveLedgerEntries", {
-      householdId,
-      kind: "correction",
-      amountCents: correctionCents,
-      localDate,
-      allowanceSnapshotCents: closedDay.allowanceSnapshotCents,
-      spendingSnapshotCents,
-      sourceExpenseId,
-      actorId,
-      createdAt: now,
-    });
-    await ctx.db.patch(reserveState._id, {
-      positionCents: reserveState.positionCents + correctionCents,
-      updatedAt: now,
-    });
+    await applyReserveEvent(
+      ctx,
+      reserveState,
+      {
+        kind: "closed_day_correction",
+        localDate,
+        budgetImpactDeltaCents: delta.budgetImpactExpenseCents,
+        expenseId: sourceExpenseId,
+        actorId,
+      },
+      now,
+    );
   }
 }

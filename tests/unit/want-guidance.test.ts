@@ -12,7 +12,7 @@ describe("getWantGuidance", () => {
         todayLocalDate,
         recentDailyPaceCents: 0n,
         recoveryAmountCents: 0n,
-        liveNegativeAdjustmentCents: 0n,
+        todayOverageAdjustmentCents: 0n,
       }),
     ).toEqual({
       kind: "target",
@@ -28,7 +28,7 @@ describe("getWantGuidance", () => {
         todayLocalDate,
         recentDailyPaceCents: 1_250n,
         recoveryAmountCents: 0n,
-        liveNegativeAdjustmentCents: 0n,
+        todayOverageAdjustmentCents: 0n,
       }),
     ).toEqual({
       kind: "pace",
@@ -45,7 +45,7 @@ describe("getWantGuidance", () => {
         todayLocalDate,
         recentDailyPaceCents: 0n,
         recoveryAmountCents: 0n,
-        liveNegativeAdjustmentCents: 0n,
+        todayOverageAdjustmentCents: 0n,
       }),
     ).toEqual({ kind: "starter" });
   });
@@ -57,7 +57,7 @@ describe("getWantGuidance", () => {
         todayLocalDate,
         recentDailyPaceCents: 1_250n,
         recoveryAmountCents: 0n,
-        liveNegativeAdjustmentCents: 0n,
+        todayOverageAdjustmentCents: 0n,
       }),
     ).toEqual({ kind: "ready" });
   });
@@ -69,7 +69,7 @@ describe("getWantGuidance", () => {
         todayLocalDate,
         recentDailyPaceCents: 1_250n,
         recoveryAmountCents: 0n,
-        liveNegativeAdjustmentCents: -350n,
+        todayOverageAdjustmentCents: -350n,
       }),
     ).toEqual({
       kind: "negative_today",
@@ -85,11 +85,41 @@ describe("getWantGuidance", () => {
         todayLocalDate,
         recentDailyPaceCents: 1_250n,
         recoveryAmountCents: 500n,
-        liveNegativeAdjustmentCents: -500n,
+        todayOverageAdjustmentCents: -500n,
       }),
     ).toEqual({
       kind: "recovery",
       amountCents: 500n,
     });
+  });
+
+  it("falls back to a pace forecast when a persisted target is not a local date", () => {
+    expect(
+      getWantGuidance({
+        remainingCents: 10_000n,
+        targetLocalDate: "2026-08-29T12:00:00.000Z",
+        todayLocalDate,
+        recentDailyPaceCents: 1_250n,
+        recoveryAmountCents: 0n,
+        todayOverageAdjustmentCents: 0n,
+      }),
+    ).toEqual({
+      kind: "pace",
+      dailyCents: 1_250n,
+      daysToReady: 8,
+      readyLocalDate: "2026-08-27",
+    });
+  });
+
+  it("returns starter guidance instead of throwing for an invalid current local date", () => {
+    expect(
+      getWantGuidance({
+        remainingCents: 10_000n,
+        todayLocalDate: "August 19, 2026",
+        recentDailyPaceCents: 1_250n,
+        recoveryAmountCents: 0n,
+        todayOverageAdjustmentCents: 0n,
+      }),
+    ).toEqual({ kind: "starter" });
   });
 });

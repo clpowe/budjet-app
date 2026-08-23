@@ -71,23 +71,14 @@ function makeSummary() {
     positionCents: 4_000n,
     availableReserveCents: 4_000n,
     recoveryAmountCents: 0n,
-    liveNegativeAdjustmentCents: 0n,
-    potentialTonightCents: 2_500n,
+    todayOverageAdjustmentCents: 0n,
+    projectedEndOfDayContributionCents: 2_500n,
     activeAllocations: [] as Array<{
       itemId: Id<"wantItems">;
       allocatedCents: bigint;
       remainingCents: bigint;
       progressBasisPoints: number;
     }>,
-    topItem: null as null | {
-      itemId: Id<"wantItems">;
-      name: string;
-      estimatedCostCents: bigint;
-      allocatedCents: bigint;
-      remainingCents: bigint;
-      progressBasisPoints: number;
-      targetDate?: number;
-    },
   };
 }
 
@@ -155,8 +146,8 @@ describe("WantsPage", () => {
     summary.positionCents = 1_000n;
     summary.availableReserveCents = 0n;
     summary.recoveryAmountCents = 500n;
-    summary.liveNegativeAdjustmentCents = -1_500n;
-    summary.potentialTonightCents = 0n;
+    summary.todayOverageAdjustmentCents = -1_500n;
+    summary.projectedEndOfDayContributionCents = 0n;
 
     const wrapper = arrangePage({ summary });
 
@@ -169,6 +160,7 @@ describe("WantsPage", () => {
   it("renders the active queue with accessible reserve progress", () => {
     const camera = makeWant("want-camera", "Camera", "plan_for_it", 0);
     const summary = makeSummary();
+
     summary.activeAllocations = [
       {
         itemId: camera._id,
@@ -177,20 +169,12 @@ describe("WantsPage", () => {
         progressBasisPoints: 4_000,
       },
     ];
-    summary.topItem = {
-      itemId: camera._id,
-      name: camera.name,
-      estimatedCostCents: camera.estimatedCostCents,
-      allocatedCents: 4_000n,
-      remainingCents: 6_000n,
-      progressBasisPoints: 4_000,
-    };
 
     const wrapper = arrangePage({ active: [camera], summary });
     const progress = wrapper.get('progress[aria-label="Camera funding progress"]');
 
     expect(wrapper.text()).toContain("Plan for it");
-    expect(wrapper.text()).toContain("Camera");
+    expect(wrapper.text()).toContain("Next: Camera");
     expect(wrapper.text()).toContain("$40.00 of $100.00");
     expect(Number(progress.attributes("value")) / Number(progress.attributes("max"))).toBe(0.4);
   });

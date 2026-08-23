@@ -173,12 +173,12 @@ test("returns one exact home summary from bounded rollups and corrected reserve 
     positionCents: 6_000n,
     availableReserveCents: 4_000n,
     recoveryAmountCents: 0n,
-    liveNegativeAdjustmentCents: -2_000n,
-    potentialTonightCents: 0n,
+    todayOverageAdjustmentCents: -2_000n,
+    projectedEndOfDayContributionCents: 0n,
     elapsedDays: 10,
     averageDailySpendCents: 1_000n,
     varianceCents: 40_000n,
-    topItem: {
+    nextPlannedWant: {
       itemId: cameraId,
       name: "Camera",
       estimatedCostCents: 10_000n,

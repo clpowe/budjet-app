@@ -394,7 +394,11 @@ async function saveOrder(itemIds: Id<"wantItems">[]) {
     </div>
 
     <template v-else>
-      <WantsReserveSummary v-if="summary" :summary="summary" />
+      <WantsReserveSummary
+        v-if="summary"
+        :summary="summary"
+        :next-item-name="sections.active[0]?.name"
+      />
 
       <p v-if="pageError" role="alert" aria-live="polite" class="alert alert-error">
         {{ pageError }}

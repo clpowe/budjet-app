@@ -46,10 +46,9 @@ const summaryRef = ref({
   positionCents: 5_000n,
   availableReserveCents: 4_000n,
   recoveryAmountCents: 0n,
-  liveNegativeAdjustmentCents: -1_000n,
-  potentialTonightCents: 0n,
+  todayOverageAdjustmentCents: -1_000n,
+  projectedEndOfDayContributionCents: 0n,
   activeAllocations: [],
-  topItem: null,
 });
 const nowRef = ref(Date.UTC(2026, 7, 20, 16));
 const queryPendingRefs = Array.from({ length: 5 }, () => ref(false));

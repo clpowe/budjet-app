@@ -26,7 +26,7 @@ Keep these invariants visible while implementing:
 1. Every durable or calculated money value in this feature is integer cents represented as `bigint` and stored with `v.int64()`. Names end in `Cents`. Decimal strings are parsed once at an input/legacy-data boundary; finance code never adds, subtracts, or allocates floating-point dollars.
 2. The persisted reserve is one signed household `positionCents`; item allocations are derived, never persisted.
 3. The exact sum of `goalReserveLedgerEntries.amountCents` for a household equals `goalReserveStates.positionCents`. Every mutation updates the entry and cached position transactionally.
-4. Available reserve is `max(positionCents + liveNegativeAdjustmentCents, 0n)`.
+4. Available reserve is `max(positionCents + todayOverageAdjustmentCents, 0n)`.
 5. Today can reduce funded progress immediately, but positive progress is not credited until the day closes.
 6. A purchase records the full expense and a signed reserve withdrawal in one mutation.
 7. `budgetImpactCents = amountCents - reserveUsedCents` for ordinary spending views.
@@ -622,15 +622,15 @@ The public summary query accepts a client-supplied `now` timestamp only as an un
   positionCents: bigint,
   availableReserveCents: bigint,
   recoveryAmountCents: bigint,
-  liveNegativeAdjustmentCents: bigint,
-  potentialTonightCents: bigint,
+  todayOverageAdjustmentCents: bigint,
+  projectedEndOfDayContributionCents: bigint,
   activeAllocations: Array<{
     itemId: Id<"wantItems">,
     allocatedCents: bigint,
     remainingCents: bigint,
     progressBasisPoints: number,
   }>,
-  topItem: null | TopItemSummary,
+  nextPlannedWant: null | NextPlannedWantSummary,
 }
 ```
 
@@ -1039,10 +1039,10 @@ git commit -m "feat: disclose reserve-funded purchases"
 
 **Files:**
 
-- Create: `app/components/wants/top-item-card.vue`
+- Create: `app/components/wants/next-planned-want-card.vue`
 - Create: `app/utils/want-guidance.ts`
 - Create: `tests/unit/want-guidance.test.ts`
-- Create: `tests/nuxt/wants-top-item-card.test.ts`
+- Create: `tests/nuxt/wants-next-planned-want-card.test.ts`
 - Modify: `app/pages/home.vue`
 
 **Step 1: Write failing guidance tests**
@@ -1066,7 +1066,7 @@ Test no-active-item, partially funded, ready, and recovery states. Assert progre
 
 ```bash
 vp test --run --project unit tests/unit/want-guidance.test.ts
-vp test --run --project nuxt tests/nuxt/wants-top-item-card.test.ts
+vp test --run --project nuxt tests/nuxt/wants-next-planned-want-card.test.ts
 ```
 
 Expected: FAIL because the card and guidance helper are missing.
@@ -1079,8 +1079,8 @@ Render the card directly below the Home safe-to-spend section. Consume the compa
 
 ```bash
 vp test --run --project unit tests/unit/want-guidance.test.ts
-vp test --run --project nuxt tests/nuxt/wants-top-item-card.test.ts
-git add app/components/wants/top-item-card.vue app/utils/want-guidance.ts app/pages/home.vue tests/unit/want-guidance.test.ts tests/nuxt/wants-top-item-card.test.ts
+vp test --run --project nuxt tests/nuxt/wants-next-planned-want-card.test.ts
+git add app/components/wants/next-planned-want-card.vue app/utils/want-guidance.ts app/pages/home.vue tests/unit/want-guidance.test.ts tests/nuxt/wants-next-planned-want-card.test.ts
 git commit -m "feat: show top want progress on home"
 ```
 

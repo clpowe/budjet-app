@@ -20,12 +20,12 @@ const summaryRef = ref({
   positionCents: 4_000n,
   availableReserveCents: 4_000n,
   recoveryAmountCents: 0n,
-  liveNegativeAdjustmentCents: 0n,
-  potentialTonightCents: 4_500n,
+  todayOverageAdjustmentCents: 0n,
+  projectedEndOfDayContributionCents: 4_500n,
   elapsedDays: 2,
   averageDailySpendCents: 5_000n,
   varianceCents: 1_000n,
-  topItem: null,
+  nextPlannedWant: null,
 });
 
 const deleteExpenseMock = vi.fn();
@@ -91,12 +91,12 @@ describe("useExpenses", () => {
       positionCents: 4_000n,
       availableReserveCents: 4_000n,
       recoveryAmountCents: 0n,
-      liveNegativeAdjustmentCents: 0n,
-      potentialTonightCents: 4_500n,
+      todayOverageAdjustmentCents: 0n,
+      projectedEndOfDayContributionCents: 4_500n,
       elapsedDays: 2,
       averageDailySpendCents: 5_000n,
       varianceCents: 1_000n,
-      topItem: null,
+      nextPlannedWant: null,
     };
   });
 

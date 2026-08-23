@@ -266,8 +266,18 @@ test("corrects closed-day reserve snapshots and position transactionally", async
     await ctx.db.insert("goalReserveLedgerEntries", {
       householdId: seeded.householdId,
       kind: "activation",
+      amountCents: 0n,
+      localDate: "2026-02-28",
+      actorId: seeded.ownerId,
+      createdAt: 0,
+    });
+    await ctx.db.insert("goalReserveLedgerEntries", {
+      householdId: seeded.householdId,
+      kind: "daily_close",
       amountCents: 1_000n,
       localDate: "2026-03-01",
+      allowanceSnapshotCents: 5_500n,
+      spendingSnapshotCents: 4_500n,
       createdAt: 0,
     });
     await ctx.db.insert("goalReserveDays", {

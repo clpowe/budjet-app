@@ -19,29 +19,29 @@ const recentDailyPaceCents = computed(() => {
 });
 
 const guidance = computed(() => {
-  const topItem = props.summary.topItem;
+  const nextPlannedWant = props.summary.nextPlannedWant;
 
-  if (!topItem) return null;
+  if (!nextPlannedWant) return null;
 
   return getWantGuidance({
-    remainingCents: topItem.remainingCents,
+    remainingCents: nextPlannedWant.remainingCents,
     todayLocalDate: props.todayLocalDate,
     targetLocalDate: props.targetLocalDate,
     recentDailyPaceCents: recentDailyPaceCents.value,
     recoveryAmountCents: props.summary.recoveryAmountCents,
-    liveNegativeAdjustmentCents: props.summary.liveNegativeAdjustmentCents,
+    todayOverageAdjustmentCents: props.summary.todayOverageAdjustmentCents,
   });
 });
 
 const guidanceCopy = computed(() => {
-  const topItem = props.summary.topItem;
+  const nextPlannedWant = props.summary.nextPlannedWant;
   const currentGuidance = guidance.value;
 
-  if (!topItem || !currentGuidance) return "";
+  if (!nextPlannedWant || !currentGuidance) return "";
 
   switch (currentGuidance.kind) {
     case "ready":
-      return `${topItem.name} is fully funded and ready when you are.`;
+      return `${nextPlannedWant.name} is fully funded and ready when you are.`;
     case "recovery":
       return `${formatCents(currentGuidance.amountCents)} needs to be recovered before the reserve can grow again.`;
     case "negative_today":
@@ -49,7 +49,7 @@ const guidanceCopy = computed(() => {
     case "target":
       return `Set aside ${formatCents(currentGuidance.dailyCents)} a day to reach your ${formatLocalDate(currentGuidance.targetLocalDate)} target.`;
     case "pace":
-      return `At your recent pace of ${formatCents(currentGuidance.dailyCents)} a day, ${topItem.name} could be ready around ${formatLocalDate(currentGuidance.readyLocalDate)}.`;
+      return `At your recent pace of ${formatCents(currentGuidance.dailyCents)} a day, ${nextPlannedWant.name} could be ready around ${formatLocalDate(currentGuidance.readyLocalDate)}.`;
     case "starter":
       return "Keep an eye on your next few closes; an estimate will appear after positive progress is recorded.";
   }
@@ -65,38 +65,38 @@ function formatLocalDate(localDate: string): string {
 
 <template>
   <section
-    aria-labelledby="top-want-heading"
+    aria-labelledby="next-planned-want-heading"
     class="rounded-xl border border-base-300 bg-base-100 p-5 shadow-sm sm:p-6"
   >
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <p class="text-sm font-semibold uppercase text-base-content/60">Shared goal reserve</p>
-        <h2 id="top-want-heading" class="mt-1 text-2xl font-black">Top Want</h2>
+        <h2 id="next-planned-want-heading" class="mt-1 text-2xl font-black">Next planned Want</h2>
       </div>
 
       <NuxtLink to="/wants" class="btn btn-ghost btn-sm">View Wants</NuxtLink>
     </div>
 
-    <template v-if="summary.topItem">
+    <template v-if="summary.nextPlannedWant">
       <div class="mt-5 flex flex-wrap items-baseline justify-between gap-2">
-        <h3 class="text-xl font-bold">{{ summary.topItem.name }}</h3>
+        <h3 class="text-xl font-bold">{{ summary.nextPlannedWant.name }}</h3>
         <p class="text-sm font-semibold text-base-content/70">
-          {{ formatCents(summary.topItem.allocatedCents) }} of
-          {{ formatCents(summary.topItem.estimatedCostCents) }} funded
+          {{ formatCents(summary.nextPlannedWant.allocatedCents) }} of
+          {{ formatCents(summary.nextPlannedWant.estimatedCostCents) }} funded
         </p>
       </div>
 
       <progress
         class="progress progress-primary mt-3 w-full"
-        :aria-label="`${summary.topItem.name} funding progress`"
-        :value="summary.topItem.progressBasisPoints"
+        :aria-label="`${summary.nextPlannedWant.name} funding progress`"
+        :value="summary.nextPlannedWant.progressBasisPoints"
         max="10000"
       >
-        {{ summary.topItem.progressBasisPoints / 100 }}%
+        {{ summary.nextPlannedWant.progressBasisPoints / 100 }}%
       </progress>
 
       <p class="mt-2 text-sm text-base-content/65">
-        {{ formatCents(summary.topItem.remainingCents) }} remains to fund this Want.
+        {{ formatCents(summary.nextPlannedWant.remainingCents) }} remains to fund this Want.
       </p>
 
       <p
@@ -124,7 +124,7 @@ function formatLocalDate(localDate: string): string {
       <div>
         <dt class="text-sm text-base-content/60">Potential tonight</dt>
         <dd class="mt-1 text-xl font-bold">
-          {{ formatCents(summary.potentialTonightCents) }}
+          {{ formatCents(summary.projectedEndOfDayContributionCents) }}
         </dd>
       </div>
     </dl>

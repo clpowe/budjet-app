@@ -1,12 +1,11 @@
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { query } from "./_generated/server";
-import { getEffectiveTimeZone } from "./households";
+import { loadActiveWantQueue } from "./lib/active_want_queue.ts";
 import { getAuthenticatedUser } from "./lib/helpers";
+import { getCurrentReserveSnapshot } from "./lib/live_reserve";
 import { allocateReserve, getLocalDateKey, getNextLocalDate } from "./lib/want_reserve";
-
-const MAX_ACTIVE_WANTS = 100;
 
 const activeAllocationValidator = v.object({
   itemId: v.id("wantItems"),
@@ -15,24 +14,13 @@ const activeAllocationValidator = v.object({
   progressBasisPoints: v.number(),
 });
 
-const topItemSummaryValidator = v.object({
-  itemId: v.id("wantItems"),
-  name: v.string(),
-  estimatedCostCents: v.int64(),
-  allocatedCents: v.int64(),
-  remainingCents: v.int64(),
-  progressBasisPoints: v.number(),
-  targetDate: v.optional(v.number()),
-});
-
 const reserveSummaryValidator = v.object({
   positionCents: v.int64(),
   availableReserveCents: v.int64(),
   recoveryAmountCents: v.int64(),
-  liveNegativeAdjustmentCents: v.int64(),
-  potentialTonightCents: v.int64(),
+  todayOverageAdjustmentCents: v.int64(),
+  projectedEndOfDayContributionCents: v.int64(),
   activeAllocations: v.array(activeAllocationValidator),
-  topItem: v.union(v.null(), topItemSummaryValidator),
 });
 
 type EnsureGoalReserveActivatedArgs = {
@@ -74,104 +62,194 @@ export async function ensureGoalReserveActivated(
   });
 }
 
-type RecordReserveLedgerEntryArgs = {
-  householdId: Id<"households">;
-  reserveStateId: Id<"goalReserveStates">;
-  previousPositionCents: bigint;
-  kind: "daily_close" | "correction" | "purchase" | "purchase_undo";
+export type ReserveEvent =
+  | {
+      kind: "daily_close";
+      localDate: string;
+      allowanceCents: bigint;
+      spendingCents: bigint;
+    }
+  | {
+      kind: "purchase";
+      localDate: string;
+      reserveUsedCents: bigint;
+      expenseId: Id<"expenses">;
+      wantItemId: Id<"wantItems">;
+      actorId: Id<"users">;
+    }
+  | {
+      kind: "purchase_undo";
+      localDate: string;
+      reserveUsedCents: bigint;
+      expenseId: Id<"expenses">;
+      wantItemId: Id<"wantItems">;
+      actorId: Id<"users">;
+    }
+  | {
+      kind: "purchase_correction";
+      localDate: string;
+      previousReserveUsedCents: bigint;
+      nextReserveUsedCents: bigint;
+      expenseId: Id<"expenses">;
+      wantItemId: Id<"wantItems">;
+      actorId: Id<"users">;
+    }
+  | {
+      kind: "closed_day_correction";
+      localDate: string;
+      budgetImpactDeltaCents: bigint;
+      expenseId: Id<"expenses">;
+      actorId: Id<"users">;
+    };
+
+type ReserveTransition = {
   amountCents: bigint;
-  localDate: string;
-  now: number;
+  positionCents: bigint;
   lastClosedLocalDate?: string;
-  allowanceSnapshotCents?: bigint;
-  spendingSnapshotCents?: bigint;
-  sourceExpenseId?: Id<"expenses">;
-  wantItemId?: Id<"wantItems">;
-  actorId?: Id<"users">;
 };
 
-export async function recordReserveLedgerEntry(
-  ctx: MutationCtx,
-  {
-    householdId,
-    reserveStateId,
-    previousPositionCents,
-    kind,
-    amountCents,
-    localDate,
-    now,
-    lastClosedLocalDate,
-    allowanceSnapshotCents,
-    spendingSnapshotCents,
-    sourceExpenseId,
-    wantItemId,
-    actorId,
-  }: RecordReserveLedgerEntryArgs,
-): Promise<bigint> {
-  const positionCents = previousPositionCents + amountCents;
-
-  await ctx.db.insert("goalReserveLedgerEntries", {
-    householdId,
-    kind,
-    amountCents,
-    localDate,
-    allowanceSnapshotCents,
-    spendingSnapshotCents,
-    sourceExpenseId,
-    wantItemId,
-    actorId,
-    createdAt: now,
-  });
-  await ctx.db.patch(reserveStateId, {
-    positionCents,
-    ...(lastClosedLocalDate !== undefined ? { lastClosedLocalDate } : {}),
-    updatedAt: now,
-  });
-
-  return positionCents;
+function assertNonNegativeCents(value: bigint, label: string): void {
+  if (value < 0n) {
+    throw new Error(`${label} cannot be negative`);
+  }
 }
 
-export function calculateLiveReserveAmounts(
-  positionCents: bigint,
-  allowanceCents: bigint,
-  budgetImpactExpenseCents: bigint,
-): {
-  availableReserveCents: bigint;
-  recoveryAmountCents: bigint;
-  liveNegativeAdjustmentCents: bigint;
-  potentialTonightCents: bigint;
-} {
-  // 1. Determine overage vs remaining budget for today
-  let liveNegativeAdjustmentCents = 0n;
-  let potentialTonightCents = 0n;
+export function reduceReserveEvent(
+  state: Doc<"goalReserveStates">,
+  event: ReserveEvent,
+): ReserveTransition {
+  let amountCents: bigint;
 
-  if (budgetImpactExpenseCents > allowanceCents) {
-    // Over budget: adjustment is negative
-    liveNegativeAdjustmentCents = allowanceCents - budgetImpactExpenseCents;
-  } else {
-    // Under budget: remaining allowance
-    potentialTonightCents = allowanceCents - budgetImpactExpenseCents;
-  }
+  switch (event.kind) {
+    case "daily_close": {
+      assertNonNegativeCents(event.allowanceCents, "Allowance");
+      assertNonNegativeCents(event.spendingCents, "Spending");
 
-  // 2. Calculate adjusted position
-  const visiblePositionCents = positionCents + liveNegativeAdjustmentCents;
+      if (event.localDate < state.firstEligibleLocalDate) {
+        throw new Error("Cannot close a reserve day before the first eligible date");
+      }
 
-  // 3. Split into positive reserve vs recovery deficit
-  let availableReserveCents = 0n;
-  let recoveryAmountCents = 0n;
+      if (state.lastClosedLocalDate !== undefined && event.localDate <= state.lastClosedLocalDate) {
+        throw new Error("Reserve days must close after the recorded close cursor");
+      }
 
-  if (visiblePositionCents > 0n) {
-    availableReserveCents = visiblePositionCents;
-  } else if (visiblePositionCents < 0n) {
-    recoveryAmountCents = -visiblePositionCents;
+      amountCents = event.allowanceCents - event.spendingCents;
+      break;
+    }
+    case "purchase": {
+      assertNonNegativeCents(event.reserveUsedCents, "Reserve used");
+      amountCents = -event.reserveUsedCents;
+      break;
+    }
+    case "purchase_undo": {
+      assertNonNegativeCents(event.reserveUsedCents, "Reserve used");
+      amountCents = event.reserveUsedCents;
+      break;
+    }
+    case "purchase_correction": {
+      assertNonNegativeCents(event.previousReserveUsedCents, "Previous reserve used");
+      assertNonNegativeCents(event.nextReserveUsedCents, "Next reserve used");
+      amountCents = event.previousReserveUsedCents - event.nextReserveUsedCents;
+      break;
+    }
+    case "closed_day_correction": {
+      amountCents = -event.budgetImpactDeltaCents;
+      break;
+    }
   }
 
   return {
-    availableReserveCents,
-    recoveryAmountCents,
-    liveNegativeAdjustmentCents,
-    potentialTonightCents,
+    amountCents,
+    positionCents: state.positionCents + amountCents,
+    ...(event.kind === "daily_close" ? { lastClosedLocalDate: event.localDate } : {}),
   };
+}
+
+export async function applyReserveEvent(
+  ctx: MutationCtx,
+  state: Doc<"goalReserveStates">,
+  event: ReserveEvent,
+  now: number,
+): Promise<Doc<"goalReserveStates">> {
+  const transition = reduceReserveEvent(state, event);
+  const commonLedgerFields = {
+    householdId: state.householdId,
+    amountCents: transition.amountCents,
+    localDate: event.localDate,
+    createdAt: now,
+  };
+
+  switch (event.kind) {
+    case "daily_close":
+      await ctx.db.insert("goalReserveLedgerEntries", {
+        ...commonLedgerFields,
+        kind: "daily_close",
+        allowanceSnapshotCents: event.allowanceCents,
+        spendingSnapshotCents: event.spendingCents,
+      });
+      break;
+    case "purchase":
+    case "purchase_undo":
+      await ctx.db.insert("goalReserveLedgerEntries", {
+        ...commonLedgerFields,
+        kind: event.kind,
+        sourceExpenseId: event.expenseId,
+        wantItemId: event.wantItemId,
+        actorId: event.actorId,
+      });
+      break;
+    case "purchase_correction":
+      await ctx.db.insert("goalReserveLedgerEntries", {
+        ...commonLedgerFields,
+        kind: "correction",
+        sourceExpenseId: event.expenseId,
+        wantItemId: event.wantItemId,
+        actorId: event.actorId,
+      });
+      break;
+    case "closed_day_correction": {
+      const closedDay = await ctx.db
+        .query("goalReserveDays")
+        .withIndex("by_household_and_local_date", (q) =>
+          q.eq("householdId", state.householdId).eq("localDate", event.localDate),
+        )
+        .unique();
+
+      if (!closedDay) {
+        throw new Error("Cannot correct a reserve day that has not been closed");
+      }
+
+      const spendingSnapshotCents = closedDay.spendingSnapshotCents + event.budgetImpactDeltaCents;
+      assertNonNegativeCents(spendingSnapshotCents, "Closed-day spending");
+
+      await ctx.db.patch(closedDay._id, {
+        spendingSnapshotCents,
+        contributionCents: closedDay.allowanceSnapshotCents - spendingSnapshotCents,
+        updatedAt: now,
+      });
+      await ctx.db.insert("goalReserveLedgerEntries", {
+        ...commonLedgerFields,
+        kind: "correction",
+        allowanceSnapshotCents: closedDay.allowanceSnapshotCents,
+        spendingSnapshotCents,
+        sourceExpenseId: event.expenseId,
+        actorId: event.actorId,
+      });
+      break;
+    }
+  }
+
+  const statePatch = {
+    positionCents: transition.positionCents,
+    ...(transition.lastClosedLocalDate !== undefined
+      ? { lastClosedLocalDate: transition.lastClosedLocalDate }
+      : {}),
+    updatedAt: now,
+  };
+
+  await ctx.db.patch(state._id, statePatch);
+
+  return { ...state, ...statePatch };
 }
 
 function getProgressBasisPoints(allocatedCents: bigint, estimatedCostCents: bigint): number {
@@ -200,71 +278,37 @@ export const getSummary = query({
       throw new Error("Household not found");
     }
 
-    if (household.allowanceCents === undefined) {
-      throw new Error("Household money migration is still in progress");
-    }
-
-    const timeZone = getEffectiveTimeZone(household, args.now);
-    const currentLocalDate = getLocalDateKey(args.now, timeZone);
-
-    const [state, currentDayRollup, activeItems] = await Promise.all([
-      ctx.db
-        .query("goalReserveStates")
-        .withIndex("by_household", (q) => q.eq("householdId", household._id))
-        .unique(),
-      ctx.db
-        .query("dailyBudgetRollups")
-        .withIndex("by_household_and_local_date", (q) =>
-          q.eq("householdId", household._id).eq("localDate", currentLocalDate),
-        )
-        .unique(),
-      ctx.db
-        .query("wantItems")
-        .withIndex("by_household_and_status_and_order", (q) =>
-          q.eq("householdId", household._id).eq("status", "plan_for_it"),
-        )
-        .order("asc")
-        .take(MAX_ACTIVE_WANTS + 1),
+    const [currentReserve, activeItems] = await Promise.all([
+      getCurrentReserveSnapshot(ctx, household, args.now),
+      loadActiveWantQueue(ctx, household._id),
     ]);
 
-    if (activeItems.length > MAX_ACTIVE_WANTS) {
-      throw new Error("Active Want queue exceeds its maximum size");
-    }
-
-    if (activeItems.some((item) => item.order === undefined)) {
-      throw new Error("Active Want queue contains an item without an order");
-    }
-
-    const budgetImpactExpenseCents = currentDayRollup?.budgetImpactExpenseCents ?? 0n;
-    const positionCents = state?.positionCents ?? 0n;
-    const {
-      availableReserveCents,
-      recoveryAmountCents,
-      liveNegativeAdjustmentCents,
-      potentialTonightCents,
-    } = calculateLiveReserveAmounts(
-      positionCents,
-      household.allowanceCents,
-      budgetImpactExpenseCents,
-    );
-
     const allocations = allocateReserve(
-      availableReserveCents,
+      currentReserve.availableCents,
       activeItems.map((item) => ({
         id: item._id,
         estimatedCostCents: item.estimatedCostCents,
       })),
     );
 
-    const activeAllocations = allocations.map((allocation, index) => {
-      const item = activeItems[index];
+    const itemsById = new Map(activeItems.map((item) => [item._id, item]));
 
-      if (!item) {
-        throw new Error("Active Want allocation is missing its item");
+    const allocationsWithItems = allocations.map((allocation) => {
+      const item = itemsById.get(allocation.id);
+
+      if (item === undefined) {
+        throw new Error(`Allocation references unknown Want item: ${allocation.id}`);
       }
 
       return {
-        itemId: item._id,
+        allocation,
+        item,
+      };
+    });
+
+    const activeAllocations = allocationsWithItems.map(({ allocation, item }) => {
+      return {
+        itemId: allocation.id,
         allocatedCents: allocation.allocatedCents,
         remainingCents: allocation.remainingCents,
         progressBasisPoints: getProgressBasisPoints(
@@ -274,29 +318,13 @@ export const getSummary = query({
       };
     });
 
-    const firstItem = activeItems[0];
-    const firstAllocation = activeAllocations[0];
-    const topItem =
-      firstItem && firstAllocation
-        ? {
-            itemId: firstItem._id,
-            name: firstItem.name,
-            estimatedCostCents: firstItem.estimatedCostCents,
-            allocatedCents: firstAllocation.allocatedCents,
-            remainingCents: firstAllocation.remainingCents,
-            progressBasisPoints: firstAllocation.progressBasisPoints,
-            targetDate: firstItem.targetDate,
-          }
-        : null;
-
     return {
-      positionCents,
-      availableReserveCents,
-      recoveryAmountCents,
-      liveNegativeAdjustmentCents,
-      potentialTonightCents,
+      positionCents: currentReserve.positionCents,
+      availableReserveCents: currentReserve.availableCents,
+      recoveryAmountCents: currentReserve.recoveryCents,
+      todayOverageAdjustmentCents: currentReserve.todayOverageAdjustmentCents,
+      projectedEndOfDayContributionCents: currentReserve.projectedEndOfDayContributionCents,
       activeAllocations,
-      topItem,
     };
   },
 });

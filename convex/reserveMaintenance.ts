@@ -4,7 +4,7 @@ import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { internalMutation } from "./_generated/server";
 import { getStoredHouseholdTimeZone } from "./households";
-import { recordReserveLedgerEntry } from "./reserve";
+import { applyReserveEvent } from "./reserve";
 import { getLocalDateKey, getNextLocalDate } from "./lib/want_reserve";
 
 export const CLOSE_DAYS_PER_TRANSACTION = 31;
@@ -61,7 +61,7 @@ export async function closeDaysThrough(
   let nextLocalDate = reserveState.lastClosedLocalDate
     ? getNextLocalDate(reserveState.lastClosedLocalDate, timeZone)
     : reserveState.firstEligibleLocalDate;
-  let positionCents = reserveState.positionCents;
+  let currentReserveState = reserveState;
   let lastClosedLocalDate = reserveState.lastClosedLocalDate;
   let closedDayCount = 0;
 
@@ -98,18 +98,17 @@ export async function closeDaysThrough(
       updatedAt: throughExclusiveTimestamp,
     });
 
-    positionCents = await recordReserveLedgerEntry(ctx, {
-      householdId,
-      reserveStateId: reserveState._id,
-      previousPositionCents: positionCents,
-      kind: "daily_close",
-      amountCents: contributionCents,
-      localDate: nextLocalDate,
-      now: throughExclusiveTimestamp,
-      lastClosedLocalDate: nextLocalDate,
-      allowanceSnapshotCents: household.allowanceCents,
-      spendingSnapshotCents,
-    });
+    currentReserveState = await applyReserveEvent(
+      ctx,
+      currentReserveState,
+      {
+        kind: "daily_close",
+        localDate: nextLocalDate,
+        allowanceCents: household.allowanceCents,
+        spendingCents: spendingSnapshotCents,
+      },
+      throughExclusiveTimestamp,
+    );
 
     lastClosedLocalDate = nextLocalDate;
     nextLocalDate = getNextLocalDate(nextLocalDate, timeZone);
