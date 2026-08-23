@@ -2,10 +2,10 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { query } from "./_generated/server";
-import { loadActiveWantQueue } from "./lib/active_want_queue.ts";
+import { loadActiveWantQueue, projectActiveWantAllocations } from "./lib/active_want_queue.ts";
 import { getAuthenticatedUser } from "./lib/helpers";
 import { getCurrentReserveSnapshot } from "./lib/live_reserve";
-import { allocateReserve, getLocalDateKey, getNextLocalDate } from "./lib/want_reserve";
+import { getLocalDateKey, getNextLocalDate } from "./lib/want_reserve";
 
 const activeAllocationValidator = v.object({
   itemId: v.id("wantItems"),
@@ -252,14 +252,6 @@ export async function applyReserveEvent(
   return { ...state, ...statePatch };
 }
 
-function getProgressBasisPoints(allocatedCents: bigint, estimatedCostCents: bigint): number {
-  if (estimatedCostCents <= 0n) {
-    throw new Error("Active Want estimated cost must be greater than zero");
-  }
-
-  return Number((allocatedCents * 10_000n) / estimatedCostCents);
-}
-
 export const getSummary = query({
   args: {
     now: v.number(),
@@ -283,40 +275,15 @@ export const getSummary = query({
       loadActiveWantQueue(ctx, household._id),
     ]);
 
-    const allocations = allocateReserve(
+    const activeAllocations = projectActiveWantAllocations(
       currentReserve.availableCents,
-      activeItems.map((item) => ({
-        id: item._id,
-        estimatedCostCents: item.estimatedCostCents,
-      })),
-    );
-
-    const itemsById = new Map(activeItems.map((item) => [item._id, item]));
-
-    const allocationsWithItems = allocations.map((allocation) => {
-      const item = itemsById.get(allocation.id);
-
-      if (item === undefined) {
-        throw new Error(`Allocation references unknown Want item: ${allocation.id}`);
-      }
-
-      return {
-        allocation,
-        item,
-      };
-    });
-
-    const activeAllocations = allocationsWithItems.map(({ allocation, item }) => {
-      return {
-        itemId: allocation.id,
-        allocatedCents: allocation.allocatedCents,
-        remainingCents: allocation.remainingCents,
-        progressBasisPoints: getProgressBasisPoints(
-          allocation.allocatedCents,
-          item.estimatedCostCents,
-        ),
-      };
-    });
+      activeItems,
+    ).map(({ item, allocatedCents, remainingCents, progressBasisPoints }) => ({
+      itemId: item._id,
+      allocatedCents,
+      remainingCents,
+      progressBasisPoints,
+    }));
 
     return {
       positionCents: currentReserve.positionCents,

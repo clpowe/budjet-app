@@ -210,6 +210,27 @@ export function getNextLocalDate(localDate: string, timeZone: string): string {
   return date.toISOString().slice(0, 10);
 }
 
+export interface LocalMonthPeriod {
+  localMonth: string;
+  startLocalDate: string;
+  toDateEndExclusiveLocalDate: string;
+  currentLocalDate: string;
+  elapsedDays: number;
+}
+
+export function getLocalMonthPeriod(asOfTimestamp: number, timeZone: string): LocalMonthPeriod {
+  const currentLocalDate = getLocalDateKey(asOfTimestamp, timeZone);
+  const localMonth = currentLocalDate.slice(0, 7);
+
+  return {
+    localMonth,
+    startLocalDate: `${localMonth}-01`,
+    toDateEndExclusiveLocalDate: getNextLocalDate(currentLocalDate, timeZone),
+    currentLocalDate,
+    elapsedDays: Number(currentLocalDate.slice(8, 10)),
+  };
+}
+
 export function getLocalDayBounds(
   localDate: string,
   timeZone: string,

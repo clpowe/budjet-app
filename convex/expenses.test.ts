@@ -8,6 +8,7 @@ import schema from "./schema";
 const modules = import.meta.glob("./**/*.ts");
 
 const march10 = Date.UTC(2026, 2, 10, 16);
+const march10At1159pmNewYork = Date.UTC(2026, 2, 11, 3, 59);
 const march11 = Date.UTC(2026, 2, 11, 16);
 
 afterEach(() => {
@@ -106,6 +107,74 @@ test("creates exact cents in the authenticated household without accepting a hou
     expenseCents: 425n,
     reserveFundedExpenseCents: 0n,
     budgetImpactExpenseCents: 425n,
+  });
+});
+
+test("allows a later timestamp today but rejects creating an expense on a future local date", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(march10);
+
+  const t = convexTest(schema, modules);
+  await seedHouseholds(t);
+  const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
+
+  await expect(
+    asOwner.mutation(api.expenses.createExpense, {
+      name: "Late dinner",
+      notes: "",
+      amountCents: 2_000n,
+      date: march10At1159pmNewYork,
+    }),
+  ).resolves.toEqual({ success: true });
+
+  await expect(
+    asOwner.mutation(api.expenses.createExpense, {
+      name: "Tomorrow",
+      notes: "",
+      amountCents: 2_000n,
+      date: march11,
+    }),
+  ).rejects.toThrow("Expense date cannot be in the future");
+});
+
+test("rejects moving an existing expense to a future local date", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(march10);
+
+  const t = convexTest(schema, modules);
+  const seeded = await seedHouseholds(t);
+  const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
+
+  await asOwner.mutation(api.expenses.createExpense, {
+    name: "Coffee",
+    notes: "",
+    amountCents: 500n,
+    date: march10,
+  });
+
+  const expense = await t.run(async (ctx) => {
+    return await ctx.db
+      .query("expenses")
+      .withIndex("by_household", (q) => q.eq("householdId", seeded.householdId))
+      .unique();
+  });
+
+  if (!expense) throw new Error("Expected the created expense");
+
+  await expect(
+    asOwner.mutation(api.expenses.updateExpense, {
+      expenseId: expense._id,
+      name: "Coffee tomorrow",
+      notes: "",
+      amountCents: 600n,
+      date: march11,
+    }),
+  ).rejects.toThrow("Expense date cannot be in the future");
+
+  expect(await t.run(async (ctx) => await ctx.db.get(expense._id))).toMatchObject({
+    name: "Coffee",
+    amountCents: 500n,
+    date: march10,
   });
 });
 

@@ -4,7 +4,7 @@ import { getEffectiveTimeZone } from "./households";
 import { mutation, query } from "./_generated/server";
 import { applyExpenseDelta, type ExpenseFacts } from "./lib/daily_budget_rollups.ts";
 import { getAuthenticatedUser, getHouseholdId } from "./lib/helpers";
-import { getBudgetImpact } from "./lib/want_reserve";
+import { getBudgetImpact, getLocalDateKey } from "./lib/want_reserve";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 
@@ -15,6 +15,16 @@ const successValidator = v.object({
 function assertPositiveAmountCents(amountCents: bigint): void {
   if (amountCents <= 0n) {
     throw new Error("Expense amount must be greater than zero");
+  }
+}
+
+function assertExpenseDateIsNotFuture(
+  expenseTimestamp: number,
+  now: number,
+  timeZone: string,
+): void {
+  if (getLocalDateKey(expenseTimestamp, timeZone) > getLocalDateKey(now, timeZone)) {
+    throw new Error("Expense date cannot be in the future");
   }
 }
 
@@ -143,6 +153,8 @@ export const createExpense = mutation({
     assertPositiveAmountCents(args.amountCents);
 
     const { household, user } = await getAuthorizedHousehold(ctx);
+    const timeZone = getEffectiveTimeZone(household, now);
+    assertExpenseDateIsNotFuture(args.date, now, timeZone);
     const expenseId = await ctx.db.insert("expenses", {
       name: args.name,
       notes: args.notes,
@@ -154,7 +166,7 @@ export const createExpense = mutation({
 
     await applyExpenseDelta(ctx, {
       householdId: household._id,
-      timeZone: getEffectiveTimeZone(household, now),
+      timeZone,
       after: {
         date: args.date,
         amountCents: args.amountCents,
@@ -183,6 +195,8 @@ export const updateExpense = mutation({
     assertPositiveAmountCents(args.amountCents);
 
     const { expense, household, user } = await getAuthorizedExpense(ctx, args.expenseId);
+    const timeZone = getEffectiveTimeZone(household, now);
+    assertExpenseDateIsNotFuture(args.date, now, timeZone);
     const before = toExpenseFacts(expense);
     const after: ExpenseFacts = {
       date: args.date,
@@ -200,7 +214,7 @@ export const updateExpense = mutation({
 
     await applyExpenseDelta(ctx, {
       householdId: household._id,
-      timeZone: getEffectiveTimeZone(household, now),
+      timeZone,
       before,
       after,
       now,

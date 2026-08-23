@@ -10,23 +10,36 @@ type NextPlannedWant = NonNullable<HomeSummary["nextPlannedWant"]>;
 
 function makeSummary(): HomeSummary {
   return {
-    dailyAllowanceCents: 10_000n,
-    planAllowanceCents: 300_000n,
-    expenseCents: 20_000n,
-    reserveFundedExpenseCents: 0n,
-    budgetImpactExpenseCents: 20_000n,
-    currentPlanSetAsideCents: 2_500n,
-    safeToSpendCents: 277_500n,
-    todayExpenseCents: 0n,
-    todayBudgetImpactExpenseCents: 0n,
-    positionCents: 4_000n,
-    availableReserveCents: 4_000n,
-    recoveryAmountCents: 0n,
-    todayOverageAdjustmentCents: 0n,
-    projectedEndOfDayContributionCents: 1_000n,
-    elapsedDays: 10,
-    averageDailySpendCents: 2_000n,
-    varianceCents: 80_000n,
+    period: {
+      localMonth: "2026-08",
+      elapsedDays: 10,
+    },
+    plan: {
+      dailyAllowanceCents: 10_000n,
+      allowanceCents: 300_000n,
+      safeToSpendCents: 277_500n,
+      closedPositiveReserveContributionCents: 2_500n,
+    },
+    spending: {
+      month: {
+        expenseCents: 20_000n,
+        reserveFundedCents: 0n,
+        budgetImpactCents: 20_000n,
+        averageDailyBudgetImpactCents: 2_000n,
+        budgetImpactVarianceCents: 80_000n,
+      },
+      today: {
+        expenseCents: 0n,
+        budgetImpactCents: 0n,
+      },
+    },
+    reserve: {
+      positionCents: 4_000n,
+      availableCents: 4_000n,
+      recoveryCents: 0n,
+      todayOverageAdjustmentCents: 0n,
+      projectedEndOfDayContributionCents: 1_000n,
+    },
     nextPlannedWant: {
       itemId: "want-camera" as NextPlannedWant["itemId"],
       name: "Camera",
@@ -99,8 +112,8 @@ describe("WantsNextPlannedWantCard", () => {
 
   it("explains reserve recovery constructively", () => {
     const summary = makeSummary();
-    summary.recoveryAmountCents = 500n;
-    summary.todayOverageAdjustmentCents = -500n;
+    summary.reserve.recoveryCents = 500n;
+    summary.reserve.todayOverageAdjustmentCents = -500n;
 
     const wrapper = mountCard(summary);
 

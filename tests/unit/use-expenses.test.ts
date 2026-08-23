@@ -8,23 +8,36 @@ const expensesRef = ref<Doc<"expenses">[]>([
 ]);
 const currentDateRef = ref(new Date(1_000));
 const summaryRef = ref({
-  dailyAllowanceCents: 5_000n,
-  planAllowanceCents: 150_000n,
-  expenseCents: 10_000n,
-  reserveFundedExpenseCents: 1_000n,
-  budgetImpactExpenseCents: 9_000n,
-  currentPlanSetAsideCents: 2_000n,
-  safeToSpendCents: 139_000n,
-  todayExpenseCents: 600n,
-  todayBudgetImpactExpenseCents: 500n,
-  positionCents: 4_000n,
-  availableReserveCents: 4_000n,
-  recoveryAmountCents: 0n,
-  todayOverageAdjustmentCents: 0n,
-  projectedEndOfDayContributionCents: 4_500n,
-  elapsedDays: 2,
-  averageDailySpendCents: 5_000n,
-  varianceCents: 1_000n,
+  period: {
+    localMonth: "1970-01",
+    elapsedDays: 2,
+  },
+  plan: {
+    dailyAllowanceCents: 5_000n,
+    allowanceCents: 150_000n,
+    safeToSpendCents: 139_000n,
+    closedPositiveReserveContributionCents: 2_000n,
+  },
+  spending: {
+    month: {
+      expenseCents: 10_000n,
+      reserveFundedCents: 1_000n,
+      budgetImpactCents: 9_000n,
+      averageDailyBudgetImpactCents: 5_000n,
+      budgetImpactVarianceCents: 1_000n,
+    },
+    today: {
+      expenseCents: 600n,
+      budgetImpactCents: 500n,
+    },
+  },
+  reserve: {
+    positionCents: 4_000n,
+    availableCents: 4_000n,
+    recoveryCents: 0n,
+    todayOverageAdjustmentCents: 0n,
+    projectedEndOfDayContributionCents: 4_500n,
+  },
   nextPlannedWant: null,
 });
 
@@ -37,7 +50,6 @@ vi.mock("#imports", () => ({
   ref,
   useDate: () => ({
     queryDayBounds: computed(() => ({ from: 0, to: 1 })),
-    queryMonthBounds: computed(() => ({ from: 2, to: 3 })),
     currentDate: currentDateRef,
     remainingDaysInMonth: computed(() => 29),
   }),
@@ -54,7 +66,6 @@ describe("useExpenses", () => {
     vi.stubGlobal("ref", ref);
     vi.stubGlobal("useDate", () => ({
       queryDayBounds: computed(() => ({ from: 0, to: 1 })),
-      queryMonthBounds: computed(() => ({ from: 2, to: 3 })),
       currentDate: currentDateRef,
       remainingDaysInMonth: computed(() => 29),
     }));
@@ -79,23 +90,36 @@ describe("useExpenses", () => {
     expensesRef.value = [{ amount: 10 } as Doc<"expenses">, { amount: -4 } as Doc<"expenses">];
     currentDateRef.value = new Date(1_000);
     summaryRef.value = {
-      dailyAllowanceCents: 5_000n,
-      planAllowanceCents: 150_000n,
-      expenseCents: 10_000n,
-      reserveFundedExpenseCents: 1_000n,
-      budgetImpactExpenseCents: 9_000n,
-      currentPlanSetAsideCents: 2_000n,
-      safeToSpendCents: 139_000n,
-      todayExpenseCents: 600n,
-      todayBudgetImpactExpenseCents: 500n,
-      positionCents: 4_000n,
-      availableReserveCents: 4_000n,
-      recoveryAmountCents: 0n,
-      todayOverageAdjustmentCents: 0n,
-      projectedEndOfDayContributionCents: 4_500n,
-      elapsedDays: 2,
-      averageDailySpendCents: 5_000n,
-      varianceCents: 1_000n,
+      period: {
+        localMonth: "1970-01",
+        elapsedDays: 2,
+      },
+      plan: {
+        dailyAllowanceCents: 5_000n,
+        allowanceCents: 150_000n,
+        safeToSpendCents: 139_000n,
+        closedPositiveReserveContributionCents: 2_000n,
+      },
+      spending: {
+        month: {
+          expenseCents: 10_000n,
+          reserveFundedCents: 1_000n,
+          budgetImpactCents: 9_000n,
+          averageDailyBudgetImpactCents: 5_000n,
+          budgetImpactVarianceCents: 1_000n,
+        },
+        today: {
+          expenseCents: 600n,
+          budgetImpactCents: 500n,
+        },
+      },
+      reserve: {
+        positionCents: 4_000n,
+        availableCents: 4_000n,
+        recoveryCents: 0n,
+        todayOverageAdjustmentCents: 0n,
+        projectedEndOfDayContributionCents: 4_500n,
+      },
       nextPlannedWant: null,
     };
   });
@@ -115,7 +139,7 @@ describe("useExpenses", () => {
     expect(useConvexQueryMock).toHaveBeenNthCalledWith(
       2,
       expect.anything(),
-      expect.objectContaining({ value: { from: 2, to: 3, now: 1_000 } }),
+      expect.objectContaining({ value: { asOfTimestamp: 1_000 } }),
     );
   });
 

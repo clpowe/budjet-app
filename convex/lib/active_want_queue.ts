@@ -1,5 +1,6 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { allocateReserve } from "./want_reserve";
 
 export const MAX_ACTIVE_WANTS = 100;
 
@@ -26,6 +27,13 @@ interface ReorderActiveWantsOptions extends QueueMutationMetadata {
   itemIds: readonly Id<"wantItems">[];
 }
 
+export interface ActiveWantAllocation {
+  item: Doc<"wantItems">;
+  allocatedCents: bigint;
+  remainingCents: bigint;
+  progressBasisPoints: number;
+}
+
 export function assertPositiveEstimatedCost(estimatedCostCents: bigint): void {
   if (estimatedCostCents <= 0n) {
     throw new Error("Estimated cost must be greater than zero");
@@ -47,6 +55,37 @@ export async function loadActiveWantQueue(
   assertValidActiveQueue(items);
 
   return items;
+}
+
+export function projectActiveWantAllocations(
+  availableCents: bigint,
+  activeItems: readonly Doc<"wantItems">[],
+): ActiveWantAllocation[] {
+  const allocations = allocateReserve(
+    availableCents,
+    activeItems.map((item) => ({
+      id: item._id,
+      estimatedCostCents: item.estimatedCostCents,
+    })),
+  );
+
+  return allocations.map((allocation, index) => {
+    const item = activeItems[index];
+
+    if (item === undefined || item._id !== allocation.id) {
+      throw new Error("Active Want allocation no longer matches the queue");
+    }
+
+    return {
+      item,
+      allocatedCents: allocation.allocatedCents,
+      remainingCents: allocation.remainingCents,
+      progressBasisPoints: getProgressBasisPoints(
+        allocation.allocatedCents,
+        item.estimatedCostCents,
+      ),
+    };
+  });
 }
 
 export async function appendActiveWant(
@@ -181,4 +220,10 @@ function assertValidActiveQueue(items: Doc<"wantItems">[]): void {
       throw new Error("Active Want queue ordering is not contiguous");
     }
   }
+}
+
+function getProgressBasisPoints(allocatedCents: bigint, estimatedCostCents: bigint): number {
+  assertPositiveEstimatedCost(estimatedCostCents);
+
+  return Number((allocatedCents * 10_000n) / estimatedCostCents);
 }

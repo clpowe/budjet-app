@@ -17,35 +17,35 @@ describe("calculateSafeToSpendCents", () => {
       scenario: "$30 spent and $20 saved today after close",
       planAllowanceCents: 150_000n,
       budgetImpactExpenseCents: 3_000n,
-      currentPlanSetAsideCents: 2_000n,
+      closedPositiveReserveContributionCents: 2_000n,
       expected: 145_000n,
     },
     {
       scenario: "the same $20 reserve is spent this month",
       planAllowanceCents: 150_000n,
       budgetImpactExpenseCents: 3_000n,
-      currentPlanSetAsideCents: 2_000n,
+      closedPositiveReserveContributionCents: 2_000n,
       expected: 145_000n,
     },
     {
       scenario: "$20 of prior-month reserve is spent this month",
       planAllowanceCents: 150_000n,
       budgetImpactExpenseCents: 0n,
-      currentPlanSetAsideCents: 0n,
+      closedPositiveReserveContributionCents: 0n,
       expected: 150_000n,
     },
     {
       scenario: "a $120 purchase uses $100 of prior-month reserve",
       planAllowanceCents: 150_000n,
       budgetImpactExpenseCents: 2_000n,
-      currentPlanSetAsideCents: 0n,
+      closedPositiveReserveContributionCents: 0n,
       expected: 148_000n,
     },
     {
       scenario: "a closed day is corrected from +$20 to -$5",
       planAllowanceCents: 150_000n,
       budgetImpactExpenseCents: 5_500n,
-      currentPlanSetAsideCents: 0n,
+      closedPositiveReserveContributionCents: 0n,
       expected: 144_500n,
     },
   ])("returns exact cents when $scenario", (row) => {
@@ -57,7 +57,7 @@ describe("calculateSafeToSpendCents", () => {
       calculateSafeToSpendCents({
         planAllowanceCents: 150_000n,
         budgetImpactExpenseCents: 7_000n,
-        currentPlanSetAsideCents: 0n,
+        closedPositiveReserveContributionCents: 0n,
       }),
     ).toBe(143_000n);
   });
@@ -87,7 +87,7 @@ async function seedHousehold(t: TestConvex<typeof schema>) {
   });
 }
 
-test("returns one exact home summary from bounded rollups and corrected reserve days", async () => {
+test("derives one nested month-to-date summary and excludes future local-date rows", async () => {
   const t = convexTest(schema, modules);
   const seeded = await seedHousehold(t);
 
@@ -108,6 +108,14 @@ test("returns one exact home summary from bounded rollups and corrected reserve 
       budgetImpactExpenseCents: 7_000n,
       updatedAt: 0,
     });
+    await ctx.db.insert("dailyBudgetRollups", {
+      householdId: seeded.householdId,
+      localDate: "2026-03-11",
+      expenseCents: 100_000n,
+      reserveFundedExpenseCents: 0n,
+      budgetImpactExpenseCents: 100_000n,
+      updatedAt: 0,
+    });
     await ctx.db.insert("goalReserveDays", {
       householdId: seeded.householdId,
       localDate: "2026-03-05",
@@ -125,6 +133,16 @@ test("returns one exact home summary from bounded rollups and corrected reserve 
       allowanceSnapshotCents: 5_000n,
       spendingSnapshotCents: 5_500n,
       contributionCents: -500n,
+      closedAt: 0,
+      updatedAt: 0,
+    });
+    await ctx.db.insert("goalReserveDays", {
+      householdId: seeded.householdId,
+      localDate: "2026-03-11",
+      timeZone: "America/New_York",
+      allowanceSnapshotCents: 5_000n,
+      spendingSnapshotCents: 0n,
+      contributionCents: 5_000n,
       closedAt: 0,
       updatedAt: 0,
     });
@@ -155,29 +173,40 @@ test("returns one exact home summary from bounded rollups and corrected reserve 
   const summary = await t
     .withIdentity({ tokenIdentifier: "test|owner" })
     .query(api.budget.getHomeSummary, {
-      from: marchStartNewYork,
-      to: aprilStartNewYork,
-      now: march10AtNoonNewYork,
+      asOfTimestamp: march10AtNoonNewYork,
     });
 
-  expect(summary).toMatchObject({
-    dailyAllowanceCents: 5_000n,
-    planAllowanceCents: 150_000n,
-    expenseCents: 11_000n,
-    reserveFundedExpenseCents: 1_000n,
-    budgetImpactExpenseCents: 10_000n,
-    currentPlanSetAsideCents: 2_000n,
-    safeToSpendCents: 138_000n,
-    todayExpenseCents: 7_000n,
-    todayBudgetImpactExpenseCents: 7_000n,
-    positionCents: 6_000n,
-    availableReserveCents: 4_000n,
-    recoveryAmountCents: 0n,
-    todayOverageAdjustmentCents: -2_000n,
-    projectedEndOfDayContributionCents: 0n,
-    elapsedDays: 10,
-    averageDailySpendCents: 1_000n,
-    varianceCents: 40_000n,
+  expect(summary).toEqual({
+    period: {
+      localMonth: "2026-03",
+      elapsedDays: 10,
+    },
+    plan: {
+      dailyAllowanceCents: 5_000n,
+      allowanceCents: 150_000n,
+      safeToSpendCents: 138_000n,
+      closedPositiveReserveContributionCents: 2_000n,
+    },
+    spending: {
+      month: {
+        expenseCents: 11_000n,
+        reserveFundedCents: 1_000n,
+        budgetImpactCents: 10_000n,
+        averageDailyBudgetImpactCents: 1_000n,
+        budgetImpactVarianceCents: 40_000n,
+      },
+      today: {
+        expenseCents: 7_000n,
+        budgetImpactCents: 7_000n,
+      },
+    },
+    reserve: {
+      positionCents: 6_000n,
+      availableCents: 4_000n,
+      recoveryCents: 0n,
+      todayOverageAdjustmentCents: -2_000n,
+      projectedEndOfDayContributionCents: 0n,
+    },
     nextPlannedWant: {
       itemId: cameraId,
       name: "Camera",
@@ -197,7 +226,7 @@ test("rejects a 32nd monthly rollup as a corrupted month invariant", async () =>
     for (let index = 0; index < 32; index += 1) {
       await ctx.db.insert("dailyBudgetRollups", {
         householdId: seeded.householdId,
-        localDate: "2026-03-10",
+        localDate: "2026-03-05",
         expenseCents: 1n,
         reserveFundedExpenseCents: 0n,
         budgetImpactExpenseCents: 1n,
@@ -208,11 +237,59 @@ test("rejects a 32nd monthly rollup as a corrupted month invariant", async () =>
 
   await expect(
     t.withIdentity({ tokenIdentifier: "test|owner" }).query(api.budget.getHomeSummary, {
-      from: marchStartNewYork,
-      to: aprilStartNewYork,
-      now: march10AtNoonNewYork,
+      asOfTimestamp: march10AtNoonNewYork,
     }),
   ).rejects.toThrow("Daily budget rollups exceed the monthly invariant");
+});
+
+test("rejects duplicate monthly rollup local dates below the row cap", async () => {
+  const t = convexTest(schema, modules);
+  const seeded = await seedHousehold(t);
+
+  await t.run(async (ctx) => {
+    for (let index = 0; index < 2; index += 1) {
+      await ctx.db.insert("dailyBudgetRollups", {
+        householdId: seeded.householdId,
+        localDate: "2026-03-05",
+        expenseCents: 1n,
+        reserveFundedExpenseCents: 0n,
+        budgetImpactExpenseCents: 1n,
+        updatedAt: index,
+      });
+    }
+  });
+
+  await expect(
+    t.withIdentity({ tokenIdentifier: "test|owner" }).query(api.budget.getHomeSummary, {
+      asOfTimestamp: march10AtNoonNewYork,
+    }),
+  ).rejects.toThrow("Daily budget rollups contain duplicate local dates");
+});
+
+test("rejects duplicate reserve-day local dates below the row cap", async () => {
+  const t = convexTest(schema, modules);
+  const seeded = await seedHousehold(t);
+
+  await t.run(async (ctx) => {
+    for (let index = 0; index < 2; index += 1) {
+      await ctx.db.insert("goalReserveDays", {
+        householdId: seeded.householdId,
+        localDate: "2026-03-05",
+        timeZone: "America/New_York",
+        allowanceSnapshotCents: 5_000n,
+        spendingSnapshotCents: 4_000n,
+        contributionCents: 1_000n,
+        closedAt: index,
+        updatedAt: index,
+      });
+    }
+  });
+
+  await expect(
+    t.withIdentity({ tokenIdentifier: "test|owner" }).query(api.budget.getHomeSummary, {
+      asOfTimestamp: march10AtNoonNewYork,
+    }),
+  ).rejects.toThrow("Goal reserve days contain duplicate local dates");
 });
 
 test("marks want purchases and returns exact reserve and budget-impact cents", async () => {

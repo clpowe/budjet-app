@@ -101,31 +101,31 @@ const nextPlannedWantTargetLocalDate = computed(() => {
         <div class="border-t border-base-300 pt-4">
           <p class="text-sm text-base-content/60">Spent so far</p>
           <p class="mt-1 text-2xl font-bold">
-            {{ formatCents(summary?.expenseCents ?? 0n) }}
+            {{ formatCents(summary?.spending.month.expenseCents ?? 0n) }}
           </p>
         </div>
         <div class="border-t border-base-300 pt-4">
           <p class="text-sm text-base-content/60">Budget impact</p>
           <p class="mt-1 text-2xl font-bold">
-            {{ formatCents(summary?.budgetImpactExpenseCents ?? 0n) }}
+            {{ formatCents(summary?.spending.month.budgetImpactCents ?? 0n) }}
           </p>
         </div>
         <div class="border-t border-base-300 pt-4">
           <p class="text-sm text-base-content/60">Reserved this plan</p>
           <p class="mt-1 text-2xl font-bold">
-            {{ formatCents(summary?.currentPlanSetAsideCents ?? 0n) }}
+            {{ formatCents(summary?.plan.closedPositiveReserveContributionCents ?? 0n) }}
           </p>
         </div>
         <div class="border-t border-base-300 pt-4">
           <p class="text-sm text-base-content/60">Goal reserve</p>
           <p class="mt-1 text-2xl font-bold">
-            {{ formatCents(summary?.availableReserveCents ?? 0n) }}
+            {{ formatCents(summary?.reserve.availableCents ?? 0n) }}
           </p>
         </div>
         <div class="border-t border-base-300 pt-4">
           <p class="text-sm text-base-content/60">Potential tonight</p>
           <p class="mt-1 text-2xl font-bold">
-            {{ formatCents(summary?.projectedEndOfDayContributionCents ?? 0n) }}
+            {{ formatCents(summary?.reserve.projectedEndOfDayContributionCents ?? 0n) }}
           </p>
         </div>
         <div class="border-t border-base-300 pt-4">

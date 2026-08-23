@@ -13,9 +13,10 @@ const props = defineProps<{
 }>();
 
 const recentDailyPaceCents = computed(() => {
-  if (props.summary.elapsedDays <= 0) return 0n;
-
-  return props.summary.currentPlanSetAsideCents / BigInt(props.summary.elapsedDays);
+  return (
+    props.summary.plan.closedPositiveReserveContributionCents /
+    BigInt(props.summary.period.elapsedDays)
+  );
 });
 
 const guidance = computed(() => {
@@ -28,8 +29,8 @@ const guidance = computed(() => {
     todayLocalDate: props.todayLocalDate,
     targetLocalDate: props.targetLocalDate,
     recentDailyPaceCents: recentDailyPaceCents.value,
-    recoveryAmountCents: props.summary.recoveryAmountCents,
-    todayOverageAdjustmentCents: props.summary.todayOverageAdjustmentCents,
+    recoveryAmountCents: props.summary.reserve.recoveryCents,
+    todayOverageAdjustmentCents: props.summary.reserve.todayOverageAdjustmentCents,
   });
 });
 
@@ -117,14 +118,14 @@ function formatLocalDate(localDate: string): string {
       <div>
         <dt class="text-sm text-base-content/60">Available reserve</dt>
         <dd class="mt-1 text-xl font-bold">
-          {{ formatCents(summary.availableReserveCents) }}
+          {{ formatCents(summary.reserve.availableCents) }}
         </dd>
       </div>
 
       <div>
         <dt class="text-sm text-base-content/60">Potential tonight</dt>
         <dd class="mt-1 text-xl font-bold">
-          {{ formatCents(summary.projectedEndOfDayContributionCents) }}
+          {{ formatCents(summary.reserve.projectedEndOfDayContributionCents) }}
         </dd>
       </div>
     </dl>
