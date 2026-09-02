@@ -188,7 +188,7 @@ test("derives one nested month-to-date summary and excludes future local-date ro
       closedPositiveReserveContributionCents: 2_000n,
     },
     spending: {
-      month: {
+      monthToDate: {
         expenseCents: 11_000n,
         reserveFundedCents: 1_000n,
         budgetImpactCents: 10_000n,

@@ -134,71 +134,51 @@ function moveItem(itemId: Id<"wantItems">, direction: -1 | 1) {
 
 <template>
   <section
+    class="l-stack"
     :aria-labelledby="headingId"
     :aria-label="title"
     :aria-busy="reorderPending ? 'true' : undefined"
-    class="space-y-3"
   >
-    <div class="flex flex-wrap items-end justify-between gap-3">
+    <header class="l-cluster l-split">
       <div>
-        <h2 :id="headingId" class="text-xl font-bold">
+        <h2 :id="headingId">
           {{ title }}
         </h2>
 
-        <p v-if="reorderable" :id="instructionsId" class="mt-1 text-sm text-base-content/65">
+        <p v-if="reorderable" :id="instructionsId">
           Drag a handle or use the Move up and Move down buttons.
         </p>
       </div>
 
-      <p
-        v-if="reorderPending"
-        role="status"
-        aria-live="polite"
-        class="text-sm text-base-content/65"
-      >
-        Saving order…
-      </p>
-    </div>
+      <p v-if="reorderPending" role="status" aria-live="polite">Saving order…</p>
+    </header>
 
-    <p v-if="reorderError" role="alert" aria-live="polite" class="alert alert-error text-sm">
+    <p v-if="reorderError" role="alert" aria-live="polite">
       {{ reorderError }}
     </p>
 
-    <p
-      v-if="localItems.length === 0"
-      class="rounded-xl border border-dashed border-base-300 p-5 text-sm text-base-content/60"
-    >
-      No items in {{ title }}.
-    </p>
+    <p v-if="localItems.length === 0">No items in {{ title }}.</p>
 
     <VueDraggable
       v-else
       v-model="localItems"
       tag="div"
-      class="space-y-3"
       handle=".want-drag-handle"
       :animation="150"
       :disabled="!reorderable || reorderPending"
-      ghost-class="want-item-ghost"
-      chosen-class="want-item-chosen"
       @start="onDragStart"
       @end="onDragEnd"
     >
-      <div
-        v-for="(item, index) in localItems"
-        :key="item._id"
-        class="grid items-start gap-2"
-        :class="reorderable ? 'grid-cols-[auto_minmax(0,1fr)]' : 'grid-cols-1'"
-      >
+      <div class="l-stack" v-for="(item, index) in localItems" :key="item._id">
         <button
           v-if="reorderable"
+          class="want-drag-handle"
           type="button"
-          class="want-drag-handle btn btn-ghost btn-square mt-1 cursor-grab touch-none active:cursor-grabbing"
           :disabled="reorderPending"
           :aria-label="`Drag ${item.name} to reorder`"
           :aria-describedby="instructionsId"
         >
-          <Icon name="lucide:grip-vertical" size="20" aria-hidden="true" />
+          Drag
         </button>
 
         <WantsItem
@@ -218,13 +198,3 @@ function moveItem(itemId: Id<"wantItems">, direction: -1 | 1) {
     </VueDraggable>
   </section>
 </template>
-
-<style scoped>
-.want-item-ghost {
-  opacity: 0.4;
-}
-
-.want-item-chosen {
-  background: color-mix(in oklab, var(--color-primary) 8%, transparent);
-}
-</style>

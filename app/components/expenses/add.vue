@@ -82,7 +82,7 @@ async function handleSubmit() {
     @submit="handleSubmit"
   />
 
-  <p v-if="accountMessage" class="mt-3 text-sm text-base-content/70">
+  <p v-if="accountMessage">
     {{ accountMessage }}
   </p>
 </template>

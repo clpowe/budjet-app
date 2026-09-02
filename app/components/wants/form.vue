@@ -130,7 +130,7 @@ function handleSubmit() {
 </script>
 
 <template>
-  <form class="flex flex-col gap-4" novalidate @submit.prevent="handleSubmit">
+  <form class="app-form" novalidate @submit.prevent="handleSubmit">
     <form.Field
       name="name"
       :validators="{
@@ -139,9 +139,9 @@ function handleSubmit() {
       }"
     >
       <template #default="{ field }">
-        <div class="flex flex-col gap-1">
-          <label class="flex flex-col gap-1" :for="`${formId}-${field.name}`">
-            <span class="label">Name</span>
+        <div>
+          <label :for="`${formId}-${field.name}`">
+            <span>Name</span>
             <input
               :id="`${formId}-${field.name}`"
               :name="field.name"
@@ -153,7 +153,6 @@ function handleSubmit() {
               :aria-invalid="
                 field.state.meta.isTouched && fieldErrors(field.state.meta.errors).length > 0
               "
-              class="input w-full"
               required
               @blur="field.handleBlur"
               @input="
@@ -166,7 +165,6 @@ function handleSubmit() {
           <p
             v-if="field.state.meta.isTouched && fieldErrors(field.state.meta.errors).length > 0"
             :id="nameErrorId"
-            class="text-sm text-error"
             role="alert"
           >
             {{ fieldErrors(field.state.meta.errors).join(", ") }}
@@ -183,9 +181,9 @@ function handleSubmit() {
       }"
     >
       <template #default="{ field }">
-        <div class="flex flex-col gap-1">
-          <label class="flex flex-col gap-1" :for="`${formId}-${field.name}`">
-            <span class="label">Estimated cost</span>
+        <div>
+          <label :for="`${formId}-${field.name}`">
+            <span>Estimated cost</span>
             <input
               :id="`${formId}-${field.name}`"
               :name="field.name"
@@ -200,7 +198,6 @@ function handleSubmit() {
               :aria-invalid="
                 field.state.meta.isTouched && fieldErrors(field.state.meta.errors).length > 0
               "
-              class="input w-full"
               required
               @blur="field.handleBlur"
               @input="
@@ -213,7 +210,6 @@ function handleSubmit() {
           <p
             v-if="field.state.meta.isTouched && fieldErrors(field.state.meta.errors).length > 0"
             :id="estimatedCostErrorId"
-            class="text-sm text-error"
             role="alert"
           >
             {{ fieldErrors(field.state.meta.errors).join(", ") }}
@@ -230,9 +226,9 @@ function handleSubmit() {
       }"
     >
       <template #default="{ field }">
-        <div class="flex flex-col gap-1">
-          <label class="flex flex-col gap-1" :for="`${formId}-${field.name}`">
-            <span class="label">Priority</span>
+        <div>
+          <label :for="`${formId}-${field.name}`">
+            <span>Priority</span>
             <select
               :id="`${formId}-${field.name}`"
               :name="field.name"
@@ -244,7 +240,6 @@ function handleSubmit() {
               :aria-invalid="
                 field.state.meta.isTouched && fieldErrors(field.state.meta.errors).length > 0
               "
-              class="select w-full"
               required
               @blur="field.handleBlur"
               @change="
@@ -265,7 +260,6 @@ function handleSubmit() {
           <p
             v-if="field.state.meta.isTouched && fieldErrors(field.state.meta.errors).length > 0"
             :id="priorityErrorId"
-            class="text-sm text-error"
             role="alert"
           >
             {{ fieldErrors(field.state.meta.errors).join(", ") }}
@@ -276,15 +270,14 @@ function handleSubmit() {
 
     <form.Field name="targetDate">
       <template #default="{ field }">
-        <label class="flex flex-col gap-1" :for="`${formId}-${field.name}`">
-          <span class="label">Target date (optional)</span>
+        <label :for="`${formId}-${field.name}`">
+          <span>Target date (optional)</span>
           <input
             :id="`${formId}-${field.name}`"
             :name="field.name"
             type="date"
             :value="field.state.value"
             :disabled="isDisabled"
-            class="input w-full"
             @blur="field.handleBlur"
             @input="
               field.handleChange(($event.target as HTMLInputElement).value);
@@ -297,14 +290,13 @@ function handleSubmit() {
 
     <form.Field name="notes">
       <template #default="{ field }">
-        <label class="flex flex-col gap-1" :for="`${formId}-${field.name}`">
-          <span class="label">Notes (optional)</span>
+        <label :for="`${formId}-${field.name}`">
+          <span>Notes (optional)</span>
           <textarea
             :id="`${formId}-${field.name}`"
             :name="field.name"
             :value="field.state.value"
             :disabled="isDisabled"
-            class="textarea min-h-24 w-full"
             @blur="field.handleBlur"
             @input="
               field.handleChange(($event.target as HTMLTextAreaElement).value);
@@ -315,7 +307,7 @@ function handleSubmit() {
       </template>
     </form.Field>
 
-    <p v-if="error" :id="formErrorId" class="text-sm text-error" role="alert" aria-live="polite">
+    <p v-if="error" :id="formErrorId" role="alert" aria-live="polite">
       {{ error }}
     </p>
 
@@ -330,7 +322,6 @@ function handleSubmit() {
       <template #default="{ canSubmit, isSubmitting: isFormSubmitting }">
         <button
           type="submit"
-          class="btn btn-primary w-full"
           :disabled="isDisabled || !canSubmit || isFormSubmitting"
           :aria-busy="isSubmitting || isFormSubmitting ? 'true' : undefined"
           :aria-describedby="error ? formErrorId : undefined"

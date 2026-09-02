@@ -52,65 +52,29 @@ const form = useForm({
 </script>
 
 <template>
-  <main class="flex min-h-dvh items-center justify-center bg-base-100 px-5 py-10">
-    <section class="w-full max-w-sm" aria-labelledby="onboarding-heading">
-      <div
-        class="mx-auto grid size-16 place-items-center rounded-full bg-primary text-xl font-black tracking-tight text-primary-content shadow-sm"
-        aria-hidden="true"
-      >
-        DF
-      </div>
+  <main class="l-center">
+    <section class="l-stack" aria-labelledby="onboarding-heading">
+      <div aria-hidden="true">DF</div>
 
-      <header class="mt-8 text-center">
-        <p class="text-xs font-bold uppercase tracking-[0.2em] text-primary">One last step</p>
+      <header>
+        <p>One last step</p>
 
-        <h1
-          id="onboarding-heading"
-          class="mt-3 text-3xl font-bold tracking-tight text-base-content"
-        >
-          Set up your household
-        </h1>
+        <h1 id="onboarding-heading">Set up your household</h1>
 
-        <p class="mt-3 text-sm leading-6 text-base-content/65">
-          A household keeps everyone’s budget, expenses, and goals together.
-        </p>
+        <p>A household keeps everyone’s budget, expenses, and goals together.</p>
       </header>
 
-      <div
-        class="mt-8 grid grid-cols-2 gap-2 rounded-xl bg-base-200 p-1.5"
-        role="group"
-        aria-label="Household setup method"
-      >
-        <button
-          type="button"
-          class="min-h-11 rounded-lg px-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-          :class="
-            mode === 'create'
-              ? 'bg-base-100 text-base-content shadow-sm'
-              : 'text-base-content/60 hover:text-base-content'
-          "
-          :aria-pressed="mode === 'create'"
-          @click="selectMode('create')"
-        >
+      <div role="group" aria-label="Household setup method">
+        <button type="button" :aria-pressed="mode === 'create'" @click="selectMode('create')">
           Create new
         </button>
 
-        <button
-          type="button"
-          class="min-h-11 rounded-lg px-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-          :class="
-            mode === 'join'
-              ? 'bg-base-100 text-base-content shadow-sm'
-              : 'text-base-content/60 hover:text-base-content'
-          "
-          :aria-pressed="mode === 'join'"
-          @click="selectMode('join')"
-        >
+        <button type="button" :aria-pressed="mode === 'join'" @click="selectMode('join')">
           Join existing
         </button>
       </div>
 
-      <form class="mt-6 space-y-4" novalidate @submit.prevent.stop="form.handleSubmit">
+      <form class="app-form" novalidate @submit.prevent.stop="form.handleSubmit">
         <form.Field
           v-if="mode === 'create'"
           name="householdName"
@@ -127,10 +91,8 @@ const form = useForm({
           }"
         >
           <template #default="{ field }">
-            <label class="block" :for="field.name">
-              <span class="mb-2 block text-sm font-semibold text-base-content">
-                Household name
-              </span>
+            <label :for="field.name">
+              <span> Household name </span>
 
               <input
                 :id="field.name"
@@ -139,7 +101,6 @@ const form = useForm({
                 autocomplete="organization"
                 maxlength="60"
                 placeholder="Rivera family"
-                class="input input-bordered h-12 w-full rounded-lg bg-base-100"
                 :value="field.state.value"
                 :aria-invalid="!field.state.meta.isValid"
                 :aria-describedby="
@@ -154,14 +115,11 @@ const form = useForm({
               v-if="field.state.meta.isTouched && field.state.meta.errors.length > 0"
               :id="`${field.name}-error`"
               role="alert"
-              class="mt-2 text-sm text-error"
             >
               {{ field.state.meta.errors.join(", ") }}
             </p>
 
-            <p v-else :id="`${field.name}-help`" class="mt-2 text-xs text-base-content/60">
-              You can change this later.
-            </p>
+            <p v-else :id="`${field.name}-help`">You can change this later.</p>
           </template>
         </form.Field>
 
@@ -180,8 +138,8 @@ const form = useForm({
           }"
         >
           <template #default="{ field }">
-            <label class="block" :for="field.name">
-              <span class="mb-2 block text-sm font-semibold text-base-content"> Invite code </span>
+            <label :for="field.name">
+              <span> Invite code </span>
 
               <input
                 :id="field.name"
@@ -192,7 +150,6 @@ const form = useForm({
                 autocomplete="off"
                 maxlength="6"
                 placeholder="ABC123"
-                class="input input-bordered h-12 w-full rounded-lg bg-base-100 font-mono text-lg uppercase tracking-[0.2em]"
                 :value="field.state.value"
                 :aria-invalid="!field.state.meta.isValid"
                 :aria-describedby="
@@ -207,23 +164,15 @@ const form = useForm({
               v-if="field.state.meta.isTouched && field.state.meta.errors.length > 0"
               :id="`${field.name}-error`"
               role="alert"
-              class="mt-2 text-sm text-error"
             >
               {{ field.state.meta.errors.join(", ") }}
             </p>
 
-            <p v-else :id="`${field.name}-help`" class="mt-2 text-xs text-base-content/60">
-              Ask a household member to share their code.
-            </p>
+            <p v-else :id="`${field.name}-help`">Ask a household member to share their code.</p>
           </template>
         </form.Field>
 
-        <p
-          v-if="submitError"
-          role="alert"
-          aria-live="polite"
-          class="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error"
-        >
+        <p v-if="submitError" role="alert" aria-live="polite">
           {{ submitError }}
         </p>
 
@@ -236,16 +185,8 @@ const form = useForm({
           "
         >
           <template #default="{ canSubmit, isSubmitting }">
-            <button
-              type="submit"
-              class="btn btn-primary min-h-12 w-full rounded-full text-base font-bold"
-              :disabled="!canSubmit || isSubmitting"
-            >
-              <span
-                v-if="isSubmitting"
-                class="loading loading-spinner loading-sm"
-                aria-hidden="true"
-              />
+            <button type="submit" :disabled="!canSubmit || isSubmitting">
+              <span v-if="isSubmitting" aria-hidden="true" />
 
               {{
                 isSubmitting ? "Saving…" : mode === "create" ? "Create household" : "Join household"

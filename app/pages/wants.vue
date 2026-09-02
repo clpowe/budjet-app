@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FunctionReturnType } from "convex/server";
-import { computed, nextTick, ref, shallowRef } from "vue";
+import { computed, nextTick, ref, shallowRef, watch } from "vue";
 import { api } from "@generated/api";
 import type { Doc, Id } from "@generated/dataModel";
 import type { WantStatus } from "../utils/want-status";
@@ -62,6 +62,7 @@ const isSubmittingPurchase = ref(false);
 const purchaseError = ref("");
 const undoPendingItemId = ref<Id<"wantItems"> | undefined>();
 const purchaseTrigger = shallowRef<HTMLElement | null>(null);
+const formDialog = shallowRef<HTMLDialogElement | null>(null);
 let latestPreviewRequest = 0;
 
 function emptyFormModel(): WantFormModel {
@@ -275,6 +276,24 @@ function closeForm() {
   formError.value = "";
 }
 
+watch(isFormOpen, async (open) => {
+  await nextTick();
+
+  if (open && !formDialog.value?.open) {
+    formDialog.value?.showModal();
+  } else if (!open && formDialog.value?.open) {
+    formDialog.value.close();
+  }
+});
+
+function onFormDialogClose() {
+  if (isFormOpen.value) closeForm();
+}
+
+function onFormDialogCancel(event: Event) {
+  if (isSavingForm.value) event.preventDefault();
+}
+
 async function saveWant(values: WantSubmitValues) {
   if (isSavingForm.value) return;
 
@@ -365,32 +384,19 @@ async function saveOrder(itemIds: Id<"wantItems">[]) {
 </script>
 
 <template>
-  <main
-    class="container mx-auto space-y-6 px-4 py-5 sm:space-y-8 sm:py-8"
-    :aria-busy="isLoading ? 'true' : undefined"
-  >
-    <header class="flex flex-wrap items-start justify-between gap-4">
+  <main class="l-page l-stack" :aria-busy="isLoading ? 'true' : undefined">
+    <header class="l-cluster l-split">
       <div>
-        <h1 class="text-3xl font-black">Wants</h1>
-        <p class="mt-2 max-w-2xl text-base-content/65">
-          Decide together, order what matters, and track the shared reserve funding each goal.
-        </p>
+        <h1>Wants</h1>
+        <p>Decide together, order what matters, and track the shared reserve funding each goal.</p>
       </div>
 
-      <button type="button" class="btn btn-primary" aria-label="Add Want" @click="openCreateForm">
-        <Icon name="lucide:plus" size="18" aria-hidden="true" />
-        Add Want
-      </button>
+      <button type="button" aria-label="Add Want" @click="openCreateForm">Add Want</button>
     </header>
 
-    <div
-      v-if="isLoading"
-      role="status"
-      aria-live="polite"
-      class="rounded-xl border border-base-300 bg-base-100 p-8 text-center"
-    >
-      <span class="loading loading-spinner loading-md" aria-hidden="true" />
-      <p class="mt-3 font-semibold">Loading Wants…</p>
+    <div v-if="isLoading" role="status" aria-live="polite">
+      <span aria-hidden="true" />
+      <p>Loading Wants…</p>
     </div>
 
     <template v-else>
@@ -400,26 +406,22 @@ async function saveOrder(itemIds: Id<"wantItems">[]) {
         :next-item-name="sections.active[0]?.name"
       />
 
-      <p v-if="pageError" role="alert" aria-live="polite" class="alert alert-error">
+      <p v-if="pageError" role="alert" aria-live="polite">
         {{ pageError }}
       </p>
 
-      <p v-if="pageNotice" role="status" aria-live="polite" class="alert alert-success">
+      <p v-if="pageNotice" role="status" aria-live="polite">
         {{ pageNotice }}
       </p>
 
-      <section
-        v-if="!hasItems"
-        class="rounded-xl border border-dashed border-base-300 bg-base-100 p-8 text-center"
-        aria-labelledby="empty-wants-heading"
-      >
-        <h2 id="empty-wants-heading" class="text-xl font-bold">No Wants yet</h2>
-        <p class="mx-auto mt-2 max-w-lg text-sm text-base-content/65">
+      <section v-if="!hasItems" class="panel" aria-labelledby="empty-wants-heading">
+        <h2 id="empty-wants-heading">No Wants yet</h2>
+        <p>
           Add an idea to Considering, then move it into the active plan when the household is ready.
         </p>
       </section>
 
-      <div v-else class="space-y-8">
+      <div v-else class="l-stack">
         <WantsList
           v-if="sections.active.length"
           title="Plan for it"
@@ -461,41 +463,25 @@ async function saveOrder(itemIds: Id<"wantItems">[]) {
       </div>
     </template>
 
-    <div
-      v-if="isFormOpen"
-      class="fixed inset-0 z-50 grid place-items-center bg-base-content/40 p-4"
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      ref="formDialog"
       aria-labelledby="want-form-title"
+      @close="onFormDialogClose"
+      @cancel="onFormDialogCancel"
     >
-      <section
-        class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-base-100 p-5 shadow-xl"
-      >
-        <div class="mb-5 flex items-center justify-between gap-3">
-          <h2 id="want-form-title" class="text-xl font-bold">
-            {{ formTitle }}
-          </h2>
+      <header class="l-cluster l-split">
+        <h2 id="want-form-title">{{ formTitle }}</h2>
+        <button type="button" :disabled="isSavingForm" @click="closeForm">Close</button>
+      </header>
 
-          <button
-            type="button"
-            class="btn btn-ghost btn-circle btn-sm"
-            aria-label="Close Want form"
-            :disabled="isSavingForm"
-            @click="closeForm"
-          >
-            <Icon name="lucide:x" size="18" aria-hidden="true" />
-          </button>
-        </div>
-
-        <WantsForm
-          v-model="formModel"
-          :submit-label="editingItem ? 'Save changes' : 'Add Want'"
-          :is-submitting="isSavingForm"
-          :error="formError"
-          @submit="saveWant"
-        />
-      </section>
-    </div>
+      <WantsForm
+        v-model="formModel"
+        :submit-label="editingItem ? 'Save changes' : 'Add Want'"
+        :is-submitting="isSavingForm"
+        :error="formError"
+        @submit="saveWant"
+      />
+    </dialog>
 
     <WantsPurchaseDialog
       v-if="purchaseItem"

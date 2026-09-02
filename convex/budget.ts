@@ -31,7 +31,7 @@ const homeSummaryValidator = v.object({
     closedPositiveReserveContributionCents: v.int64(),
   }),
   spending: v.object({
-    month: v.object({
+    monthToDate: v.object({
       expenseCents: v.int64(),
       reserveFundedCents: v.int64(),
       budgetImpactCents: v.int64(),
@@ -133,7 +133,7 @@ export const getHomeSummary = query({
     assertValidMonthlyRows(rollups, "Daily budget rollups");
     assertValidMonthlyRows(reserveDays, "Goal reserve days");
 
-    const monthSpending = rollups.reduce(
+    const monthToDateSpending = rollups.reduce(
       (sum, rollup) => ({
         expenseCents: sum.expenseCents + rollup.expenseCents,
         reserveFundedCents: sum.reserveFundedCents + rollup.reserveFundedExpenseCents,
@@ -158,14 +158,14 @@ export const getHomeSummary = query({
     const planAllowanceCents = currentReserve.dailyAllowanceCents * DAYS_IN_PLAN;
     const safeToSpendCents = calculateSafeToSpendCents({
       planAllowanceCents,
-      budgetImpactExpenseCents: monthSpending.budgetImpactCents,
+      budgetImpactExpenseCents: monthToDateSpending.budgetImpactCents,
       closedPositiveReserveContributionCents,
     });
     const averageDailyBudgetImpactCents =
-      monthSpending.budgetImpactCents / BigInt(period.elapsedDays);
+      monthToDateSpending.budgetImpactCents / BigInt(period.elapsedDays);
     const budgetImpactVarianceCents =
       currentReserve.dailyAllowanceCents * BigInt(period.elapsedDays) -
-      monthSpending.budgetImpactCents;
+      monthToDateSpending.budgetImpactCents;
     const nextAllocation = projectActiveWantAllocations(
       currentReserve.availableCents,
       activeItems,
@@ -196,8 +196,8 @@ export const getHomeSummary = query({
         closedPositiveReserveContributionCents,
       },
       spending: {
-        month: {
-          ...monthSpending,
+        monthToDate: {
+          ...monthToDateSpending,
           averageDailyBudgetImpactCents,
           budgetImpactVarianceCents,
         },

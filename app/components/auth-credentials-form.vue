@@ -73,27 +73,21 @@ const form = useForm({
 </script>
 
 <template>
-  <main class="flex min-h-dvh items-center justify-center bg-base-100 px-5 py-10">
-    <section class="w-full max-w-sm" :aria-labelledby="`${mode}-heading`">
-      <NuxtLink
-        to="/"
-        class="mx-auto grid size-16 place-items-center rounded-full bg-primary text-xl font-black tracking-tight text-primary-content shadow-sm"
-        aria-label="Daily Funds home"
-      >
-        DF
-      </NuxtLink>
+  <main class="l-center">
+    <section class="l-stack" :aria-labelledby="`${mode}-heading`">
+      <NuxtLink to="/" aria-label="Daily Funds home"> DF </NuxtLink>
 
-      <header class="mt-8 text-center">
-        <h1 :id="`${mode}-heading`" class="text-3xl font-bold tracking-tight text-base-content">
+      <header>
+        <h1 :id="`${mode}-heading`">
           {{ heading }}
         </h1>
 
-        <p class="mt-3 text-sm leading-6 text-base-content/65">
+        <p>
           {{ description }}
         </p>
       </header>
 
-      <form class="mt-8 space-y-4" novalidate @submit.prevent.stop="form.handleSubmit">
+      <form class="app-form" novalidate @submit.prevent.stop="form.handleSubmit">
         <form.Field
           v-if="isSignUp"
           name="name"
@@ -102,15 +96,14 @@ const form = useForm({
           }"
         >
           <template #default="{ field }">
-            <label class="block" :for="field.name">
-              <span class="mb-2 block text-sm font-semibold text-base-content">Name</span>
+            <label :for="field.name">
+              <span>Name</span>
 
               <input
                 :id="field.name"
                 :name="field.name"
                 type="text"
                 autocomplete="name"
-                class="input input-bordered h-12 w-full rounded-lg bg-base-100"
                 :value="field.state.value"
                 :aria-invalid="!field.state.meta.isValid"
                 :aria-describedby="
@@ -126,7 +119,6 @@ const form = useForm({
               v-if="field.state.meta.isTouched && field.state.meta.errors.length > 0"
               :id="`${field.name}-error`"
               role="alert"
-              class="mt-2 text-sm text-error"
             >
               {{ field.state.meta.errors.join(", ") }}
             </p>
@@ -147,8 +139,8 @@ const form = useForm({
           }"
         >
           <template #default="{ field }">
-            <label class="block" :for="field.name">
-              <span class="mb-2 block text-sm font-semibold text-base-content">Email</span>
+            <label :for="field.name">
+              <span>Email</span>
 
               <input
                 :id="field.name"
@@ -156,7 +148,6 @@ const form = useForm({
                 type="email"
                 inputmode="email"
                 autocomplete="email"
-                class="input input-bordered h-12 w-full rounded-lg bg-base-100"
                 :value="field.state.value"
                 :aria-invalid="!field.state.meta.isValid"
                 :aria-describedby="
@@ -172,7 +163,6 @@ const form = useForm({
               v-if="field.state.meta.isTouched && field.state.meta.errors.length > 0"
               :id="`${field.name}-error`"
               role="alert"
-              class="mt-2 text-sm text-error"
             >
               {{ field.state.meta.errors.join(", ") }}
             </p>
@@ -187,16 +177,15 @@ const form = useForm({
           }"
         >
           <template #default="{ field }">
-            <label class="block" :for="field.name">
-              <span class="mb-2 block text-sm font-semibold text-base-content">Password</span>
+            <label :for="field.name">
+              <span>Password</span>
 
-              <span class="relative block">
+              <span>
                 <input
                   :id="field.name"
                   :name="field.name"
                   :type="showPassword ? 'text' : 'password'"
                   :autocomplete="isSignUp ? 'new-password' : 'current-password'"
-                  class="input input-bordered h-12 w-full rounded-lg bg-base-100 pr-20"
                   :value="field.state.value"
                   :aria-invalid="!field.state.meta.isValid"
                   :aria-describedby="
@@ -213,7 +202,6 @@ const form = useForm({
 
                 <button
                   type="button"
-                  class="absolute inset-y-0 right-3 my-auto h-fit rounded-sm px-2 py-1 text-sm font-semibold text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   :aria-label="showPassword ? 'Hide password' : 'Show password'"
                   :aria-pressed="showPassword"
                   :disabled="isSessionPending"
@@ -228,27 +216,15 @@ const form = useForm({
               v-if="field.state.meta.isTouched && field.state.meta.errors.length > 0"
               :id="`${field.name}-error`"
               role="alert"
-              class="mt-2 text-sm text-error"
             >
               {{ field.state.meta.errors.join(", ") }}
             </p>
 
-            <p
-              v-else-if="isSignUp"
-              :id="`${field.name}-help`"
-              class="mt-2 text-xs text-base-content/60"
-            >
-              Use at least 8 characters.
-            </p>
+            <p v-else-if="isSignUp" :id="`${field.name}-help`">Use at least 8 characters.</p>
           </template>
         </form.Field>
 
-        <p
-          v-if="submitError"
-          role="alert"
-          aria-live="polite"
-          class="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error"
-        >
+        <p v-if="submitError" role="alert" aria-live="polite">
           {{ submitError }}
         </p>
 
@@ -261,16 +237,8 @@ const form = useForm({
           "
         >
           <template #default="{ canSubmit, isSubmitting }">
-            <button
-              type="submit"
-              class="btn btn-primary min-h-12 w-full rounded-full text-base font-bold"
-              :disabled="!canSubmit || isSubmitting || isSessionPending"
-            >
-              <span
-                v-if="isSubmitting"
-                class="loading loading-spinner loading-sm"
-                aria-hidden="true"
-              />
+            <button type="submit" :disabled="!canSubmit || isSubmitting || isSessionPending">
+              <span v-if="isSubmitting" aria-hidden="true" />
 
               {{ isSubmitting ? "Please wait…" : primaryLabel }}
             </button>
@@ -278,16 +246,13 @@ const form = useForm({
         </form.Subscribe>
       </form>
 
-      <div class="my-6 flex items-center gap-4" aria-hidden="true">
-        <span class="h-px flex-1 bg-base-300" />
-        <span class="text-xs font-semibold uppercase tracking-widest text-base-content/45">or</span>
-        <span class="h-px flex-1 bg-base-300" />
+      <div aria-hidden="true">
+        <span />
+        <span>or</span>
+        <span />
       </div>
 
-      <NuxtLink
-        :to="secondaryRoute"
-        class="btn btn-outline min-h-12 w-full rounded-full border-base-300 bg-base-100 text-base-content"
-      >
+      <NuxtLink :to="secondaryRoute">
         {{ secondaryLabel }}
       </NuxtLink>
     </section>

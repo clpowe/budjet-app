@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-dvh bg-base-100">
+  <div class="l-center">
     <slot />
   </div>
 </template>

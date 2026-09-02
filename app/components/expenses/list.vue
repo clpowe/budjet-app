@@ -10,7 +10,7 @@ const props = defineProps<{
   remove: (id: Expense["_id"]) => unknown;
 }>();
 
-const drawerToggles = ref<HTMLInputElement[]>([]);
+const editDialogs = ref<HTMLDialogElement[]>([]);
 
 const features = tableFeatures({});
 const columnHelper = createColumnHelper<typeof features, Expense>();
@@ -45,85 +45,61 @@ function onDelete(item: Expense) {
   props.remove(item._id);
 }
 
-function openEditDrawer(id: string) {
-  const toggle = drawerToggles.value.find((el) => el?.id === id);
-  if (toggle) toggle.checked = true;
+function openEditDialog(id: string) {
+  editDialogs.value.find((element) => element?.id === id)?.showModal();
 }
 
-function closeEditDrawer(id: string) {
-  const toggle = drawerToggles.value.find((el) => el?.id === id);
-  if (toggle) toggle.checked = false;
+function closeEditDialog(id: string) {
+  editDialogs.value.find((element) => element?.id === id)?.close();
 }
 
 function onExpenseUpdated(id: string) {
-  closeEditDrawer(id);
+  closeEditDialog(id);
 }
 </script>
 
 <template>
   <section aria-labelledby="today-expenses-heading">
-    <h2 id="today-expenses-heading" class="sr-only">Today&apos;s expenses</h2>
-    <div class="overflow-x-auto">
-      <table class="table w-full min-w-xl">
-        <caption class="sr-only">
+    <h2 id="today-expenses-heading" class="u-visually-hidden">Today&apos;s expenses</h2>
+    <div class="u-scroll">
+      <table>
+        <caption class="u-visually-hidden">
           Today&apos;s expenses with amount and edit or delete actions.
         </caption>
         <thead>
           <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-            <th
-              v-for="header in headerGroup.headers"
-              :key="header.id"
-              :class="header.column.id === 'name' ? 'w-full' : undefined"
-            >
+            <th v-for="header in headerGroup.headers" :key="header.id">
               <FlexRender v-if="!header.isPlaceholder" :header="header" />
             </th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="row in table.getRowModel().rows" :key="row.id">
-            <td
-              v-for="cell in row.getAllCells()"
-              :key="cell.id"
-              :class="cell.column.id === 'actions' ? 'flex min-w-28 gap-2' : undefined"
-            >
+            <td v-for="cell in row.getAllCells()" :key="cell.id">
               <template v-if="cell.column.id === 'actions'">
-                <button
-                  @click="onDelete(row.original)"
-                  class="btn btn-circle"
-                  :aria-label="`Delete ${row.original.name}`"
-                  :title="`Delete ${row.original.name}`"
-                >
-                  <Icon
-                    name="i-material-symbols:delete-forever-outline-rounded"
-                    size="24"
-                    class="text-error/30"
-                  />
-                </button>
-                <div class="drawer drawer-end w-full">
-                  <input
-                    ref="drawerToggles"
-                    :id="row.id"
-                    type="checkbox"
-                    class="drawer-toggle w-full"
-                  />
-                  <div class="drawer-content">
-                    <button
-                      type="button"
-                      class="drawer-button btn btn-circle"
-                      @click="openEditDrawer(row.id)"
-                      :aria-label="`Edit ${row.original.name}`"
-                      :title="`Edit ${row.original.name}`"
-                    >
-                      <Icon name="i-material-symbols:edit-square-outline-rounded" />
-                    </button>
-                  </div>
-                  <div class="drawer-side">
-                    <label :for="row.id" aria-label="close sidebar" class="drawer-overlay"></label>
-                    <div class="menu bg-base-200 min-h-full w-80 p-4">
-                      <lazy-expenses-edit :expense="row.original" @updated="onExpenseUpdated" />
-                    </div>
-                  </div>
+                <div class="actions">
+                  <button
+                    type="button"
+                    :aria-label="`Edit ${row.original.name}`"
+                    @click="openEditDialog(row.id)"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    :aria-label="`Delete ${row.original.name}`"
+                    @click="onDelete(row.original)"
+                  >
+                    Delete
+                  </button>
                 </div>
+                <dialog :id="row.id" ref="editDialogs">
+                  <header class="l-cluster l-split">
+                    <h2>Edit {{ row.original.name }}</h2>
+                    <form method="dialog"><button type="submit">Close</button></form>
+                  </header>
+                  <lazy-expenses-edit :expense="row.original" @updated="onExpenseUpdated" />
+                </dialog>
               </template>
               <FlexRender v-else :cell="cell" />
             </td>

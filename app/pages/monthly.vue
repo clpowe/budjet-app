@@ -70,97 +70,59 @@ const currentMonthYear = computed(() => {
 </script>
 
 <template>
-  <div class="container mx-auto p-4 space-y-6">
+  <main class="l-page l-stack">
     <!-- Header with Navigation -->
-    <div class="flex items-center justify-between">
-      <button @click="backMonth" class="btn btn-circle btn-ghost">
-        <Icon name="i-heroicons-chevron-left" class="size-6" />
-      </button>
-      <div class="text-center">
-        <h1 class="text-2xl font-bold">{{ currentMonthYear }}</h1>
-      </div>
-      <button @click="forwardMonth" class="btn btn-circle btn-ghost">
-        <Icon name="i-heroicons-chevron-right" class="size-6" />
-      </button>
-    </div>
+    <header class="l-cluster l-split">
+      <button type="button" @click="backMonth">Previous month</button>
+      <h1>{{ currentMonthYear }}</h1>
+      <button type="button" @click="forwardMonth">Next month</button>
+    </header>
 
     <!-- Error State -->
-    <div v-if="error" class="alert alert-error shadow-lg">
-      <Icon name="i-heroicons-exclamation-triangle" class="size-6" />
-      <span>Error loading transactions: {{ error.message }}</span>
-    </div>
+    <p v-if="error" role="alert">Error loading transactions: {{ error.message }}</p>
 
     <!-- Grouped Transactions -->
-    <div v-if="transactions && transactions.length > 0" class="space-y-4">
-      <div
-        v-for="dateKey in sortedDateKeys"
-        :key="dateKey"
-        class="collapse collapse-arrow bg-base-200"
-      >
-        <input type="checkbox" checked />
-        <div class="collapse-title flex justify-between items-center pr-12">
-          <span class="font-medium">{{ formatDate(dateKey) }}</span>
-          <span :class="calculateDayTotal(dateKey) >= 0 ? 'text-success' : 'text-error'">
-            {{ formatMoney(calculateDayTotal(dateKey)) }}
-          </span>
+    <div v-if="transactions && transactions.length > 0" class="l-stack">
+      <details v-for="dateKey in sortedDateKeys" :key="dateKey" open>
+        <summary>{{ formatDate(dateKey) }} — {{ formatMoney(calculateDayTotal(dateKey)) }}</summary>
+        <div class="u-scroll">
+          <table>
+            <tbody>
+              <tr v-for="tx in groupedTransactions[dateKey]" :key="tx._id">
+                <td>
+                  <div>
+                    <span>{{ tx.name }}</span>
+                    <span v-if="tx.type === 'expense' && tx.isWantPurchase"> Want purchase </span>
+                  </div>
+                  <div v-if="tx.notes">{{ tx.notes }}</div>
+                </td>
+                <td>
+                  <span>
+                    {{ tx.type === "expense" ? "-" : "+"
+                    }}{{
+                      tx.type === "expense" ? formatCents(tx.amountCents) : formatMoney(tx.amount)
+                    }}
+                  </span>
+                  <p v-if="tx.type === 'expense' && tx.reserveUsedCents > 0n">
+                    {{ formatCents(tx.amountCents) }} total ·
+                    {{ formatCents(tx.reserveUsedCents) }} from reserve ·
+                    {{ formatCents(tx.budgetImpactCents) }} budget impact
+                  </p>
+                </td>
+                <td>
+                  <span v-if="tx.type === 'windfall'">Windfall</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div class="collapse-content">
-          <div class="overflow-x-auto">
-            <table class="table table-zebra w-full">
-              <tbody>
-                <tr v-for="tx in groupedTransactions[dateKey]" :key="tx._id">
-                  <td>
-                    <div class="flex flex-wrap items-center gap-2 font-bold">
-                      <span>{{ tx.name }}</span>
-                      <span
-                        v-if="tx.type === 'expense' && tx.isWantPurchase"
-                        class="badge badge-primary badge-outline badge-sm"
-                      >
-                        Want purchase
-                      </span>
-                    </div>
-                    <div v-if="tx.notes" class="text-sm opacity-50">{{ tx.notes }}</div>
-                  </td>
-                  <td class="text-right">
-                    <span :class="tx.type === 'expense' ? 'text-error' : 'text-success'">
-                      {{ tx.type === "expense" ? "-" : "+"
-                      }}{{
-                        tx.type === "expense" ? formatCents(tx.amountCents) : formatMoney(tx.amount)
-                      }}
-                    </span>
-                    <p
-                      v-if="tx.type === 'expense' && tx.reserveUsedCents > 0n"
-                      class="mt-1 text-xs text-base-content/60"
-                    >
-                      {{ formatCents(tx.amountCents) }} total ·
-                      {{ formatCents(tx.reserveUsedCents) }} from reserve ·
-                      {{ formatCents(tx.budgetImpactCents) }} budget impact
-                    </p>
-                  </td>
-                  <td class="w-10">
-                    <span
-                      v-if="tx.type === 'windfall'"
-                      class="badge badge-success badge-outline badge-sm"
-                      >Windfall</span
-                    >
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      </details>
     </div>
 
     <!-- Empty State -->
-    <div v-else-if="transactions" class="text-center py-20 opacity-50">
-      <Icon name="i-heroicons-banknotes" class="size-12 mx-auto mb-4" />
-      <p>No transactions found for this month.</p>
-    </div>
+    <p v-else-if="transactions">No transactions found for this month.</p>
 
     <!-- Loading State -->
-    <div v-else class="flex justify-center py-20">
-      <span class="loading loading-spinner loading-lg"></span>
-    </div>
-  </div>
+    <p v-else role="status">Loading…</p>
+  </main>
 </template>

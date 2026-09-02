@@ -21,7 +21,7 @@ function makeSummary(): HomeSummary {
       closedPositiveReserveContributionCents: 2_500n,
     },
     spending: {
-      month: {
+      monthToDate: {
         expenseCents: 20_000n,
         reserveFundedCents: 0n,
         budgetImpactCents: 20_000n,

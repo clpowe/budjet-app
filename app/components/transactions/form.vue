@@ -118,7 +118,7 @@ watch(
 </script>
 
 <template>
-  <form class="flex flex-col space-y-4" novalidate @submit.prevent="form.handleSubmit">
+  <form class="app-form" novalidate @submit.prevent="form.handleSubmit">
     <form.Field
       name="name"
       :validators="{
@@ -127,9 +127,9 @@ watch(
       }"
     >
       <template #default="{ field }">
-        <div class="flex flex-col gap-1">
-          <label class="flex flex-col gap-1" :for="`${formId}-${field.name}`">
-            <span class="label">Name</span>
+        <div>
+          <label :for="`${formId}-${field.name}`">
+            <span>Name</span>
             <input
               :id="`${formId}-${field.name}`"
               :name="field.name"
@@ -144,7 +144,6 @@ watch(
                 fieldErrors(field.state.meta.errors, errors?.name).length > 0
               "
               :disabled="isDisabled"
-              class="input w-full"
               required
               @blur="field.handleBlur"
               @input="
@@ -159,7 +158,6 @@ watch(
               fieldErrors(field.state.meta.errors, errors?.name).length > 0
             "
             :id="fieldErrorIds.name"
-            class="text-sm text-error"
             role="alert"
           >
             {{ fieldErrors(field.state.meta.errors, errors?.name).join(", ") }}
@@ -170,14 +168,13 @@ watch(
 
     <form.Field v-if="modelValue.notes !== undefined" name="notes">
       <template #default="{ field }">
-        <label class="flex flex-col gap-1" :for="`${formId}-${field.name}`">
-          <span class="label">Notes</span>
+        <label :for="`${formId}-${field.name}`">
+          <span>Notes</span>
           <textarea
             :id="`${formId}-${field.name}`"
             :name="field.name"
             :value="field.state.value"
             :disabled="isDisabled"
-            class="textarea min-h-24 w-full"
             @blur="field.handleBlur"
             @input="
               field.handleChange(($event.target as HTMLTextAreaElement).value);
@@ -196,9 +193,9 @@ watch(
       }"
     >
       <template #default="{ field }">
-        <div class="flex flex-col gap-1">
-          <label class="flex flex-col gap-1" :for="`${formId}-${field.name}`">
-            <span class="label">Amount</span>
+        <div>
+          <label :for="`${formId}-${field.name}`">
+            <span>Amount</span>
             <input
               :id="`${formId}-${field.name}`"
               :name="field.name"
@@ -217,7 +214,6 @@ watch(
                 fieldErrors(field.state.meta.errors, errors?.amount).length > 0
               "
               :disabled="isDisabled"
-              class="input w-full"
               required
               @blur="field.handleBlur"
               @input="handleAmountInput($event, field.handleChange)"
@@ -229,7 +225,6 @@ watch(
               fieldErrors(field.state.meta.errors, errors?.amount).length > 0
             "
             :id="fieldErrorIds.amount"
-            class="text-sm text-error"
             role="alert"
           >
             {{ fieldErrors(field.state.meta.errors, errors?.amount).join(", ") }}
@@ -240,15 +235,14 @@ watch(
 
     <form.Field v-if="showPriority" name="isPriority">
       <template #default="{ field }">
-        <label class="flex min-h-11 items-center justify-between gap-3">
-          <span class="label">Mark as important</span>
+        <label>
+          <span>Mark as important</span>
           <input
             :name="field.name"
             :checked="field.state.value"
             type="checkbox"
             :aria-describedby="priorityDescriptionId"
             :disabled="isDisabled"
-            class="checkbox"
             @blur="field.handleBlur"
             @change="
               field.handleChange(($event.target as HTMLInputElement).checked);
@@ -256,9 +250,7 @@ watch(
             "
           />
         </label>
-        <p :id="priorityDescriptionId" class="-mt-3 text-sm text-base-content/60">
-          Use for transactions you want to keep easy to spot.
-        </p>
+        <p :id="priorityDescriptionId">Use for transactions you want to keep easy to spot.</p>
       </template>
     </form.Field>
 
@@ -271,9 +263,9 @@ watch(
       }"
     >
       <template #default="{ field }">
-        <div class="flex flex-col gap-1">
-          <label class="flex flex-col gap-1" :for="`${formId}-${field.name}`">
-            <span class="label">Date</span>
+        <div>
+          <label :for="`${formId}-${field.name}`">
+            <span>Date</span>
             <input
               :id="`${formId}-${field.name}`"
               :name="field.name"
@@ -289,7 +281,6 @@ watch(
                 fieldErrors(field.state.meta.errors, errors?.date).length > 0
               "
               :disabled="isDisabled"
-              class="input w-full"
               required
               @blur="field.handleBlur"
               @input="
@@ -304,7 +295,6 @@ watch(
               fieldErrors(field.state.meta.errors, errors?.date).length > 0
             "
             :id="fieldErrorIds.date"
-            class="text-sm text-error"
             role="alert"
           >
             {{ fieldErrors(field.state.meta.errors, errors?.date).join(", ") }}
@@ -313,13 +303,7 @@ watch(
       </template>
     </form.Field>
 
-    <p
-      v-if="errors?.form"
-      :id="formErrorId"
-      class="text-sm text-error"
-      role="alert"
-      aria-live="polite"
-    >
+    <p v-if="errors?.form" :id="formErrorId" role="alert" aria-live="polite">
       {{ errors.form }}
     </p>
 
@@ -334,7 +318,6 @@ watch(
       <template #default="{ canSubmit, isSubmitting: isFormSubmitting }">
         <button
           type="submit"
-          class="btn btn-primary w-full"
           :aria-busy="isSubmitting || isFormSubmitting ? 'true' : undefined"
           :aria-describedby="errors?.form ? formErrorId : undefined"
           :disabled="isDisabled || !canSubmit || isFormSubmitting"

@@ -2,7 +2,7 @@
 const { totalPayment } = useDepts();
 </script>
 <template>
-  <div class="px-4 container mx-auto space-y-8">
+  <main class="l-page l-stack">
     <app-main-card
       title="Total Snowball"
       subtitle="Amount to pay on target bill"
@@ -12,5 +12,5 @@ const { totalPayment } = useDepts();
       <template #actions> </template>
     </app-main-card>
     <depts-list />
-  </div>
+  </main>
 </template>

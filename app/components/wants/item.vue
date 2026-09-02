@@ -41,17 +41,14 @@ const priorityLabel = computed(() => {
 </script>
 
 <template>
-  <article
-    data-test="want-item"
-    class="rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm"
-  >
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div class="min-w-0">
-        <h3 class="truncate text-lg font-bold">
+  <article class="panel l-stack" data-test="want-item">
+    <header class="l-cluster l-split">
+      <div>
+        <h3>
           {{ item.name }}
         </h3>
 
-        <p class="mt-1 text-sm text-base-content/65">
+        <p>
           {{ priorityLabel }}
           <span aria-hidden="true"> · </span>
           {{ formatCents(item.estimatedCostCents) }}
@@ -59,19 +56,19 @@ const priorityLabel = computed(() => {
       </div>
 
       <WantsStatusBadge :status="item.status" />
-    </div>
+    </header>
 
-    <p class="mt-3 text-sm text-base-content/70">
+    <p>
       {{ strategy.description }}
     </p>
 
-    <p v-if="item.notes" class="mt-3 whitespace-pre-wrap text-sm">
+    <p v-if="item.notes">
       {{ item.notes }}
     </p>
 
-    <div v-if="allocation" class="mt-4 space-y-2">
-      <div class="flex flex-wrap justify-between gap-2 text-sm">
-        <span class="font-semibold">Reserve progress</span>
+    <div v-if="allocation">
+      <div>
+        <span>Reserve progress</span>
         <span>
           {{ formatCents(allocation.allocatedCents) }} of
           {{ formatCents(item.estimatedCostCents) }}
@@ -79,7 +76,6 @@ const priorityLabel = computed(() => {
       </div>
 
       <progress
-        class="progress progress-primary w-full"
         :aria-label="`${item.name} funding progress`"
         :value="allocation.progressBasisPoints"
         max="10000"
@@ -87,16 +83,13 @@ const priorityLabel = computed(() => {
         {{ allocation.progressBasisPoints / 100 }}%
       </progress>
 
-      <p class="text-xs text-base-content/60">
-        {{ formatCents(allocation.remainingCents) }} remaining
-      </p>
+      <p>{{ formatCents(allocation.remainingCents) }} remaining</p>
     </div>
 
-    <div class="mt-4 flex flex-wrap items-center gap-2">
+    <div class="actions">
       <template v-if="reorderable">
         <button
           type="button"
-          class="btn btn-ghost btn-sm"
           :aria-label="`Move ${item.name} up`"
           :disabled="reorderPending || isFirst"
           @click="emit('move-up', item._id)"
@@ -106,7 +99,6 @@ const priorityLabel = computed(() => {
 
         <button
           type="button"
-          class="btn btn-ghost btn-sm"
           :aria-label="`Move ${item.name} down`"
           :disabled="reorderPending || isLast"
           @click="emit('move-down', item._id)"
@@ -118,7 +110,6 @@ const priorityLabel = computed(() => {
       <button
         v-if="item.status === 'plan_for_it'"
         type="button"
-        class="btn btn-primary btn-sm"
         :aria-label="`Purchase ${item.name}`"
         @click="emit('purchase', item)"
       >
@@ -128,19 +119,16 @@ const priorityLabel = computed(() => {
       <button
         v-if="item.status !== 'bought'"
         type="button"
-        class="btn btn-ghost btn-sm"
         :aria-label="`Edit ${item.name}`"
         @click="emit('edit', item)"
       >
         Edit
       </button>
 
-      <details v-if="strategy.allowedActions.length" class="dropdown">
-        <summary class="btn btn-ghost btn-sm">Change status</summary>
+      <details v-if="strategy.allowedActions.length">
+        <summary>Change status</summary>
 
-        <ul
-          class="menu dropdown-content z-10 mt-1 w-48 rounded-box border border-base-300 bg-base-100 p-2 shadow"
-        >
+        <ul>
           <li v-for="targetStatus in strategy.allowedActions" :key="targetStatus">
             <button
               type="button"

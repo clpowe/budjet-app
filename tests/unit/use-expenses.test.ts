@@ -19,7 +19,7 @@ const summaryRef = ref({
     closedPositiveReserveContributionCents: 2_000n,
   },
   spending: {
-    month: {
+    monthToDate: {
       expenseCents: 10_000n,
       reserveFundedCents: 1_000n,
       budgetImpactCents: 9_000n,
@@ -101,7 +101,7 @@ describe("useExpenses", () => {
         closedPositiveReserveContributionCents: 2_000n,
       },
       spending: {
-        month: {
+        monthToDate: {
           expenseCents: 10_000n,
           reserveFundedCents: 1_000n,
           budgetImpactCents: 9_000n,

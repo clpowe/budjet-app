@@ -9,7 +9,6 @@ import WindfallList from "../../app/components/windfall/list.vue";
 type Windfall = Doc<"windfall">;
 
 const mockState = vi.hoisted(() => ({
-  closePopoverById: vi.fn(),
   remove: vi.fn(),
   windfall: undefined as Ref<Windfall[] | undefined> | undefined,
 }));
@@ -22,10 +21,6 @@ mockNuxtImport("useWindfall", async () => {
     windfall: mockState.windfall,
     remove: mockState.remove,
   });
-});
-
-mockNuxtImport("usePopoverClose", () => {
-  return () => ({ closePopoverById: mockState.closePopoverById });
 });
 
 mockComponent("WindfallEdit", async () => {
@@ -78,7 +73,6 @@ function mountList() {
 describe("WindfallList", () => {
   beforeEach(() => {
     mockState.remove.mockReset();
-    mockState.closePopoverById.mockReset();
     mockState.windfall!.value = [];
   });
 
@@ -88,7 +82,7 @@ describe("WindfallList", () => {
     const wrapper = mountList();
     await flushPromises();
 
-    const sections = wrapper.findAll(".space-y-2");
+    const sections = wrapper.findAll("section");
     expect(sections).toHaveLength(2);
     expect(sections[0]!.text()).toContain("Income");
     expect(sections[0]!.text()).toContain("Paycheck");
@@ -104,12 +98,15 @@ describe("WindfallList", () => {
     mockState.windfall!.value = [income, outflow];
 
     const wrapper = mountList();
-    await wrapper.find("tbody button.btn-circle").trigger("click");
+    await wrapper.get('button[aria-label="Delete Paycheck"]').trigger("click");
+    await wrapper.get('button[aria-label="Edit Paycheck"]').trigger("click");
+    const dialog = wrapper.get<HTMLDialogElement>(`dialog#${income._id}`);
+    expect(dialog.element.open).toBe(true);
+
     await wrapper.find(".windfall-edit-stub").trigger("click");
 
     expect(mockState.remove).toHaveBeenCalledWith(income._id);
-    expect(mockState.closePopoverById).toHaveBeenCalledWith(income._id);
-    expect(wrapper.find(`input#${income._id}`).exists()).toBe(true);
+    expect(dialog.element.open).toBe(false);
   });
 
   it("reacts when Convex replaces the windfall data", async () => {

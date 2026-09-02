@@ -95,11 +95,11 @@ describe("ExpensesList", () => {
     expect(remove).toHaveBeenCalledWith("expense-1");
   });
 
-  it("opens the matching edit drawer using the stable row id", async () => {
+  it("opens the matching edit dialog using the stable row id", async () => {
     const wrapper = mountList([makeExpense("expense-1", "Coffee", 4.5)]);
-    const drawerToggle = wrapper.get<HTMLInputElement>("#expense-1");
+    const dialog = wrapper.get<HTMLDialogElement>("#expense-1");
 
     await wrapper.get('button[aria-label="Edit Coffee"]').trigger("click");
-    expect(drawerToggle.element.checked).toBe(true);
+    expect(dialog.element.open).toBe(true);
   });
 });

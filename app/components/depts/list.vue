@@ -13,7 +13,7 @@ type DragEvent = {
 // biome-ignore lint/correctness/noUnusedVariables: used by template click handler
 const { depts, update, remove, reorder } = useDepts();
 
-const drawerToggles = ref<HTMLInputElement[]>([]);
+const editDialogs = ref<HTMLDialogElement[]>([]);
 const localDepts = ref<Debt[]>([]);
 const latestServerDepts = ref<Debt[]>([]);
 const hasServerSnapshot = ref(false);
@@ -183,20 +183,18 @@ async function onPriorityToggle(id: Id<"debts">, value: boolean) {
   await update({ id, isPriority: value });
 }
 
-function closeDrawer(id: Id<"debts">) {
-  const toggle = drawerToggles.value.find((el) => el?.id === id);
-  if (toggle) toggle.checked = false;
+function closeDialog(id: Id<"debts">) {
+  editDialogs.value.find((element) => element?.id === id)?.close();
 }
 
-function openDrawer(id: Id<"debts">) {
-  const toggle = drawerToggles.value.find((el) => el?.id === id);
-  if (toggle) toggle.checked = true;
+function openDialog(id: Id<"debts">) {
+  editDialogs.value.find((element) => element?.id === id)?.showModal();
 }
 
 // biome-ignore lint/correctness/noUnusedVariables: used by template click handler
 function onEditSaved(id: Id<"debts">) {
   if (!id) return;
-  closeDrawer(id);
+  closeDialog(id);
 }
 
 // biome-ignore lint/correctness/noUnusedVariables: used by template click handler
@@ -206,57 +204,40 @@ function onDelete(id: Id<"debts">) {
 </script>
 
 <template>
-  <section aria-labelledby="debt-order-heading" class="space-y-3">
-    <canvas
-      ref="transparentDragImage"
-      aria-hidden="true"
-      width="1"
-      height="1"
-      class="pointer-events-none fixed left-0 top-0 size-px opacity-0"
-    ></canvas>
-    <div class="flex flex-wrap items-end justify-between gap-2">
+  <section aria-labelledby="debt-order-heading">
+    <canvas ref="transparentDragImage" aria-hidden="true" width="1" height="1"></canvas>
+    <div class="l-cluster l-split">
       <div>
-        <h2 id="debt-order-heading" class="text-lg font-semibold">Debt payoff order</h2>
-        <p id="debt-reorder-instructions" class="text-sm text-base-content/65">
+        <h2 id="debt-order-heading">Debt payoff order</h2>
+        <p id="debt-reorder-instructions">
           Drag a grip, or focus it and use the up and down arrow keys.
         </p>
       </div>
-      <p aria-live="polite" role="status" class="min-h-5 text-sm text-base-content/70">
-        <span
-          v-if="isSavingOrder"
-          class="loading loading-spinner loading-xs mr-1"
-          aria-hidden="true"
-        ></span>
+      <p aria-live="polite" role="status">
+        <span v-if="isSavingOrder" aria-hidden="true"></span>
         {{ orderStatus }}
       </p>
     </div>
 
-    <div v-if="reorderError" role="alert" class="alert alert-error py-3 text-sm">
-      <Icon name="lucide:triangle-alert" size="18" aria-hidden="true" />
+    <div v-if="reorderError" role="alert">
       <span>{{ reorderError }}</span>
     </div>
 
-    <div class="overflow-x-auto rounded-box border border-base-300">
-      <table class="table w-full min-w-3xl">
-        <caption class="sr-only">
+    <div class="u-scroll">
+      <table>
+        <caption class="u-visually-hidden">
           Debts in payoff order with snowball, payment, edit, and delete controls.
         </caption>
         <thead>
           <tr v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-            <th
-              v-for="header in headerGroup.headers"
-              :key="header.id"
-              :class="header.column.id === 'creditor' ? 'w-full' : undefined"
-            >
+            <th v-for="header in headerGroup.headers" :key="header.id">
               <FlexRender v-if="!header.isPlaceholder" :header="header" />
             </th>
           </tr>
         </thead>
         <tbody v-if="localDepts.length === 0">
           <tr>
-            <td colspan="5" class="py-8 text-center text-base-content/60">
-              Add a debt to start building your payoff order.
-            </td>
+            <td colspan="5">Add a debt to start building your payoff order.</td>
           </tr>
         </tbody>
         <VueDraggable
@@ -267,24 +248,15 @@ function onDelete(id: Id<"debts">) {
           :animation="dragAnimation"
           :disabled="isSavingOrder"
           :set-data="suppressNativeDragPreview"
-          ghost-class="debt-row-ghost"
-          chosen-class="debt-row-chosen"
           @start="onDragStart"
           @end="onDragEnd"
         >
-          <tr v-for="row in table.getRowModel().rows" :key="row.id" class="debt-row">
-            <td
-              v-for="cell in row.getAllCells()"
-              :key="cell.id"
-              :class="{
-                'w-20': cell.column.id === 'drag',
-                'flex min-w-28 gap-2': cell.column.id === 'actions',
-              }"
-            >
+          <tr v-for="row in table.getRowModel().rows" :key="row.id">
+            <td v-for="cell in row.getAllCells()" :key="cell.id">
               <template v-if="cell.column.id === 'drag'">
                 <button
+                  class="drag-handle"
                   type="button"
-                  class="drag-handle btn btn-ghost btn-sm min-h-11 min-w-11 cursor-grab touch-none active:cursor-grabbing"
                   :aria-disabled="isSavingOrder"
                   :aria-label="getReorderLabel(row.original)"
                   aria-describedby="debt-reorder-instructions"
@@ -293,76 +265,42 @@ function onDelete(id: Id<"debts">) {
                   @keydown.up.prevent="moveDebt(row.original._id, -1)"
                   @keydown.down.prevent="moveDebt(row.original._id, 1)"
                 >
-                  <Icon name="lucide:grip-vertical" size="20" aria-hidden="true" />
+                  Move
                 </button>
               </template>
               <template v-else-if="cell.column.id === 'isPriority'">
                 <button
                   type="button"
-                  class="btn btn-ghost btn-sm min-h-11 min-w-11"
                   @click="onPriorityToggle(row.original._id, !row.original.isPriority)"
                   :aria-label="`${row.original.isPriority ? 'Remove' : 'Add'} ${row.original.creditor} ${row.original.isPriority ? 'from' : 'to'} the snowball`"
                 >
-                  <Icon
-                    v-if="row.original.isPriority"
-                    name="lucide:circle-check"
-                    size="24"
-                    class="text-success"
-                    aria-hidden="true"
-                  />
-                  <Icon
-                    v-else
-                    name="lucide:circle-x"
-                    size="24"
-                    class="text-error"
-                    aria-hidden="true"
-                  />
+                  {{ row.original.isPriority ? "In snowball" : "Not in snowball" }}
                 </button>
               </template>
               <template v-else-if="cell.column.id === 'actions'">
-                <div class="drawer drawer-end w-full">
-                  <input
-                    ref="drawerToggles"
-                    :id="row.id"
-                    type="checkbox"
-                    class="drawer-toggle w-full"
-                  />
-                  <div class="drawer-content">
-                    <button
-                      type="button"
-                      class="drawer-button btn btn-circle"
-                      @click="openDrawer(row.original._id)"
-                      :aria-label="`Edit ${row.original.creditor}`"
-                      :title="`Edit ${row.original.creditor}`"
-                    >
-                      <Icon
-                        name="i-material-symbols:edit-square-outline-rounded"
-                        size="24"
-                        aria-hidden="true"
-                      />
-                    </button>
-                  </div>
-                  <div class="drawer-side">
-                    <label :for="row.id" aria-label="close sidebar" class="drawer-overlay"></label>
-                    <div class="menu bg-base-200 min-h-full w-80 p-4">
-                      <lazy-depts-edit :depts="row.original" @updated="onEditSaved" />
-                    </div>
-                  </div>
+                <div class="actions">
+                  <button
+                    type="button"
+                    :aria-label="`Edit ${row.original.creditor}`"
+                    @click="openDialog(row.original._id)"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    :aria-label="`Delete ${row.original.creditor}`"
+                    @click="onDelete(row.original._id)"
+                  >
+                    Delete
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  @click="onDelete(row.original._id)"
-                  class="btn btn-circle"
-                  :aria-label="`Delete ${row.original.creditor}`"
-                  :title="`Delete ${row.original.creditor}`"
-                >
-                  <Icon
-                    name="i-material-symbols:delete-forever-outline-rounded"
-                    size="24"
-                    class="text-error/30"
-                    aria-hidden="true"
-                  />
-                </button>
+                <dialog :id="row.id" ref="editDialogs">
+                  <header class="l-cluster l-split">
+                    <h2>Edit {{ row.original.creditor }}</h2>
+                    <form method="dialog"><button type="submit">Close</button></form>
+                  </header>
+                  <lazy-depts-edit :depts="row.original" @updated="onEditSaved" />
+                </dialog>
               </template>
               <FlexRender v-else :cell="cell" />
             </td>
@@ -372,22 +310,3 @@ function onDelete(id: Id<"debts">) {
     </div>
   </section>
 </template>
-
-<style scoped>
-.debt-row-ghost {
-  background: var(--color-base-200);
-  opacity: 0.4;
-}
-
-.debt-row-chosen {
-  background: color-mix(in oklab, var(--color-primary) 8%, var(--color-base-100));
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .debt-row {
-    transition:
-      background-color 150ms ease,
-      opacity 150ms ease;
-  }
-}
-</style>

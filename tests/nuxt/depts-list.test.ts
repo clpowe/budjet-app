@@ -285,15 +285,18 @@ describe("DeptsList", () => {
     expect(mocks.remove).toHaveBeenCalledWith({ id: "debt-1" });
   });
 
-  it("closes the matching edit drawer after an update", async () => {
+  it("closes the matching edit dialog after an update", async () => {
     const { wrapper } = mountList([makeDebt("debt-1", "Visa", 125.5)]);
-    const drawerToggle = wrapper.get<HTMLInputElement>("#debt-1");
-    drawerToggle.element.checked = true;
+    const dialog = wrapper.get<HTMLDialogElement>("#debt-1");
+
+    await wrapper.get('button[aria-label="Edit Visa"]').trigger("click");
     await flushPromises();
+
+    expect(dialog.element.open).toBe(true);
 
     await wrapper.get('[data-test="save-debt-1"]').trigger("click");
     await nextTick();
 
-    expect(drawerToggle.element.checked).toBe(false);
+    expect(dialog.element.open).toBe(false);
   });
 });

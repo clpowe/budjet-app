@@ -18,39 +18,26 @@ const {
   remove,
 } = useExpenses();
 
-const transactionDrawerToggle = ref<HTMLInputElement | null>(null);
+const transactionDialog = ref<HTMLDialogElement | null>(null);
 
-function openTransactionDrawer() {
-  if (transactionDrawerToggle.value) {
-    transactionDrawerToggle.value.checked = true;
-  }
+function openTransactionDialog() {
+  transactionDialog.value?.showModal();
 }
 </script>
 
 <template>
-  <div class="px-4 container mx-auto space-y-8">
-    <div class="flex items-center justify-between pt-4">
+  <main class="l-page l-stack">
+    <header class="l-cluster l-split">
+      <button type="button" @click="backDay">Previous day</button>
+      <h1>{{ appDay }}</h1>
       <button
-        @click="backDay"
-        class="btn btn-circle btn-ghost"
-        aria-label="Previous day"
-        title="Previous day"
-      >
-        <Icon name="i-heroicons-chevron-left" class="size-6" />
-      </button>
-      <div class="text-center">
-        <h1 class="text-2xl font-bold">{{ appDay }}</h1>
-      </div>
-      <button
+        type="button"
         @click="forwardDay"
-        class="btn btn-circle btn-ghost text-primary"
         :disabled="dayStart(currentDate).getTime() >= dayStart(new Date()).getTime()"
-        aria-label="Next day"
-        title="Next day"
       >
-        <Icon name="i-heroicons-chevron-right" class="size-6" />
+        Next day
       </button>
-    </div>
+    </header>
     <app-main-card
       title="Budget Overview"
       subtitle="Your current budget status"
@@ -65,25 +52,14 @@ function openTransactionDrawer() {
       </template>
       <template #actions> </template>
     </app-main-card>
-    <div class="drawer drawer-end w-full">
-      <input
-        id="my-drawer-5"
-        ref="transactionDrawerToggle"
-        type="checkbox"
-        class="drawer-toggle w-full"
-      />
-      <div class="drawer-content">
-        <button type="button" class="drawer-button btn btn-primary" @click="openTransactionDrawer">
-          Add transaction
-        </button>
-      </div>
-      <div class="drawer-side">
-        <label for="my-drawer-5" aria-label="close sidebar" class="drawer-overlay"></label>
-        <ul class="menu bg-base-200 min-h-full w-80 p-4">
-          <expenses-add />
-        </ul>
-      </div>
-    </div>
+    <button type="button" @click="openTransactionDialog">Add transaction</button>
+    <dialog id="transaction-dialog" ref="transactionDialog">
+      <header class="l-cluster l-split">
+        <h2>Add transaction</h2>
+        <form method="dialog"><button type="submit">Close</button></form>
+      </header>
+      <expenses-add />
+    </dialog>
     <expenses-list :expenses="expenses ?? []" :remove="remove" />
-  </div>
+  </main>
 </template>

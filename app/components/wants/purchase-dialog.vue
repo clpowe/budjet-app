@@ -199,29 +199,6 @@ watch(
   },
 );
 
-function trapFocus(event: KeyboardEvent) {
-  if (event.key !== "Tab" || !dialog.value) return;
-
-  const focusable = Array.from(
-    dialog.value.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-    ),
-  );
-
-  if (focusable.length === 0) return;
-
-  const first = focusable[0];
-  const last = focusable.at(-1);
-
-  if (event.shiftKey && document.activeElement === first && last) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last && first) {
-    event.preventDefault();
-    first.focus();
-  }
-}
-
 function submit() {
   if (parsedAmount.value === null || props.previewPending || props.isSubmitting) {
     return;
@@ -248,43 +225,30 @@ function submit() {
 <template>
   <dialog
     ref="dialog"
-    class="modal"
     aria-modal="true"
     :aria-labelledby="`${errorId}-title`"
     @cancel.prevent="emit('close')"
-    @keydown="trapFocus"
   >
-    <div class="modal-box max-w-xl">
-      <div class="flex items-start justify-between gap-3">
+    <div class="l-stack">
+      <header class="l-cluster l-split">
         <div>
-          <h2 :id="`${errorId}-title`" class="text-xl font-bold">
+          <h2 :id="`${errorId}-title`">
             {{ title }}
           </h2>
-          <p class="mt-1 text-sm text-base-content/65">
-            Enter the full amount paid. The server recalculates funding when you confirm.
-          </p>
+          <p>Enter the full amount paid. The server recalculates funding when you confirm.</p>
         </div>
 
-        <button
-          type="button"
-          class="btn btn-ghost btn-circle btn-sm"
-          aria-label="Close purchase dialog"
-          :disabled="isSubmitting"
-          @click="emit('close')"
-        >
-          <Icon name="lucide:x" size="18" aria-hidden="true" />
-        </button>
-      </div>
+        <button type="button" :disabled="isSubmitting" @click="emit('close')">Close</button>
+      </header>
 
-      <form class="mt-5 space-y-5" novalidate @submit.prevent="submit">
-        <label class="flex flex-col gap-1">
-          <span class="label">Full actual amount</span>
+      <form class="app-form" novalidate @submit.prevent="submit">
+        <label>
+          <span>Full actual amount</span>
           <input
             ref="amountInput"
             name="actualAmount"
             type="text"
             inputmode="decimal"
-            class="input w-full"
             :value="actualAmount"
             :disabled="isSubmitting"
             :aria-invalid="Boolean(amountError)"
@@ -292,53 +256,45 @@ function submit() {
           />
         </label>
 
-        <p v-if="amountError" role="alert" class="text-sm text-error">
+        <p v-if="amountError" role="alert">
           {{ amountError }}
         </p>
 
-        <label v-if="mode === 'purchase'" class="flex flex-col gap-1">
-          <span class="label">Purchase date</span>
+        <label v-if="mode === 'purchase'">
+          <span>Purchase date</span>
           <input
             v-model="purchaseDate"
             name="purchaseLocalDate"
             type="date"
-            class="input w-full"
             :disabled="isSubmitting"
             required
           />
         </label>
 
-        <p
-          v-if="previewPending"
-          role="status"
-          aria-live="polite"
-          class="text-sm text-base-content/65"
-        >
-          Refreshing purchase breakdown…
-        </p>
+        <p v-if="previewPending" role="status" aria-live="polite">Refreshing purchase breakdown…</p>
 
         <dl
+          class="l-grid"
           v-if="mode === 'purchase' && matchingPreview"
           data-test="purchase-breakdown"
-          class="grid gap-3 rounded-xl bg-base-200 p-4 sm:grid-cols-3"
         >
           <div>
-            <dt class="text-xs text-base-content/60">Actual amount</dt>
-            <dd class="font-bold">
+            <dt>Actual amount</dt>
+            <dd>
               {{ formatCents(matchingPreview.actualAmountCents) }}
             </dd>
           </div>
 
           <div>
-            <dt class="text-xs text-base-content/60">Reserve used</dt>
-            <dd class="font-bold">
+            <dt>Reserve used</dt>
+            <dd>
               {{ formatCents(matchingPreview.reserveUsedCents) }}
             </dd>
           </div>
 
           <div>
-            <dt class="text-xs text-base-content/60">General-budget impact</dt>
-            <dd class="font-bold">
+            <dt>General-budget impact</dt>
+            <dd>
               {{ formatCents(matchingPreview.budgetImpactCents) }}
             </dd>
           </div>
@@ -347,19 +303,14 @@ function submit() {
         <section
           v-if="matchingPreview && matchingPreview.lowerItemImpacts.length > 0"
           data-test="lower-item-impacts"
-          class="rounded-xl border border-warning/40 bg-warning/10 p-4"
           aria-labelledby="lower-item-impact-heading"
         >
-          <h3 id="lower-item-impact-heading" class="font-bold">Progress used from later Wants</h3>
+          <h3 id="lower-item-impact-heading">Progress used from later Wants</h3>
 
-          <ul class="mt-2 space-y-2">
-            <li
-              v-for="impact in matchingPreview.lowerItemImpacts"
-              :key="impact.itemId"
-              class="text-sm"
-            >
+          <ul>
+            <li v-for="impact in matchingPreview.lowerItemImpacts" :key="impact.itemId">
               <strong>{{ impact.name }}</strong>
-              <span class="block">
+              <span>
                 {{ formatCents(impact.lostCents) }} progress used ·
                 {{ formatCents(impact.allocatedCentsAfter) }} remains allocated
               </span>
@@ -367,23 +318,15 @@ function submit() {
           </ul>
         </section>
 
-        <p v-if="error" role="alert" aria-live="polite" class="alert alert-error text-sm">
+        <p v-if="error" role="alert" aria-live="polite">
           {{ error }}
         </p>
 
-        <div class="flex flex-wrap justify-end gap-2">
-          <button
-            type="button"
-            class="btn btn-ghost"
-            :disabled="isSubmitting"
-            @click="emit('close')"
-          >
-            Cancel
-          </button>
+        <div class="actions">
+          <button type="button" :disabled="isSubmitting" @click="emit('close')">Cancel</button>
 
           <button
             type="submit"
-            class="btn btn-primary"
             :disabled="
               Boolean(amountError) ||
               previewPending ||

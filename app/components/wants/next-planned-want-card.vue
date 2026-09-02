@@ -65,30 +65,26 @@ function formatLocalDate(localDate: string): string {
 </script>
 
 <template>
-  <section
-    aria-labelledby="next-planned-want-heading"
-    class="rounded-xl border border-base-300 bg-base-100 p-5 shadow-sm sm:p-6"
-  >
-    <div class="flex flex-wrap items-start justify-between gap-3">
+  <section aria-labelledby="next-planned-want-heading">
+    <div>
       <div>
-        <p class="text-sm font-semibold uppercase text-base-content/60">Shared goal reserve</p>
-        <h2 id="next-planned-want-heading" class="mt-1 text-2xl font-black">Next planned Want</h2>
+        <p>Shared goal reserve</p>
+        <h2 id="next-planned-want-heading">Next planned Want</h2>
       </div>
 
-      <NuxtLink to="/wants" class="btn btn-ghost btn-sm">View Wants</NuxtLink>
+      <NuxtLink to="/wants">View Wants</NuxtLink>
     </div>
 
     <template v-if="summary.nextPlannedWant">
-      <div class="mt-5 flex flex-wrap items-baseline justify-between gap-2">
-        <h3 class="text-xl font-bold">{{ summary.nextPlannedWant.name }}</h3>
-        <p class="text-sm font-semibold text-base-content/70">
+      <div>
+        <h3>{{ summary.nextPlannedWant.name }}</h3>
+        <p>
           {{ formatCents(summary.nextPlannedWant.allocatedCents) }} of
           {{ formatCents(summary.nextPlannedWant.estimatedCostCents) }} funded
         </p>
       </div>
 
       <progress
-        class="progress progress-primary mt-3 w-full"
         :aria-label="`${summary.nextPlannedWant.name} funding progress`"
         :value="summary.nextPlannedWant.progressBasisPoints"
         max="10000"
@@ -96,35 +92,29 @@ function formatLocalDate(localDate: string): string {
         {{ summary.nextPlannedWant.progressBasisPoints / 100 }}%
       </progress>
 
-      <p class="mt-2 text-sm text-base-content/65">
-        {{ formatCents(summary.nextPlannedWant.remainingCents) }} remains to fund this Want.
-      </p>
+      <p>{{ formatCents(summary.nextPlannedWant.remainingCents) }} remains to fund this Want.</p>
 
-      <p
-        v-if="guidance"
-        class="mt-4 rounded-lg bg-base-200 p-3 text-sm text-base-content/80"
-        :class="guidance.kind === 'recovery' ? 'border border-warning/40 bg-warning/10' : ''"
-      >
-        <span v-if="guidance.kind === 'recovery'" class="font-bold">Reserve recovery. </span>
+      <p v-if="guidance">
+        <span v-if="guidance.kind === 'recovery'">Reserve recovery. </span>
         {{ guidanceCopy }}
       </p>
     </template>
 
-    <p v-else class="mt-5 max-w-xl text-sm text-base-content/70">
+    <p v-else>
       No active Want yet. Move an idea into Plan for it when your household is ready to fund it.
     </p>
 
-    <dl class="mt-5 grid gap-3 border-t border-base-300 pt-4 sm:grid-cols-2">
+    <dl>
       <div>
-        <dt class="text-sm text-base-content/60">Available reserve</dt>
-        <dd class="mt-1 text-xl font-bold">
+        <dt>Available reserve</dt>
+        <dd>
           {{ formatCents(summary.reserve.availableCents) }}
         </dd>
       </div>
 
       <div>
-        <dt class="text-sm text-base-content/60">Potential tonight</dt>
-        <dd class="mt-1 text-xl font-bold">
+        <dt>Potential tonight</dt>
+        <dd>
           {{ formatCents(summary.reserve.projectedEndOfDayContributionCents) }}
         </dd>
       </div>

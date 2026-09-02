@@ -8,7 +8,7 @@ const strategy = computed(() => getWantStatusStrategy(props.status));
 </script>
 
 <template>
-  <span class="badge badge-sm font-semibold" :class="strategy.badgeClass">
+  <span>
     {{ strategy.label }}
   </span>
 </template>

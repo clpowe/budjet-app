@@ -52,8 +52,7 @@ async function handleSubmit() {
     formState.value = makeFormState();
 
     if (props.drawerId) {
-      const toggle = document.getElementById(props.drawerId) as HTMLInputElement | null;
-      if (toggle) toggle.checked = false;
+      (document.getElementById(props.drawerId) as HTMLDialogElement | null)?.close();
     }
   } catch (error) {
     submitError.value =

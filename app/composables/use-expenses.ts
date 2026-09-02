@@ -36,7 +36,7 @@ export function useExpenses() {
   );
 
   const dailyBudget = computed(() => centsToDollars(summary.value?.plan.dailyAllowanceCents));
-  const total = computed(() => centsToDollars(summary.value?.spending.month.expenseCents));
+  const total = computed(() => centsToDollars(summary.value?.spending.monthToDate.expenseCents));
   const safeToSpendCents = computed(() => summary.value?.plan.safeToSpendCents ?? 0n);
   const currentPosition = computed(
     () =>
@@ -51,13 +51,13 @@ export function useExpenses() {
   });
 
   const burn_rate = computed(() => {
-    const value = centsToDollars(summary.value?.spending.month.averageDailyBudgetImpactCents);
+    const value = centsToDollars(summary.value?.spending.monthToDate.averageDailyBudgetImpactCents);
     const positive = value <= dailyBudget.value;
     return moneyState(value, positive);
   });
 
   const variance = computed(() => {
-    const value = centsToDollars(summary.value?.spending.month.budgetImpactVarianceCents);
+    const value = centsToDollars(summary.value?.spending.monthToDate.budgetImpactVarianceCents);
     const positive = value >= 0;
     return moneyState(value, positive);
   });

@@ -1,2 +1,191 @@
-@import "tailwindcss";
-@plugin "daisyui";
+/* Tokens */
+:root {
+  --measure: 72rem;
+  --space: 1rem;
+}
+
+/* Base */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+body,
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+summary {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+textarea {
+  min-height: 6rem;
+}
+
+progress {
+  width: 100%;
+}
+
+dialog,
+[popover] {
+  width: min(32rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid;
+}
+
+:focus-visible {
+  outline: 2px solid;
+  outline-offset: 2px;
+}
+
+/* Composition */
+.l-page {
+  width: min(calc(100% - 2rem), var(--measure));
+  margin-inline: auto;
+  padding-block: 1rem;
+}
+
+.l-stack {
+  display: grid;
+  gap: var(--space);
+}
+
+.l-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.l-split {
+  justify-content: space-between;
+}
+
+.l-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space);
+}
+
+.l-center {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+/* Utilities */
+.u-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.u-scroll {
+  overflow: auto;
+}
+
+/* Blocks */
+.site-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid;
+}
+
+.panel {
+  padding: 1rem;
+  border: 1px solid;
+}
+
+.metric {
+  font-size: clamp(2rem, 8vw, 4rem);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.app-form {
+  display: grid;
+  gap: var(--space);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chart {
+  min-width: 0;
+  overflow: auto;
+}
+
+/* Exceptions */
+[aria-current="page"] {
+  font-weight: 700;
+}
+
+[aria-invalid="true"] {
+  border-width: 2px;
+}

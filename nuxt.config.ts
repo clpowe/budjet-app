@@ -1,6 +1,5 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
-import tailwindcss from "@tailwindcss/vite";
-import type { NuxtConfig, ViteOptions } from "nuxt/schema";
+import type { NuxtConfig } from "nuxt/schema";
 import { fileURLToPath } from "url";
 
 const convexUrls = {
@@ -13,10 +12,6 @@ type NuxtConfigWithEnvironments = NuxtConfig & {
   $production?: { convex: { url: string } };
 };
 
-const vite = {
-  plugins: tailwindcss(),
-} as ViteOptions;
-
 export default {
   compatibilityDate: "2025-07-15",
   ssr: false,
@@ -24,9 +19,8 @@ export default {
   experimental: {
     viteEnvironmentApi: true,
   },
-  modules: ["convex-nuxt", "@nuxt/icon", "nitro-cloudflare-dev"],
+  modules: ["convex-nuxt", "nitro-cloudflare-dev"],
 
-  vite,
   alias: {
     "@generated": fileURLToPath(new URL("./convex/_generated/", import.meta.url)),
   },

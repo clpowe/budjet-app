@@ -5,7 +5,7 @@ const { data } = useConvexQuery(api.windfall.getMyWindfallTotal);
 </script>
 
 <template>
-  <div class="px-4 container mx-auto space-y-8">
+  <main class="l-page l-stack">
     <app-main-card title="Windfall" subtitle="One-off income and outflows" :amount="data">
       <template #actions>
         <app-drawer title="windfall-add" label="Add Windfall">
@@ -15,5 +15,5 @@ const { data } = useConvexQuery(api.windfall.getMyWindfallTotal);
     </app-main-card>
 
     <windfall-list />
-  </div>
+  </main>
 </template>
