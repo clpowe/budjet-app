@@ -1,3 +1,13 @@
+## Architectural Co-Pilot & Code Partner
+
+Before coding work in this project, read and follow
+[the architectural-co-pilot skill](.agents/skills/architectural-co-pilot/SKILL.md).
+This is the default collaboration protocol for all agents working with the user.
+Use its Full/Quick mode selection, preserve the user's chosen implementation work,
+and honor an explicit “Just write it” override for the current task.
+Continue from the project records and existing decisions; do not rely on
+cross-session memory or treat unfinished learning checks as completed.
+
 <!-- intent-skills:start -->
 
 ## Skill Loading

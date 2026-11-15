@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "nuxt build",
-    "dev": "portless budget-app nuxt dev --dotenv .env.local",
+    "dev": "convex dev --start 'pnpm run dev:nuxt'",
+    "dev:nuxt": "portless budget-app nuxt dev --dotenv .env.local",
     "generate": "nuxt generate",
     "preview": "pnpm run build && wrangler dev",
     "postinstall": "nuxt prepare",

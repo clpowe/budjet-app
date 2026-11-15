@@ -2,7 +2,7 @@
 import { api } from "../../convex/_generated/api";
 import { formatCents } from "../../shared/utils/money-cents";
 
-const { appDay, formatDateInput, localDate, setDate } = useDate();
+const { appDay, formatDateInput, currentMonth, currentDate, setDate } = useDate();
 
 const { summary, safeToSpendCents, totalToday, burn_rate, variance, currentPosition } =
   useExpenses();
@@ -20,6 +20,50 @@ const debtDialog = shallowRef<HTMLDialogElement | null>(null);
 function openDialog(dialog: HTMLDialogElement | null) {
   dialog?.showModal();
 }
+
+// Chat is an inline column on desktop; close the mobile drawer if the viewport grows past the breakpoint.
+const chatPopover = shallowRef<HTMLElement | null>(null);
+let desktopQuery: MediaQueryList | undefined;
+
+function closeChatOnDesktop(event: MediaQueryListEvent) {
+  if (event.matches && chatPopover.value?.matches(":popover-open")) {
+    chatPopover.value.hidePopover();
+  }
+}
+
+onMounted(() => {
+  desktopQuery = window.matchMedia("(width >= 500px)");
+  desktopQuery.addEventListener("change", closeChatOnDesktop);
+});
+
+onBeforeUnmount(() => {
+  desktopQuery?.removeEventListener("change", closeChatOnDesktop);
+});
+
+// Keep the existing details tabs in sync with the child route.
+type HeaderTab = "today" | "month";
+const route = useRoute();
+const activeTab = computed<HeaderTab>({
+  get: () => (route.path.replace(/\/$/, "").endsWith("/month") ? "month" : "today"),
+  set: (tab) => {
+    void navigateTo(`/home/${tab}`);
+  },
+});
+
+// Browser-initiated opens (e.g. find-in-page) bypass the summary click; keep state in sync.
+function syncActiveTab(tab: HeaderTab, event: Event) {
+  if ((event.target as HTMLDetailsElement).open && activeTab.value !== tab) {
+    activeTab.value = tab;
+  }
+}
+
+definePageMeta({
+  middleware: (to) => {
+    if (to.path === "/home" || to.path === "/home/") {
+      return navigateTo("/home/today", { replace: true });
+    }
+  },
+});
 
 const safeToSpendState = computed(() => {
   if (safeToSpendCents.value < 0n) {
@@ -43,115 +87,158 @@ const nextPlannedWantTargetLocalDate = computed(() => {
 </script>
 
 <template>
-  <main class="l-page l-stack">
-    <section class="panel l-stack" aria-labelledby="today-position-heading">
-      <header class="l-cluster l-split">
-        <div>
-          <p>{{ appDay }}</p>
-          <h1 id="today-position-heading">{{ safeToSpendState.label }}</h1>
-          <p class="metric">{{ formatCents(safeToSpendCents) }}</p>
-          <p>{{ safeToSpendState.helper }}</p>
-        </div>
+  <div class="home">
+    <div class="page-info">
+      <p>Date</p>
+      <h1>Home</h1>
+    </div>
+    <div class="controls">
+      <div>Toggle <button popovertarget="chatpopover">chat</button></div>
+    </div>
+    <div class="main-section">
+      <div>
+        <div id="tabs" class="tabs">
+          <details
+            name="header-tabs"
+            :open="activeTab === 'today'"
+            @toggle="syncActiveTab('today', $event)"
+          >
+            <summary @click.prevent="activeTab = 'today'">Today</summary>
+            <div>Content 1</div>
+          </details>
 
-        <div class="actions">
-          <button type="button" @click="openDialog(transactionDialog)">Add transaction</button>
-          <NuxtLink to="/today">View today&apos;s spending</NuxtLink>
+          <details
+            name="header-tabs"
+            :open="activeTab === 'month'"
+            @toggle="syncActiveTab('month', $event)"
+          >
+            <summary @click.prevent="activeTab = 'month'">{{ currentMonth }}</summary>
+            <div>Content 2</div>
+          </details>
         </div>
-      </header>
-
-      <dialog id="transaction-dialog" ref="transactionDialog">
-        <header class="l-cluster l-split">
-          <h2>Add transaction</h2>
-          <form method="dialog"><button type="submit">Close</button></form>
-        </header>
-        <expenses-add />
-      </dialog>
-
-      <dl class="l-grid">
-        <div>
-          <dt>Spent so far</dt>
-          <dd>{{ formatCents(summary?.spending.monthToDate.expenseCents ?? 0n) }}</dd>
-        </div>
-        <div>
-          <dt>Budget impact</dt>
-          <dd>{{ formatCents(summary?.spending.monthToDate.budgetImpactCents ?? 0n) }}</dd>
-        </div>
-        <div>
-          <dt>Reserved this plan</dt>
-          <dd>{{ formatCents(summary?.plan.closedPositiveReserveContributionCents ?? 0n) }}</dd>
-        </div>
-        <div>
-          <dt>Goal reserve</dt>
-          <dd>{{ formatCents(summary?.reserve.availableCents ?? 0n) }}</dd>
-        </div>
-        <div>
-          <dt>Potential tonight</dt>
-          <dd>{{ formatCents(summary?.reserve.projectedEndOfDayContributionCents ?? 0n) }}</dd>
-        </div>
-        <div>
-          <dt>Money left today</dt>
-          <dd>{{ formatMoney(currentPosition ?? 0) }}</dd>
-        </div>
-        <div>
-          <dt>Spent today</dt>
-          <dd>{{ formatMoney(totalToday.value) }}</dd>
-        </div>
-        <div>
-          <dt>Average daily spending</dt>
-          <dd>{{ formatMoney(burn_rate.value) }}</dd>
-        </div>
-        <div>
-          <dt>Over/under budget</dt>
-          <dd>{{ formatMoney(variance.value) }}</dd>
-        </div>
-      </dl>
-    </section>
-
-    <WantsNextPlannedWantCard
-      v-if="summary"
-      :summary="summary"
-      :today-local-date="localDate"
-      :target-local-date="nextPlannedWantTargetLocalDate"
-    />
-
-    <SpendingMonthlyChart />
-
-    <section class="l-grid" aria-label="Secondary balances">
-      <article class="panel l-stack">
-        <div>
-          <h2>Windfall</h2>
-          <p>{{ formatMoney(windfallTotal ?? 0) }}</p>
-        </div>
-        <div class="actions">
-          <button type="button" @click="openDialog(windfallDialog)">Add windfall</button>
-          <NuxtLink to="/windfall">View windfall</NuxtLink>
-        </div>
-        <dialog id="windfall-dialog" ref="windfallDialog">
-          <header class="l-cluster l-split">
-            <h2>Add windfall</h2>
-            <form method="dialog"><button type="submit">Close</button></form>
-          </header>
-          <windfall-add drawer-id="windfall-dialog" />
-        </dialog>
-      </article>
-
-      <article class="panel l-stack">
-        <div>
-          <h2>Debt snowball</h2>
-          <p>{{ formatMoney(totalPayment ?? 0) }}</p>
-        </div>
-        <div class="actions">
-          <button type="button" @click="openDialog(debtDialog)">Add debt</button>
-          <NuxtLink to="/mydepts">View debts</NuxtLink>
-        </div>
-        <dialog id="debt-dialog" ref="debtDialog">
-          <header class="l-cluster l-split">
-            <h2>Add debt</h2>
-            <form method="dialog"><button type="submit">Close</button></form>
-          </header>
-          <depts-add />
-        </dialog>
-      </article>
-    </section>
-  </main>
+      </div>
+      <div class="content-container">
+        <NuxtPage />
+      </div>
+    </div>
+    <div id="chatpopover" ref="chatPopover" class="chat-section" popover>Chat</div>
+  </div>
 </template>
+
+<style scoped>
+.home {
+  display: grid;
+  height: 100%;
+  grid-template-areas:
+    "info"
+    "main"
+    "controls";
+  grid-template-rows: auto 1fr auto;
+
+  @container main-container (width >= 1000px) {
+    grid-template-areas:
+      "info controls chat"
+      "main main chat";
+    grid-template-columns: 1fr auto minmax(0, 400px);
+    grid-template-rows: auto 1fr;
+  }
+}
+.page-info {
+  grid-area: info;
+}
+.controls {
+  grid-area: controls;
+}
+.main-section {
+  grid-area: main;
+}
+.chat-section {
+  grid-area: chat;
+  max-width: 400px;
+
+  /* Mobile: drawer sliding in from the right. */
+  inset: 0 0 0 auto;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  translate: 100% 0;
+  transition:
+    translate 0.25s ease,
+    display 0.25s allow-discrete,
+    overlay 0.25s allow-discrete;
+}
+.chat-section:popover-open {
+  translate: 0 0;
+}
+@starting-style {
+  .chat-section:popover-open {
+    translate: 100% 0;
+  }
+}
+.chat-section::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+
+/* Desktop: plain grid column; beats the global [popover]:not(:popover-open) hide rule. */
+@container main-container (width >= 1000px) {
+  .chat-section,
+  .chat-section:not(:popover-open) {
+    display: block;
+    position: static;
+    inset: auto;
+    margin: 0;
+    translate: none;
+    width: auto;
+    height: auto;
+    max-height: none;
+    border: 0;
+    transition: none;
+  }
+  .controls [popovertarget="chatpopover"] {
+    display: none;
+  }
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto 1fr;
+  column-gap: 1rem;
+
+  details {
+    display: grid;
+    grid-template-rows: subgrid;
+    grid-template-columns: subgrid;
+    grid-column: 1 / -1;
+    grid-row: 1 / span 2;
+
+    &::details-content {
+      grid-row: 2;
+      grid-column: 1/ -1;
+      padding: 1rem;
+    }
+
+    &:not([open])::details-content {
+      display: none;
+    }
+    &:nth-of-type(1) summary {
+      grid-column: 1 / span 1;
+    }
+    /* Second item in second column */
+    &:nth-of-type(2) summary {
+      grid-column: 2 / span 1;
+    }
+  }
+  summary {
+    grid-row: 1; /* First subgrid row */
+    display: grid;
+    z-index: 1;
+    padding: 1rem; /* Some breathing room */
+    cursor: pointer; /* Update the cursor when hovered */
+  }
+}
+.content-container {
+  container-type: inline-size;
+  container-name: content-container;
+}
+</style>

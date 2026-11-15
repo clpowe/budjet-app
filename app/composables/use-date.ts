@@ -56,6 +56,14 @@ export function useDate(timeZoneInput?: TimeZoneInput) {
     });
   });
 
+  const currentMonth = computed(() => {
+    return format({
+      date: new Date(currentDate.value),
+      format: "MMMM",
+      tz: "America/New_York",
+    });
+  });
+
   const elapsedDays = computed(() => Number(localDate.value.slice(8, 10)));
 
   const totalDaysInMonth = computed(() => {
@@ -114,6 +122,7 @@ export function useDate(timeZoneInput?: TimeZoneInput) {
 
   return {
     currentDate,
+    currentMonth,
     timeZone,
     queryDayBounds,
     queryMonthBounds,

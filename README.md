@@ -22,7 +22,7 @@ bun install
 
 ## Development Server
 
-Start the development server on `http://localhost:3000`:
+Start Convex and the Nuxt development server together:
 
 ```bash
 # npm
@@ -37,6 +37,13 @@ yarn dev
 # bun
 bun run dev
 ```
+
+Convex syncs the development backend first, then starts Nuxt through Portless
+using `.env.local`. Open the URL printed by Portless. Press `Ctrl+C` to stop both
+processes.
+
+To run only Nuxt, use `pnpm run dev:nuxt`. With Vite+, use `vp run dev` to run
+the combined development script.
 
 ## Production
 
