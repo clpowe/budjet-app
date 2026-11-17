@@ -32,8 +32,7 @@ async function handleSubmit() {
   submitError.value = "";
   if (isDisabled.value) return;
 
-  const householdId = user.value?.householdId;
-  if (!householdId) {
+  if (!user.value?.householdId) {
     submitError.value = "Finish household setup before adding a windfall.";
     return;
   }
@@ -45,7 +44,6 @@ async function handleSubmit() {
       source: name,
       notes,
       amount,
-      householdId,
       date: toTransactionTimestamp(date),
     });
 

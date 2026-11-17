@@ -1,13 +1,9 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
 import { internalMutation } from "./_generated/server";
-import { getStoredHouseholdTimeZone } from "./households";
-import { applyReserveEvent } from "./reserve";
-import { getLocalDateKey, getNextLocalDate } from "./lib/want_reserve";
+import { CLOSE_DAYS_PER_TRANSACTION, closeReserveDays } from "./lib/reserve_account";
 
-export const CLOSE_DAYS_PER_TRANSACTION = 31;
+export { CLOSE_DAYS_PER_TRANSACTION };
 export const HOUSEHOLDS_PER_BATCH = 25;
 
 const cursorValidator = v.union(v.string(), v.null());
@@ -17,129 +13,7 @@ const closeResultValidator = v.object({
   lastClosedLocalDate: v.optional(v.string()),
 });
 
-type CloseDaysThroughArgs = {
-  householdId: Id<"households">;
-  throughExclusiveTimestamp: number;
-  maxDays: number;
-};
-
-export async function closeDaysThrough(
-  ctx: MutationCtx,
-  { householdId, throughExclusiveTimestamp, maxDays }: CloseDaysThroughArgs,
-): Promise<{ complete: boolean; lastClosedLocalDate?: string }> {
-  if (!Number.isFinite(throughExclusiveTimestamp)) {
-    throw new Error("Closing timestamp must be finite");
-  }
-
-  if (!Number.isInteger(maxDays) || maxDays < 1) {
-    throw new Error("Maximum closed days must be a positive integer");
-  }
-
-  const household = await ctx.db.get(householdId);
-
-  if (!household) {
-    throw new Error("Household not found");
-  }
-
-  if (household.allowanceCents === undefined) {
-    throw new Error("Household money migration is still in progress");
-  }
-
-  const reserveState = await ctx.db
-    .query("goalReserveStates")
-    .withIndex("by_household", (q) => q.eq("householdId", householdId))
-    .unique();
-
-  if (!reserveState) {
-    return { complete: true };
-  }
-
-  const timeZone = getStoredHouseholdTimeZone(household);
-  const throughExclusiveLocalDate = getLocalDateKey(throughExclusiveTimestamp, timeZone);
-  const maximumDays = Math.min(maxDays, CLOSE_DAYS_PER_TRANSACTION);
-
-  let nextLocalDate = reserveState.lastClosedLocalDate
-    ? getNextLocalDate(reserveState.lastClosedLocalDate, timeZone)
-    : reserveState.firstEligibleLocalDate;
-  let currentReserveState = reserveState;
-  let lastClosedLocalDate = reserveState.lastClosedLocalDate;
-  let closedDayCount = 0;
-
-  while (nextLocalDate < throughExclusiveLocalDate && closedDayCount < maximumDays) {
-    const existingDay = await ctx.db
-      .query("goalReserveDays")
-      .withIndex("by_household_and_local_date", (q) =>
-        q.eq("householdId", householdId).eq("localDate", nextLocalDate),
-      )
-      .unique();
-
-    if (existingDay) {
-      throw new Error("Reserve day already exists before the recorded close cursor");
-    }
-
-    const rollup = await ctx.db
-      .query("dailyBudgetRollups")
-      .withIndex("by_household_and_local_date", (q) =>
-        q.eq("householdId", householdId).eq("localDate", nextLocalDate),
-      )
-      .unique();
-
-    const spendingSnapshotCents = rollup?.budgetImpactExpenseCents ?? 0n;
-    const contributionCents = household.allowanceCents - spendingSnapshotCents;
-
-    await ctx.db.insert("goalReserveDays", {
-      householdId,
-      localDate: nextLocalDate,
-      timeZone,
-      allowanceSnapshotCents: household.allowanceCents,
-      spendingSnapshotCents,
-      contributionCents,
-      closedAt: throughExclusiveTimestamp,
-      updatedAt: throughExclusiveTimestamp,
-    });
-
-    currentReserveState = await applyReserveEvent(
-      ctx,
-      currentReserveState,
-      {
-        kind: "daily_close",
-        localDate: nextLocalDate,
-        allowanceCents: household.allowanceCents,
-        spendingCents: spendingSnapshotCents,
-      },
-      throughExclusiveTimestamp,
-    );
-
-    lastClosedLocalDate = nextLocalDate;
-    nextLocalDate = getNextLocalDate(nextLocalDate, timeZone);
-    closedDayCount += 1;
-  }
-
-  if (
-    household.pendingTimeZone !== undefined &&
-    household.pendingTimeZoneEffectiveAt !== undefined &&
-    throughExclusiveTimestamp >= household.pendingTimeZoneEffectiveAt
-  ) {
-    const finalOldTimeZoneDate = getLocalDateKey(
-      household.pendingTimeZoneEffectiveAt - 1,
-      timeZone,
-    );
-
-    if (lastClosedLocalDate !== undefined && lastClosedLocalDate >= finalOldTimeZoneDate) {
-      await ctx.db.patch(household._id, {
-        timeZone: household.pendingTimeZone,
-        pendingTimeZone: undefined,
-        pendingTimeZoneEffectiveAt: undefined,
-      });
-    }
-  }
-
-  return {
-    complete: nextLocalDate >= throughExclusiveLocalDate,
-    ...(lastClosedLocalDate !== undefined ? { lastClosedLocalDate } : {}),
-  };
-}
-
+/** Closes one household's days; keeps rescheduling itself until caught up. */
 export const closeThrough = internalMutation({
   args: {
     householdId: v.id("households"),
@@ -148,16 +22,17 @@ export const closeThrough = internalMutation({
   },
   returns: closeResultValidator,
   handler: async (ctx, args) => {
-    return await closeDaysThrough(ctx, args);
+    const result = await closeReserveDays(ctx, args);
+
+    if (!result.complete) {
+      await ctx.scheduler.runAfter(0, internal.reserveMaintenance.closeThrough, args);
+    }
+
+    return result;
   },
 });
 
-export async function scheduleReserveCatchUp(ctx: MutationCtx): Promise<void> {
-  await ctx.scheduler.runAfter(0, internal.reserveMaintenance.closeEligibleDays, {
-    cursor: null,
-  });
-}
-
+/** Hourly sweep over every activated household. */
 export const closeEligibleDays = internalMutation({
   args: {
     cursor: cursorValidator,
@@ -173,7 +48,7 @@ export const closeEligibleDays = internalMutation({
     let hasIncompleteHousehold = false;
 
     for (const reserveState of page.page) {
-      const result = await closeDaysThrough(ctx, {
+      const result = await closeReserveDays(ctx, {
         householdId: reserveState.householdId,
         throughExclusiveTimestamp: serverNow,
         maxDays: CLOSE_DAYS_PER_TRANSACTION,

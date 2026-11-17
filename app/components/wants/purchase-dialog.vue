@@ -8,7 +8,7 @@ type PurchasePreview = {
   actualAmountCents: bigint;
   reserveUsedCents: bigint;
   budgetImpactCents: bigint;
-  lowerItemImpacts: Array<{
+  progressLosses: Array<{
     itemId: Id<"wantItems">;
     name: string;
     lostCents: bigint;
@@ -301,18 +301,18 @@ function submit() {
         </dl>
 
         <section
-          v-if="matchingPreview && matchingPreview.lowerItemImpacts.length > 0"
-          data-test="lower-item-impacts"
-          aria-labelledby="lower-item-impact-heading"
+          v-if="matchingPreview && matchingPreview.progressLosses.length > 0"
+          data-test="progress-losses"
+          aria-labelledby="progress-losses-heading"
         >
-          <h3 id="lower-item-impact-heading">Progress used from later Wants</h3>
+          <h3 id="progress-losses-heading">Progress affected on other Wants</h3>
 
           <ul>
-            <li v-for="impact in matchingPreview.lowerItemImpacts" :key="impact.itemId">
-              <strong>{{ impact.name }}</strong>
+            <li v-for="loss in matchingPreview.progressLosses" :key="loss.itemId">
+              <strong>{{ loss.name }}</strong>
               <span>
-                {{ formatCents(impact.lostCents) }} progress used ·
-                {{ formatCents(impact.allocatedCentsAfter) }} remains allocated
+                {{ formatCents(loss.lostCents) }} progress used ·
+                {{ formatCents(loss.allocatedCentsAfter) }} remains allocated
               </span>
             </li>
           </ul>

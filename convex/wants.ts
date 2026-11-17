@@ -2,11 +2,8 @@ import { paginationOptsValidator, paginationResultValidator } from "convex/serve
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import type { MutationCtx, QueryCtx } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
-import { centsToLegacyDollars } from "./expenses";
-import { getEffectiveTimeZone } from "./households";
-import { applyExpenseDelta, type ExpenseFacts } from "./lib/daily_budget_rollups";
 import {
   appendActiveWant,
   loadActiveWantQueue,
@@ -14,21 +11,19 @@ import {
   removeActiveWant,
   reorderActiveWants,
 } from "./lib/active_want_queue.ts";
-import { getAuthenticatedUser } from "./lib/helpers";
-import { projectCurrentReserve, getCurrentReserveSnapshot } from "./lib/live_reserve";
+import { requireHouseholdDoc, requireHouseholdMember } from "./lib/household_access";
+import {
+  activateReserve,
+  correctPurchase as correctReserveFundedPurchase,
+  getReserveSnapshot,
+  recordPurchase,
+  undoPurchase as undoReserveFundedPurchase,
+} from "./lib/reserve_account";
 import {
   allocateReserve,
-  calculateLowerItemImpact,
+  calculateProgressLosses,
   calculatePurchaseFunding,
-  getLocalDateKey,
-  getLocalDayBounds,
 } from "./lib/want_reserve";
-import {
-  CLOSE_DAYS_PER_TRANSACTION,
-  closeDaysThrough,
-  scheduleReserveCatchUp,
-} from "./reserveMaintenance";
-import { applyReserveEvent, ensureGoalReserveActivated } from "./reserve";
 
 export const INACTIVE_WANTS_PAGE_SIZE = 25;
 
@@ -77,7 +72,7 @@ const changeStatusResultValidator = v.union(
   }),
 );
 
-const lowerItemImpactValidator = v.object({
+const progressLossValidator = v.object({
   itemId: v.id("wantItems"),
   name: v.string(),
   lostCents: v.int64(),
@@ -87,7 +82,7 @@ const lowerItemImpactValidator = v.object({
 const previewPurchaseResultValidator = v.object({
   reserveUsedCents: v.int64(),
   budgetImpactCents: v.int64(),
-  lowerItemImpacts: v.array(lowerItemImpactValidator),
+  progressLosses: v.array(progressLossValidator),
 });
 
 const purchaseResultValidator = v.union(
@@ -102,18 +97,26 @@ const purchaseResultValidator = v.union(
   }),
 );
 
-const correctPurchaseResultValidator = v.object({
-  success: v.literal(true),
-  expenseId: v.id("expenses"),
-  reserveUsedCents: v.int64(),
-  budgetImpactCents: v.int64(),
+const reserveSyncingValidator = v.object({
+  status: v.literal("reserve_syncing"),
 });
 
-const undoPurchaseResultValidator = v.object({
-  success: v.literal(true),
-});
+const correctPurchaseResultValidator = v.union(
+  reserveSyncingValidator,
+  v.object({
+    success: v.literal(true),
+    expenseId: v.id("expenses"),
+    reserveUsedCents: v.int64(),
+    budgetImpactCents: v.int64(),
+  }),
+);
 
-type DatabaseCtx = MutationCtx | QueryCtx;
+const undoPurchaseResultValidator = v.union(
+  reserveSyncingValidator,
+  v.object({
+    success: v.literal(true),
+  }),
+);
 
 function normalizeName(name: string): string {
   const normalizedName = name.trim();
@@ -147,20 +150,6 @@ function assertInactivePageSize(numItems: number): void {
   }
 }
 
-async function requireHouseholdWant(
-  ctx: DatabaseCtx,
-  wantItemId: Id<"wantItems">,
-  householdId: Id<"households">,
-): Promise<Doc<"wantItems">> {
-  const wantItem = await ctx.db.get(wantItemId);
-
-  if (!wantItem || wantItem.householdId !== householdId) {
-    throw new Error("Want item not found");
-  }
-
-  return wantItem;
-}
-
 async function requireLinkedPurchase(
   ctx: MutationCtx,
   itemId: Id<"wantItems">,
@@ -169,7 +158,13 @@ async function requireLinkedPurchase(
   item: Doc<"wantItems">;
   expense: Doc<"expenses">;
 }> {
-  const item = await requireHouseholdWant(ctx, itemId, householdId);
+  const item = await requireHouseholdDoc(
+    ctx,
+    "wantItems",
+    itemId,
+    householdId,
+    "Want item not found",
+  );
 
   if (item.status !== "bought" || !item.expenseId) {
     throw new Error("Want item does not have a linked purchase");
@@ -200,13 +195,8 @@ export const list = query({
     active: v.array(wantItemValidator),
   }),
   handler: async (ctx) => {
-    const user = await getAuthenticatedUser(ctx);
-
-    const householdId = user.householdId;
-
-    if (!householdId) {
-      throw new Error("User is not in a household");
-    }
+    const { household } = await requireHouseholdMember(ctx);
+    const householdId = household._id;
 
     const active = await ctx.db
       .query("wantItems")
@@ -235,13 +225,8 @@ export const listSection = query({
   },
   returns: paginationResultValidator(wantItemValidator),
   handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
-
-    const householdId = user.householdId;
-
-    if (!householdId) {
-      throw new Error("User is not in a household");
-    }
+    const { household } = await requireHouseholdMember(ctx);
+    const householdId = household._id;
 
     assertInactivePageSize(args.paginationOpts.numItems);
 
@@ -266,11 +251,7 @@ export const create = mutation({
   returns: wantItemValidator,
   handler: async (ctx, args) => {
     const now = Date.now();
-    const user = await getAuthenticatedUser(ctx);
-
-    if (!user.householdId) {
-      throw new Error("User is not in a household");
-    }
+    const { user, household } = await requireHouseholdMember(ctx);
 
     assertPositiveCents(args.estimatedCostCents, "Estimated cost");
 
@@ -279,7 +260,7 @@ export const create = mutation({
     }
 
     const wantItemId = await ctx.db.insert("wantItems", {
-      householdId: user.householdId,
+      householdId: household._id,
       name: normalizeName(args.name),
       estimatedCostCents: args.estimatedCostCents,
       priority: args.priority,
@@ -314,13 +295,15 @@ export const update = mutation({
   returns: wantItemValidator,
   handler: async (ctx, args) => {
     const now = Date.now();
-    const user = await getAuthenticatedUser(ctx);
+    const { user, household } = await requireHouseholdMember(ctx);
 
-    if (!user.householdId) {
-      throw new Error("User is not in a household");
-    }
-
-    const wantItem = await requireHouseholdWant(ctx, args.itemId, user.householdId);
+    const wantItem = await requireHouseholdDoc(
+      ctx,
+      "wantItems",
+      args.itemId,
+      household._id,
+      "Want item not found",
+    );
 
     if (wantItem.status === "bought") {
       throw new Error("Bought items can only be changed through purchase actions");
@@ -357,19 +340,15 @@ export const changeStatus = mutation({
   returns: changeStatusResultValidator,
   handler: async (ctx, args) => {
     const now = Date.now();
-    const user = await getAuthenticatedUser(ctx);
+    const { user, household } = await requireHouseholdMember(ctx);
 
-    if (!user.householdId) {
-      throw new Error("User is not in a household");
-    }
-
-    const wantItem = await requireHouseholdWant(ctx, args.itemId, user.householdId);
-
-    const household = await ctx.db.get(user.householdId);
-
-    if (!household) {
-      throw new Error("Household not found");
-    }
+    const wantItem = await requireHouseholdDoc(
+      ctx,
+      "wantItems",
+      args.itemId,
+      household._id,
+      "Want item not found",
+    );
 
     if (wantItem.status === "bought" || args.status === "bought") {
       throw new Error("Bought items can only be changed through purchase actions");
@@ -421,12 +400,7 @@ export const changeStatus = mutation({
     }
 
     if (isActivating) {
-      await ensureGoalReserveActivated(ctx, {
-        householdId: household._id,
-        actorId: user._id,
-        now,
-        timeZone: getEffectiveTimeZone(household, now),
-      });
+      await activateReserve(ctx, { household, actorId: user._id, now });
     }
 
     const updatedWantItem = await ctx.db.get(wantItem._id);
@@ -451,14 +425,10 @@ export const reorder = mutation({
   }),
   handler: async (ctx, args) => {
     const now = Date.now();
-    const user = await getAuthenticatedUser(ctx);
-
-    if (!user.householdId) {
-      throw new Error("User is not in a household");
-    }
+    const { user, household } = await requireHouseholdMember(ctx);
 
     await reorderActiveWants(ctx, {
-      householdId: user.householdId,
+      householdId: household._id,
       itemIds: args.itemIds,
       actorId: user._id,
       now,
@@ -482,71 +452,64 @@ export const previewPurchase = query({
       throw new Error("Preview time must be finite");
     }
 
-    const user = await getAuthenticatedUser(ctx);
+    const { household } = await requireHouseholdMember(ctx);
 
-    if (!user.householdId) {
-      throw new Error("User is not in a household");
-    }
+    const wantItem = await requireHouseholdDoc(
+      ctx,
+      "wantItems",
+      args.itemId,
+      household._id,
+      "Want item not found",
+    );
 
-    const item = await requireHouseholdWant(ctx, args.itemId, user.householdId);
-
-    if (item.status !== "plan_for_it") {
+    if (wantItem.status !== "plan_for_it") {
       throw new Error("Only planned Want items can be purchased");
     }
 
-    const household = await ctx.db.get(user.householdId);
-
-    if (!household) {
-      throw new Error("Household not found");
-    }
-
-    const reserveContext = await getCurrentReserveSnapshot(ctx, household, args.now);
+    const reserveSnapshot = await getReserveSnapshot(ctx, household, args.now);
     const activeItems = await loadActiveWantQueue(ctx, household._id);
-    const selectedIndex = activeItems.findIndex((activeItem) => activeItem._id === item._id);
+    const isInActiveQueue = activeItems.some((activeItem) => activeItem._id === wantItem._id);
 
-    if (selectedIndex < 0) {
+    if (!isInActiveQueue) {
       throw new Error("Want item is not in the active queue");
     }
 
-    const allocations = allocateReserve(
-      reserveContext.availableCents,
-      activeItems.map((activeItem) => ({
-        id: activeItem._id,
-        estimatedCostCents: activeItem.estimatedCostCents,
-      })),
-    );
-    const selectedAllocation = allocations[selectedIndex];
-
-    if (!selectedAllocation) {
-      throw new Error("Want item allocation is missing");
-    }
-
-    const funding = calculatePurchaseFunding(args.actualAmountCents, reserveContext.availableCents);
-    const lowerReserveUseCents =
-      funding.reserveUsedCents > selectedAllocation.allocatedCents
-        ? funding.reserveUsedCents - selectedAllocation.allocatedCents
-        : 0n;
-    const lowerItemImpacts = calculateLowerItemImpact(
-      allocations.slice(selectedIndex + 1),
-      lowerReserveUseCents,
-    ).map((impact) => {
-      const impactedItem = activeItems.find((activeItem) => activeItem._id === impact.id);
-
-      if (!impactedItem) {
-        throw new Error("Impacted Want item is missing");
-      }
-
-      return {
-        itemId: impact.id,
-        name: impactedItem.name,
-        lostCents: impact.lostCents,
-        allocatedCentsAfter: impact.allocatedCentsAfter,
-      };
+    const toReserveItem = (activeItem: Doc<"wantItems">) => ({
+      id: activeItem._id,
+      estimatedCostCents: activeItem.estimatedCostCents,
     });
+    const funding = calculatePurchaseFunding(
+      args.actualAmountCents,
+      reserveSnapshot.availableCents,
+    );
+    const allocationsBefore = allocateReserve(
+      reserveSnapshot.availableCents,
+      activeItems.map(toReserveItem),
+    );
+    const allocationsAfter = allocateReserve(
+      reserveSnapshot.availableCents - funding.reserveUsedCents,
+      activeItems.filter((activeItem) => activeItem._id !== wantItem._id).map(toReserveItem),
+    );
+    const progressLosses = calculateProgressLosses(allocationsBefore, allocationsAfter).map(
+      (loss) => {
+        const affectedItem = activeItems.find((activeItem) => activeItem._id === loss.id);
+
+        if (!affectedItem) {
+          throw new Error("Want item losing progress is missing");
+        }
+
+        return {
+          itemId: loss.id,
+          name: affectedItem.name,
+          lostCents: loss.lostCents,
+          allocatedCentsAfter: loss.allocatedCentsAfter,
+        };
+      },
+    );
 
     return {
       ...funding,
-      lowerItemImpacts,
+      progressLosses,
     };
   },
 });
@@ -562,124 +525,50 @@ export const purchase = mutation({
     const serverNow = Date.now();
     assertPositiveCents(args.actualAmountCents, "Actual amount");
 
-    const user = await getAuthenticatedUser(ctx);
+    const { user, household } = await requireHouseholdMember(ctx);
+    const wantItem = await requireHouseholdDoc(
+      ctx,
+      "wantItems",
+      args.itemId,
+      household._id,
+      "Want item not found",
+    );
 
-    if (!user.householdId) {
-      throw new Error("User is not in a household");
-    }
-
-    const item = await requireHouseholdWant(ctx, args.itemId, user.householdId);
-
-    if (item.status !== "plan_for_it") {
+    if (wantItem.status !== "plan_for_it") {
       throw new Error("Only planned Want items can be purchased");
     }
 
-    const household = await ctx.db.get(user.householdId);
-
-    if (!household) {
-      throw new Error("Household not found");
-    }
-
-    const initialTimeZone = getEffectiveTimeZone(household, serverNow);
-    const initialCurrentLocalDate = getLocalDateKey(serverNow, initialTimeZone);
-
-    getLocalDayBounds(args.purchaseLocalDate, initialTimeZone);
-
-    if (args.purchaseLocalDate > initialCurrentLocalDate) {
-      throw new Error("Purchase date cannot be in the future");
-    }
-
-    const closeResult = await closeDaysThrough(ctx, {
-      householdId: household._id,
-      throughExclusiveTimestamp: serverNow,
-      maxDays: CLOSE_DAYS_PER_TRANSACTION,
-    });
-
-    if (!closeResult.complete) {
-      await scheduleReserveCatchUp(ctx);
-
-      return {
-        status: "reserve_syncing" as const,
-      };
-    }
-
-    const refreshedHousehold = await ctx.db.get(household._id);
-
-    if (!refreshedHousehold) {
-      throw new Error("Household disappeared during purchase");
-    }
-
-    const reserveContext = await getCurrentReserveSnapshot(ctx, refreshedHousehold, serverNow);
-
-    if (!reserveContext.state) {
-      throw new Error("Goal reserve is not active");
-    }
-
-    if (args.purchaseLocalDate > reserveContext.localDate) {
-      throw new Error("Purchase date cannot be in the future");
-    }
-
-    const { startTimestamp: expenseDate } = getLocalDayBounds(
-      args.purchaseLocalDate,
-      reserveContext.timeZone,
-    );
-    const funding = calculatePurchaseFunding(args.actualAmountCents, reserveContext.availableCents);
-
-    const expenseId = await ctx.db.insert("expenses", {
-      householdId: refreshedHousehold._id,
-      name: item.name,
-      notes: item.notes,
-      amount: centsToLegacyDollars(args.actualAmountCents),
-      amountCents: args.actualAmountCents,
-      date: expenseDate,
-      wantItemId: item._id,
-      reserveUsedCents: funding.reserveUsedCents,
-    });
-
-    await applyReserveEvent(
-      ctx,
-      reserveContext.state,
-      {
-        kind: "purchase",
-        localDate: args.purchaseLocalDate,
-        reserveUsedCents: funding.reserveUsedCents,
-        expenseId,
-        wantItemId: item._id,
-        actorId: user._id,
-      },
-      serverNow,
-    );
-
-    await applyExpenseDelta(ctx, {
-      householdId: refreshedHousehold._id,
-      timeZone: reserveContext.timeZone,
-      after: {
-        date: expenseDate,
-        amountCents: args.actualAmountCents,
-        reserveUsedCents: funding.reserveUsedCents,
-      },
-      now: serverNow,
+    const result = await recordPurchase(ctx, {
+      household,
       actorId: user._id,
-      sourceExpenseId: expenseId,
+      want: wantItem,
+      amountCents: args.actualAmountCents,
+      localDate: args.purchaseLocalDate,
+      now: serverNow,
     });
+
+    if (result.status === "reserve_syncing") {
+      return result;
+    }
 
     await removeActiveWant(ctx, {
-      item,
+      item: wantItem,
       nextStatus: "bought",
       actorId: user._id,
       now: serverNow,
     });
 
-    await ctx.db.patch(item._id, {
+    await ctx.db.patch("wantItems", wantItem._id, {
       purchasedBy: user._id,
       purchasedAt: serverNow,
-      expenseId,
+      expenseId: result.expenseId,
     });
 
     return {
       status: "purchased" as const,
-      expenseId,
-      ...funding,
+      expenseId: result.expenseId,
+      reserveUsedCents: result.reserveUsedCents,
+      budgetImpactCents: result.budgetImpactCents,
     };
   },
 });
@@ -694,128 +583,26 @@ export const correctPurchase = mutation({
     const serverNow = Date.now();
     assertPositiveCents(args.actualAmountCents, "Actual amount");
 
-    const user = await getAuthenticatedUser(ctx);
-
-    if (!user.householdId) {
-      throw new Error("User is not in a household");
-    }
-
-    const { item, expense } = await requireLinkedPurchase(ctx, args.itemId, user.householdId);
-    const household = await ctx.db.get(user.householdId);
-
-    if (!household) {
-      throw new Error("Household not found");
-    }
-
-    if (household.allowanceCents === undefined) {
-      throw new Error("Household money migration is still in progress");
-    }
-
-    const reserveState = await ctx.db
-      .query("goalReserveStates")
-      .withIndex("by_household", (q) => q.eq("householdId", household._id))
-      .unique();
-
-    if (!reserveState) {
-      throw new Error("Goal reserve is not active");
-    }
-
-    const oldAmountCents = expense.amountCents;
-
-    if (oldAmountCents === undefined) {
-      throw new Error("Linked purchase is missing its cent-valued amount");
-    }
-
-    const oldReserveUsedCents = expense.reserveUsedCents ?? 0n;
-    const oldBudgetImpactCents = oldAmountCents - oldReserveUsedCents;
-    const timeZone = getEffectiveTimeZone(household, serverNow);
-    const expenseLocalDate = getLocalDateKey(expense.date, timeZone);
-    const currentLocalDate = getLocalDateKey(serverNow, timeZone);
-
-    const [closedDay, currentDayRollup] = await Promise.all([
-      ctx.db
-        .query("goalReserveDays")
-        .withIndex("by_household_and_local_date", (q) =>
-          q.eq("householdId", household._id).eq("localDate", expenseLocalDate),
-        )
-        .unique(),
-      ctx.db
-        .query("dailyBudgetRollups")
-        .withIndex("by_household_and_local_date", (q) =>
-          q.eq("householdId", household._id).eq("localDate", currentLocalDate),
-        )
-        .unique(),
-    ]);
-
-    let restoredPositionCents = reserveState.positionCents + oldReserveUsedCents;
-
-    if (closedDay) {
-      restoredPositionCents += oldBudgetImpactCents;
-    }
-
-    let currentBudgetWithoutPurchaseCents = currentDayRollup?.budgetImpactExpenseCents ?? 0n;
-
-    if (expenseLocalDate === currentLocalDate) {
-      currentBudgetWithoutPurchaseCents -= oldBudgetImpactCents;
-    }
-
-    if (currentBudgetWithoutPurchaseCents < 0n) {
-      throw new Error("Current-day budget rollup is inconsistent");
-    }
-
-    const restoredLiveAmounts = projectCurrentReserve(
-      restoredPositionCents,
-      household.allowanceCents,
-      currentBudgetWithoutPurchaseCents,
-    );
-    const funding = calculatePurchaseFunding(
-      args.actualAmountCents,
-      restoredLiveAmounts.availableCents,
-    );
-
-    const before: ExpenseFacts = {
-      date: expense.date,
-      amountCents: oldAmountCents,
-      reserveUsedCents: oldReserveUsedCents,
-    };
-    const after: ExpenseFacts = {
-      date: expense.date,
-      amountCents: args.actualAmountCents,
-      reserveUsedCents: funding.reserveUsedCents,
-    };
-
-    await ctx.db.patch(expense._id, {
-      amount: centsToLegacyDollars(args.actualAmountCents),
-      amountCents: args.actualAmountCents,
-      reserveUsedCents: funding.reserveUsedCents,
-    });
-
-    await applyReserveEvent(
+    const { user, household } = await requireHouseholdMember(ctx);
+    const { item: wantItem, expense } = await requireLinkedPurchase(
       ctx,
-      reserveState,
-      {
-        kind: "purchase_correction",
-        localDate: expenseLocalDate,
-        previousReserveUsedCents: oldReserveUsedCents,
-        nextReserveUsedCents: funding.reserveUsedCents,
-        expenseId: expense._id,
-        wantItemId: item._id,
-        actorId: user._id,
-      },
-      serverNow,
+      args.itemId,
+      household._id,
     );
 
-    await applyExpenseDelta(ctx, {
-      householdId: household._id,
-      timeZone,
-      before,
-      after,
-      now: serverNow,
+    const result = await correctReserveFundedPurchase(ctx, {
+      household,
       actorId: user._id,
-      sourceExpenseId: expense._id,
+      expense,
+      amountCents: args.actualAmountCents,
+      now: serverNow,
     });
 
-    await ctx.db.patch(item._id, {
+    if (result.status === "reserve_syncing") {
+      return result;
+    }
+
+    await ctx.db.patch("wantItems", wantItem._id, {
       updatedBy: user._id,
       updatedAt: serverNow,
     });
@@ -823,7 +610,8 @@ export const correctPurchase = mutation({
     return {
       success: true as const,
       expenseId: expense._id,
-      ...funding,
+      reserveUsedCents: result.reserveUsedCents,
+      budgetImpactCents: result.budgetImpactCents,
     };
   },
 });
@@ -835,86 +623,33 @@ export const undoPurchase = mutation({
   returns: undoPurchaseResultValidator,
   handler: async (ctx, args) => {
     const serverNow = Date.now();
-    const user = await getAuthenticatedUser(ctx);
+    const { user, household } = await requireHouseholdMember(ctx);
+    const { item: wantItem, expense } = await requireLinkedPurchase(
+      ctx,
+      args.itemId,
+      household._id,
+    );
 
-    if (!user.householdId) {
-      throw new Error("User is not in a household");
+    const result = await undoReserveFundedPurchase(ctx, {
+      household,
+      actorId: user._id,
+      expense,
+      now: serverNow,
+    });
+
+    if (result.status === "reserve_syncing") {
+      return result;
     }
 
-    const { item, expense } = await requireLinkedPurchase(ctx, args.itemId, user.householdId);
-    const household = await ctx.db.get(user.householdId);
-
-    if (!household) {
-      throw new Error("Household not found");
-    }
-
-    const amountCents = expense.amountCents;
-
-    if (amountCents === undefined) {
-      throw new Error("Linked purchase is missing its cent-valued amount");
-    }
-
-    const reserveUsedCents = expense.reserveUsedCents ?? 0n;
-
+    // Throws (rolling back the undo) when the active queue is full.
     await appendActiveWant(ctx, {
-      item,
+      item: wantItem,
       actorId: user._id,
       now: serverNow,
       queueFullErrorMessage: "Move an item to Considering or Not now before undoing this purchase",
     });
 
-    const reserveState = await ctx.db
-      .query("goalReserveStates")
-      .withIndex("by_household", (q) => q.eq("householdId", household._id))
-      .unique();
-
-    if (!reserveState) {
-      throw new Error("Goal reserve is not active");
-    }
-
-    const timeZone = getEffectiveTimeZone(household, serverNow);
-    const purchaseLocalDate = getLocalDateKey(expense.date, timeZone);
-    const before: ExpenseFacts = {
-      date: expense.date,
-      amountCents,
-      reserveUsedCents,
-    };
-
-    await applyExpenseDelta(ctx, {
-      householdId: household._id,
-      timeZone,
-      before,
-      now: serverNow,
-      actorId: user._id,
-      sourceExpenseId: expense._id,
-    });
-
-    const correctedReserveState = await ctx.db
-      .query("goalReserveStates")
-      .withIndex("by_household", (q) => q.eq("householdId", household._id))
-      .unique();
-
-    if (!correctedReserveState) {
-      throw new Error("Goal reserve disappeared during purchase undo");
-    }
-
-    await applyReserveEvent(
-      ctx,
-      correctedReserveState,
-      {
-        kind: "purchase_undo",
-        localDate: purchaseLocalDate,
-        reserveUsedCents,
-        expenseId: expense._id,
-        wantItemId: item._id,
-        actorId: user._id,
-      },
-      serverNow,
-    );
-
-    await ctx.db.delete(expense._id);
-
-    await ctx.db.patch(item._id, {
+    await ctx.db.patch("wantItems", wantItem._id, {
       purchasedBy: undefined,
       purchasedAt: undefined,
       expenseId: undefined,

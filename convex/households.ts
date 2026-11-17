@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { findCurrentUser, getAuthenticatedUser } from "./lib/helpers";
+import { requireHouseholdMember } from "./lib/household_access";
 import type { Doc } from "./_generated/dataModel";
 import { getLocalDateKey, getLocalDayBounds, getNextLocalDate } from "./lib/want_reserve";
 
@@ -41,17 +42,6 @@ export function getNextLocalMidnightTimestamp(timestamp: number, timeZone: strin
   const nextLocalDate = getNextLocalDate(currentLocalDate, timeZone);
 
   return getLocalDayBounds(nextLocalDate, timeZone).startTimestamp;
-}
-
-export function shouldPromotePendingTimeZone(
-  household: Partial<HouseholdTimeZoneSettings>,
-  at: number,
-): boolean {
-  return (
-    household.pendingTimeZone !== undefined &&
-    household.pendingTimeZoneEffectiveAt !== undefined &&
-    at >= household.pendingTimeZoneEffectiveAt
-  );
 }
 
 function generateInviteCode(): string {
@@ -114,17 +104,7 @@ export const updateTimeZone = mutation({
   returns: timeZoneUpdateResultValidator,
   handler: async (ctx, args) => {
     const now = Date.now();
-    const user = await getAuthenticatedUser(ctx);
-
-    if (!user.householdId) {
-      throw new Error("User is not in a household");
-    }
-
-    const household = await ctx.db.get(user.householdId);
-
-    if (!household) {
-      throw new Error("Household not found");
-    }
+    const { user, household } = await requireHouseholdMember(ctx);
 
     if (household.ownerId !== user._id) {
       throw new Error("Only the household owner can change the budget timezone");

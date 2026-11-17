@@ -33,6 +33,8 @@ export default defineSchema({
     amountCents: v.optional(v.int64()),
     householdId: v.id("households"),
     date: v.number(),
+    /** Household-local YYYY-MM-DD the expense counts against; fixed at write time. */
+    localDate: v.optional(v.string()),
     wantItemId: v.optional(v.id("wantItems")),
     reserveUsedCents: v.optional(v.int64()),
   }).index("by_household", ["householdId", "date"]),

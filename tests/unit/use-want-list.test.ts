@@ -131,7 +131,7 @@ describe("useWantList", () => {
     previewQueryMock.mockResolvedValue({
       reserveUsedCents: 8_000n,
       budgetImpactCents: 2_000n,
-      lowerItemImpacts: [],
+      progressLosses: [],
     });
 
     ({ useWantList } = await import("../../app/composables/use-want-list"));

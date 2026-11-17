@@ -1,73 +1,36 @@
 import { v } from "convex/values";
-import { legacyDollarsToCents } from "../shared/utils/money-cents";
-import { getEffectiveTimeZone } from "./households";
 import { mutation, query } from "./_generated/server";
-import { applyExpenseDelta, type ExpenseFacts } from "./lib/daily_budget_rollups.ts";
-import { getAuthenticatedUser, getHouseholdId } from "./lib/helpers";
-import { getBudgetImpact, getLocalDateKey } from "./lib/want_reserve";
+import { getHouseholdId } from "./lib/helpers";
+import { requireHouseholdDoc, requireHouseholdMember } from "./lib/household_access";
+import { addExpense, editExpense, removeExpense, type ReserveResult } from "./lib/reserve_account";
+import { getBudgetImpact } from "./lib/want_reserve";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 
-const successValidator = v.object({
-  success: v.boolean(),
-});
+/**
+ * `success: false` means the reserve was still catching up on closed days; the
+ * expense was not written and the client should retry shortly.
+ */
+const expenseWriteResultValidator = v.union(
+  v.object({ success: v.literal(true) }),
+  v.object({ success: v.literal(false), reason: v.literal("reserve_syncing") }),
+);
 
-function assertPositiveAmountCents(amountCents: bigint): void {
-  if (amountCents <= 0n) {
-    throw new Error("Expense amount must be greater than zero");
-  }
-}
-
-function assertExpenseDateIsNotFuture(
-  expenseTimestamp: number,
-  now: number,
-  timeZone: string,
-): void {
-  if (getLocalDateKey(expenseTimestamp, timeZone) > getLocalDateKey(now, timeZone)) {
-    throw new Error("Expense date cannot be in the future");
-  }
-}
-
-export function centsToLegacyDollars(amountCents: bigint): number {
-  return Number(amountCents) / 100;
-}
-
-function toExpenseFacts(expense: {
-  amount: number;
-  amountCents?: bigint;
-  date: number;
-  reserveUsedCents?: bigint;
-}): ExpenseFacts {
-  return {
-    date: expense.date,
-    amountCents: expense.amountCents ?? legacyDollarsToCents(expense.amount),
-    reserveUsedCents: expense.reserveUsedCents ?? 0n,
-  };
-}
-
-async function getAuthorizedHousehold(ctx: MutationCtx) {
-  const user = await getAuthenticatedUser(ctx);
-
-  if (!user.householdId) {
-    throw new Error("User is not in a household");
-  }
-
-  const household = await ctx.db.get(user.householdId);
-
-  if (!household) {
-    throw new Error("Household not found");
-  }
-
-  return { household, user };
+function toWriteResult(result: ReserveResult) {
+  return result.status === "ok"
+    ? { success: true as const }
+    : { success: false as const, reason: "reserve_syncing" as const };
 }
 
 async function getAuthorizedExpense(ctx: MutationCtx, expenseId: Id<"expenses">) {
-  const { household, user } = await getAuthorizedHousehold(ctx);
-  const expense = await ctx.db.get(expenseId);
-
-  if (!expense || expense.householdId !== household._id) {
-    throw new Error("Expense not found");
-  }
+  const { household, user } = await requireHouseholdMember(ctx);
+  const expense = await requireHouseholdDoc(
+    ctx,
+    "expenses",
+    expenseId,
+    household._id,
+    "Expense not found",
+  );
 
   if (expense.wantItemId) {
     throw new Error("Want purchases must be managed from the wants flow");
@@ -147,37 +110,17 @@ export const createExpense = mutation({
     amountCents: v.int64(),
     date: v.number(),
   },
-  returns: successValidator,
+  returns: expenseWriteResultValidator,
   handler: async (ctx, args) => {
-    const now = Date.now();
-    assertPositiveAmountCents(args.amountCents);
-
-    const { household, user } = await getAuthorizedHousehold(ctx);
-    const timeZone = getEffectiveTimeZone(household, now);
-    assertExpenseDateIsNotFuture(args.date, now, timeZone);
-    const expenseId = await ctx.db.insert("expenses", {
-      name: args.name,
-      notes: args.notes,
-      amount: centsToLegacyDollars(args.amountCents),
-      amountCents: args.amountCents,
-      householdId: household._id,
-      date: args.date,
-    });
-
-    await applyExpenseDelta(ctx, {
-      householdId: household._id,
-      timeZone,
-      after: {
-        date: args.date,
-        amountCents: args.amountCents,
-        reserveUsedCents: 0n,
-      },
-      now,
+    const { household, user } = await requireHouseholdMember(ctx);
+    const result = await addExpense(ctx, {
+      household,
       actorId: user._id,
-      sourceExpenseId: expenseId,
+      fields: args,
+      now: Date.now(),
     });
 
-    return { success: true };
+    return toWriteResult(result);
   },
 });
 
@@ -189,40 +132,19 @@ export const updateExpense = mutation({
     amountCents: v.int64(),
     date: v.number(),
   },
-  returns: successValidator,
+  returns: expenseWriteResultValidator,
   handler: async (ctx, args) => {
-    const now = Date.now();
-    assertPositiveAmountCents(args.amountCents);
-
-    const { expense, household, user } = await getAuthorizedExpense(ctx, args.expenseId);
-    const timeZone = getEffectiveTimeZone(household, now);
-    assertExpenseDateIsNotFuture(args.date, now, timeZone);
-    const before = toExpenseFacts(expense);
-    const after: ExpenseFacts = {
-      date: args.date,
-      amountCents: args.amountCents,
-      reserveUsedCents: 0n,
-    };
-
-    await ctx.db.patch(expense._id, {
-      name: args.name,
-      notes: args.notes,
-      amount: centsToLegacyDollars(args.amountCents),
-      amountCents: args.amountCents,
-      date: args.date,
-    });
-
-    await applyExpenseDelta(ctx, {
-      householdId: household._id,
-      timeZone,
-      before,
-      after,
-      now,
+    const { expenseId, ...fields } = args;
+    const { expense, household, user } = await getAuthorizedExpense(ctx, expenseId);
+    const result = await editExpense(ctx, {
+      household,
       actorId: user._id,
-      sourceExpenseId: expense._id,
+      expense,
+      fields,
+      now: Date.now(),
     });
 
-    return { success: true };
+    return toWriteResult(result);
   },
 });
 
@@ -230,23 +152,17 @@ export const deleteExpense = mutation({
   args: {
     expenseId: v.id("expenses"),
   },
-  returns: successValidator,
+  returns: expenseWriteResultValidator,
   handler: async (ctx, args) => {
-    const now = Date.now();
     const { expense, household, user } = await getAuthorizedExpense(ctx, args.expenseId);
-
-    await applyExpenseDelta(ctx, {
-      householdId: household._id,
-      timeZone: getEffectiveTimeZone(household, now),
-      before: toExpenseFacts(expense),
-      now,
+    const result = await removeExpense(ctx, {
+      household,
       actorId: user._id,
-      sourceExpenseId: expense._id,
+      expense,
+      now: Date.now(),
     });
 
-    await ctx.db.delete(expense._id);
-
-    return { success: true };
+    return toWriteResult(result);
   },
 });
 

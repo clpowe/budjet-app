@@ -440,7 +440,7 @@ test.each([
           ]
         : [];
     });
-    expect(preview).toHaveProperty("itemImpacts", impacts);
+    expect(preview).toHaveProperty("progressLosses", impacts);
   },
 );
 
@@ -818,4 +818,134 @@ test("undoes a purchase, reverses its rollup, and restores the item at the queue
   expect(camera?.purchasedAt).toBeUndefined();
   expect(camera?.expenseId).toBeUndefined();
   expectLedgerInvariant(undone);
+});
+
+const march12AtNoonNewYork = Date.UTC(2026, 2, 12, 16);
+
+async function purchaseCameraOnMarch10(t: TestConvex<typeof schema>) {
+  vi.useFakeTimers();
+  vi.setSystemTime(serverNow);
+
+  const seeded = await seedPurchaseHouseholds(t, { positionCents: 10_000n });
+  const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
+
+  // $120 against a $100 reserve: $100 from reserve, $20 budget impact on March 10.
+  await asOwner.mutation(api.wants.purchase, {
+    itemId: seeded.cameraId,
+    actualAmountCents: 12_000n,
+    purchaseLocalDate,
+  });
+
+  return { seeded, asOwner };
+}
+
+test("correcting a past purchase closes pending days first and corrects the closed day", async () => {
+  const t = convexTest(schema, modules);
+  const { seeded, asOwner } = await purchaseCameraOnMarch10(t);
+
+  vi.setSystemTime(march12AtNoonNewYork);
+
+  const result = await asOwner.mutation(api.wants.correctPurchase, {
+    itemId: seeded.cameraId,
+    actualAmountCents: 8_000n,
+  });
+
+  // Without the purchase the reserve would be $100 + $50 + $50 = $200, so the
+  // corrected $80 is fully reserve-funded.
+  expect(result).toMatchObject({
+    success: true,
+    reserveUsedCents: 8_000n,
+    budgetImpactCents: 0n,
+  });
+
+  const corrected = await readSnapshot(t, seeded.householdId);
+
+  expect(corrected.days.map((day) => day.localDate)).toEqual(["2026-03-10", "2026-03-11"]);
+  expect(corrected.days[0]).toMatchObject({
+    spendingSnapshotCents: 0n,
+    contributionCents: 5_000n,
+  });
+  expect(corrected.rollups.find((rollup) => rollup.localDate === purchaseLocalDate)).toMatchObject({
+    expenseCents: 8_000n,
+    reserveFundedExpenseCents: 8_000n,
+    budgetImpactExpenseCents: 0n,
+  });
+  expect(corrected.state).toMatchObject({
+    positionCents: 12_000n,
+    lastClosedLocalDate: "2026-03-11",
+  });
+  expectLedgerInvariant(corrected);
+});
+
+test("undoing a closed-day purchase after a time-zone change reverses its original day", async () => {
+  const t = convexTest(schema, modules);
+  const { seeded, asOwner } = await purchaseCameraOnMarch10(t);
+
+  // The purchase is stamped at midnight New York (05:00 UTC), which is still
+  // March 9 in Honolulu. It must stay on March 10.
+  await t.run(async (ctx) => {
+    await ctx.db.patch("households", seeded.householdId, { timeZone: "Pacific/Honolulu" });
+  });
+  vi.setSystemTime(march12AtNoonNewYork);
+
+  await expect(
+    asOwner.mutation(api.wants.undoPurchase, { itemId: seeded.cameraId }),
+  ).resolves.toEqual({ success: true });
+
+  const undone = await readSnapshot(t, seeded.householdId);
+
+  expect(undone.expenses).toEqual([]);
+  expect(undone.rollups.find((rollup) => rollup.localDate === "2026-03-09")).toBeUndefined();
+  expect(undone.rollups.find((rollup) => rollup.localDate === purchaseLocalDate)).toMatchObject({
+    expenseCents: 0n,
+    budgetImpactExpenseCents: 0n,
+  });
+  expect(undone.days.find((day) => day.localDate === purchaseLocalDate)).toMatchObject({
+    spendingSnapshotCents: 0n,
+    contributionCents: 5_000n,
+  });
+  // $100 start + $50 (Mar 10, corrected) + $50 (Mar 11), as if never bought.
+  expect(undone.state?.positionCents).toBe(20_000n);
+  expectLedgerInvariant(undone);
+});
+
+test("correcting and undoing wait for the reserve to finish syncing", async () => {
+  const t = convexTest(schema, modules);
+  const { seeded, asOwner } = await purchaseCameraOnMarch10(t);
+
+  // 83 days behind: each write can close at most 31 of them.
+  vi.setSystemTime(Date.UTC(2026, 5, 1, 16));
+
+  await expect(
+    asOwner.mutation(api.wants.correctPurchase, {
+      itemId: seeded.cameraId,
+      actualAmountCents: 8_000n,
+    }),
+  ).resolves.toEqual({ status: "reserve_syncing" });
+
+  const syncing = await readSnapshot(t, seeded.householdId);
+
+  expect(syncing.expenses).toEqual([
+    expect.objectContaining({ amountCents: 12_000n, reserveUsedCents: 10_000n }),
+  ]);
+  expect(syncing.days).toHaveLength(31);
+  expectLedgerInvariant(syncing);
+
+  await expect(
+    asOwner.mutation(api.wants.undoPurchase, { itemId: seeded.cameraId }),
+  ).resolves.toEqual({ status: "reserve_syncing" });
+  expect(
+    (await readSnapshot(t, seeded.householdId)).wants.find((item) => item._id === seeded.cameraId),
+  ).toMatchObject({ status: "bought" });
+
+  await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+  await expect(
+    asOwner.mutation(api.wants.undoPurchase, { itemId: seeded.cameraId }),
+  ).resolves.toEqual({ success: true });
+
+  const caughtUp = await readSnapshot(t, seeded.householdId);
+
+  expect(caughtUp.state?.lastClosedLocalDate).toBe("2026-05-31");
+  expectLedgerInvariant(caughtUp);
 });

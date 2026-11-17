@@ -41,7 +41,6 @@ async function handleSubmit() {
     source: name,
     notes,
     amount,
-    householdId: props.windfall.householdId,
   });
 
   emit("updated", props.windfall._id);

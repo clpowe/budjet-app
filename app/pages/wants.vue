@@ -172,6 +172,8 @@ async function requestPurchasePreview(value: {
   }
 }
 
+const RESERVE_SYNCING_MESSAGE = "The reserve is still syncing. Try again in a moment.";
+
 async function submitPurchase(
   value:
     | {
@@ -201,6 +203,11 @@ async function submitPurchase(
         return;
       }
 
+      if ("status" in result.data) {
+        purchaseError.value = RESERVE_SYNCING_MESSAGE;
+        return;
+      }
+
       pageNotice.value = "Purchase correction saved.";
       closePurchaseDialog(true);
       return;
@@ -216,7 +223,7 @@ async function submitPurchase(
     }
 
     if (result.data.status === "reserve_syncing") {
-      purchaseError.value = "The reserve is still syncing. Try this purchase again in a moment.";
+      purchaseError.value = RESERVE_SYNCING_MESSAGE;
       return;
     }
 
@@ -239,6 +246,11 @@ async function undoPurchaseFromHistory(itemId: Id<"wantItems">) {
 
     if (!result.success) {
       boughtError.value = result.error;
+      return;
+    }
+
+    if ("status" in result.data) {
+      boughtError.value = RESERVE_SYNCING_MESSAGE;
       return;
     }
 

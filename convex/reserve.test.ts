@@ -3,7 +3,7 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { convexTest, type TestConvex } from "convex-test";
 import { api } from "./_generated/api";
-import { reduceReserveEvent } from "./reserve";
+import { reduceReserveEvent } from "./lib/reserve_account";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");

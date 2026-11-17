@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { findCurrentUser, getAuthenticatedUser } from "./lib/helpers";
+import { findHouseholdMember, requireHouseholdMember } from "./lib/household_access";
 import type { Doc, Id } from "./_generated/dataModel";
 import { getChatBodyError } from "../shared/utils/chat-message";
 
@@ -29,13 +29,14 @@ export const list = query({
   args: {},
   returns: v.array(chatMessageValidator),
   handler: async (ctx) => {
-    const user = await findCurrentUser(ctx);
+    const member = await findHouseholdMember(ctx);
 
-    if (!user?.householdId) {
+    if (!member) {
       return [];
     }
 
-    const householdId = user.householdId;
+    const { user, household } = member;
+    const householdId = household._id;
 
     const messages = await ctx.db
       .query("chatMessages")
@@ -68,17 +69,7 @@ export const send = mutation({
   args: { body: v.string() },
   returns: v.id("chatMessages"),
   handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
-
-    if (!user.householdId) {
-      throw new Error("User is not in a household");
-    }
-
-    const household = await ctx.db.get("households", user.householdId);
-
-    if (!household) {
-      throw new Error("Household not found");
-    }
+    const { user, household } = await requireHouseholdMember(ctx);
 
     const body = args.body.trim();
 

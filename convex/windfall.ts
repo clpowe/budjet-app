@@ -1,6 +1,12 @@
 import { v } from "convex/values";
 
 import { query, mutation } from "./_generated/server";
+import {
+  findHouseholdMember,
+  requireHouseholdDoc,
+  requireHouseholdMember,
+} from "./lib/household_access";
+
 // -------------------------
 // QUERIES
 // -------------------------
@@ -8,37 +14,34 @@ import { query, mutation } from "./_generated/server";
 export const listWindfall = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("windfall").collect();
+    const member = await findHouseholdMember(ctx);
+
+    if (!member) {
+      return [];
+    }
+
+    return await ctx.db
+      .query("windfall")
+      .withIndex("by_household_date", (q) => q.eq("householdId", member.household._id))
+      .collect();
   },
 });
 
 export const getMyWindfallTotal = query({
   args: {},
   handler: async (ctx) => {
-    const spending = await ctx.db.query("windfall").collect();
+    const member = await findHouseholdMember(ctx);
 
-    return spending.reduce((acc, curr) => acc + curr.amount, 0);
-  },
-});
+    if (!member) {
+      return 0;
+    }
 
-export const addWindfallTransaction = mutation({
-  args: {
-    source: v.string(),
-    notes: v.string(),
-    amount: v.number(),
-    householdId: v.id("households"),
-    date: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const windfallTransaction = await ctx.db.insert("windfall", {
-      source: args.source,
-      notes: args.notes,
-      householdId: args.householdId,
-      amount: args.amount,
-      date: args.date,
-    });
+    const windfalls = await ctx.db
+      .query("windfall")
+      .withIndex("by_household_date", (q) => q.eq("householdId", member.household._id))
+      .collect();
 
-    return windfallTransaction;
+    return windfalls.reduce((acc, curr) => acc + curr.amount, 0);
   },
 });
 
@@ -46,25 +49,49 @@ export const addWindfallTransaction = mutation({
 // MUTATIONS
 // -------------------------
 
+export const addWindfallTransaction = mutation({
+  args: {
+    source: v.string(),
+    notes: v.string(),
+    amount: v.number(),
+    date: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const { household } = await requireHouseholdMember(ctx);
+
+    return await ctx.db.insert("windfall", {
+      source: args.source,
+      notes: args.notes,
+      householdId: household._id,
+      amount: args.amount,
+      date: args.date,
+    });
+  },
+});
+
 export const updateWindfall = mutation({
   args: {
     windfallId: v.id("windfall"),
     source: v.string(),
     notes: v.string(),
     amount: v.number(),
-    householdId: v.id("households"),
-    date: v.number(),
+    date: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const windfall = await ctx.db.get(args.windfallId);
-    if (!windfall) throw new Error("Windfall not found");
+    const { household } = await requireHouseholdMember(ctx);
+    await requireHouseholdDoc(
+      ctx,
+      "windfall",
+      args.windfallId,
+      household._id,
+      "Windfall not found",
+    );
 
-    await ctx.db.patch(args.windfallId, {
+    await ctx.db.patch("windfall", args.windfallId, {
       source: args.source,
       notes: args.notes,
       amount: args.amount,
-      householdId: args.householdId,
-      date: args.date,
+      ...(args.date !== undefined ? { date: args.date } : {}),
     });
 
     return { success: true };
@@ -76,10 +103,16 @@ export const deleteWindfall = mutation({
     windfallId: v.id("windfall"),
   },
   handler: async (ctx, args) => {
-    const windfall = await ctx.db.get(args.windfallId);
-    if (!windfall) throw new Error("Windfall not found");
+    const { household } = await requireHouseholdMember(ctx);
+    await requireHouseholdDoc(
+      ctx,
+      "windfall",
+      args.windfallId,
+      household._id,
+      "Windfall not found",
+    );
 
-    await ctx.db.delete(args.windfallId);
+    await ctx.db.delete("windfall", args.windfallId);
 
     return { success: true };
   },
