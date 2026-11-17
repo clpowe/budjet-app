@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
   allocateReserve,
-  calculateLowerItemImpact,
   calculatePurchaseFunding,
   calculateRecentPace,
   calculateTargetDailyAmount,
@@ -99,21 +98,6 @@ describe("purchase funding", () => {
     expect(getBudgetImpact(12_000n, 10_000n)).toBe(2_000n);
     expect(() => getBudgetImpact(1_000n, 1_001n)).toThrow();
     expect(() => calculatePurchaseFunding(0n, 0n)).toThrow();
-  });
-
-  it("shows lower-item allocation losses without changing allocation order", () => {
-    expect(
-      calculateLowerItemImpact(
-        [
-          { id: "trip", allocatedCents: 5_000n, remainingCents: 3_000n },
-          { id: "speaker", allocatedCents: 2_000n, remainingCents: 4_000n },
-        ],
-        6_000n,
-      ),
-    ).toEqual([
-      { id: "trip", lostCents: 5_000n, allocatedCentsAfter: 0n },
-      { id: "speaker", lostCents: 1_000n, allocatedCentsAfter: 1_000n },
-    ]);
   });
 });
 

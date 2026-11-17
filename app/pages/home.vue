@@ -21,23 +21,20 @@ function openDialog(dialog: HTMLDialogElement | null) {
   dialog?.showModal();
 }
 
-// Chat is an inline column on desktop; close the mobile drawer if the viewport grows past the breakpoint.
+const isDesktop = useMediaQuery("(width >= 1000px)");
 const chatPopover = shallowRef<HTMLElement | null>(null);
-let desktopQuery: MediaQueryList | undefined;
+const householdChat = shallowRef<{ scrollToBottom: () => void } | null>(null);
 
-function closeChatOnDesktop(event: MediaQueryListEvent) {
-  if (event.matches && chatPopover.value?.matches(":popover-open")) {
+watch(isDesktop, (desktop) => {
+  if (desktop && chatPopover.value?.matches(":popover-open")) {
     chatPopover.value.hidePopover();
   }
-}
-
-onMounted(() => {
-  desktopQuery = window.matchMedia("(width >= 500px)");
-  desktopQuery.addEventListener("change", closeChatOnDesktop);
 });
 
-onBeforeUnmount(() => {
-  desktopQuery?.removeEventListener("change", closeChatOnDesktop);
+useEventListener(chatPopover, "toggle", (event: ToggleEvent) => {
+  if (event.newState === "open") {
+    householdChat.value?.scrollToBottom();
+  }
 });
 
 // Keep the existing details tabs in sync with the child route.
@@ -121,7 +118,20 @@ const nextPlannedWantTargetLocalDate = computed(() => {
         <NuxtPage />
       </div>
     </div>
-    <div id="chatpopover" ref="chatPopover" class="chat-section" popover>Chat</div>
+    <div id="chatpopover" ref="chatPopover" class="chat-section" popover>
+      <HouseholdChat ref="householdChat">
+        <template #header>
+          <button
+            class="chat-close"
+            type="button"
+            popovertarget="chatpopover"
+            popovertargetaction="hide"
+          >
+            Close
+          </button>
+        </template>
+      </HouseholdChat>
+    </div>
   </div>
 </template>
 
@@ -155,6 +165,8 @@ const nextPlannedWantTargetLocalDate = computed(() => {
 .chat-section {
   grid-area: chat;
   max-width: 400px;
+  overflow: hidden;
+  padding: 1rem;
 
   /* Mobile: drawer sliding in from the right. */
   inset: 0 0 0 auto;
@@ -184,17 +196,20 @@ const nextPlannedWantTargetLocalDate = computed(() => {
   .chat-section,
   .chat-section:not(:popover-open) {
     display: block;
-    position: static;
+    position: sticky;
+    top: 0;
+    align-self: start;
     inset: auto;
     margin: 0;
     translate: none;
     width: auto;
-    height: auto;
+    height: 100dvh;
     max-height: none;
     border: 0;
     transition: none;
   }
-  .controls [popovertarget="chatpopover"] {
+  .controls [popovertarget="chatpopover"],
+  .chat-close {
     display: none;
   }
 }

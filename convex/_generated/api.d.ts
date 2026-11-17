@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as budget from "../budget.js";
+import type * as chat from "../chat.js";
 import type * as crons from "../crons.js";
 import type * as depts from "../depts.js";
 import type * as expenses from "../expenses.js";
@@ -37,6 +38,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   budget: typeof budget;
+  chat: typeof chat;
   crons: typeof crons;
   depts: typeof depts;
   expenses: typeof expenses;

@@ -129,4 +129,10 @@ export default defineSchema({
     budgetImpactExpenseCents: v.int64(),
     updatedAt: v.number(),
   }).index("by_household_and_local_date", ["householdId", "localDate"]),
+
+  chatMessages: defineTable({
+    householdId: v.id("households"),
+    senderId: v.id("users"),
+    body: v.string(),
+  }).index("by_household", ["householdId"]),
 });

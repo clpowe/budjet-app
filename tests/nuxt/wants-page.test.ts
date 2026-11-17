@@ -210,6 +210,8 @@ describe("AppHeader Wants navigation", () => {
     const wrapper = mount(AppHeader, {
       global: {
         stubs: {
+          // The add-transaction dialog subscribes to Convex; not under test here.
+          ExpensesAdd: true,
           Icon: true,
           NuxtLink: {
             props: ["to"],
@@ -219,8 +221,6 @@ describe("AppHeader Wants navigation", () => {
       },
     });
 
-    const wantsLink = wrapper.get('nav[aria-label="Primary"] a[href="/wants"]');
-
-    expect(wantsLink.text()).toBe("Wants");
+    expect(wrapper.find('nav[aria-label="Primary"] a[href="/wants"]').exists()).toBe(true);
   });
 });

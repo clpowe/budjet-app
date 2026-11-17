@@ -19,7 +19,7 @@ export default {
   experimental: {
     viteEnvironmentApi: true,
   },
-  modules: ["convex-nuxt", "nitro-cloudflare-dev"],
+  modules: ["convex-nuxt", "nitro-cloudflare-dev", "@vueuse/nuxt"],
 
   alias: {
     "@generated": fileURLToPath(new URL("./convex/_generated/", import.meta.url)),

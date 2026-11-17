@@ -305,71 +305,144 @@ test.each([
   },
 );
 
-test("previews and commits progress consumed from a lower queue item", async () => {
-  vi.useFakeTimers();
-  vi.setSystemTime(serverNow);
-
-  const t = convexTest(schema, modules);
-  const seeded = await seedPurchaseHouseholds(t, {
+test.each([
+  {
+    name: "takes progress from the end of the queue when the first item overruns",
+    positionCents: 20_000n,
+    addThirdWant: true,
+    buyTrip: false,
+    actualAmountCents: 12_000n,
+    remainingAllocations: [8_000n, 0n],
+  },
+  {
+    name: "takes progress from an earlier item when buying the last item",
+    positionCents: 8_000n,
+    addThirdWant: false,
+    buyTrip: true,
+    actualAmountCents: 6_000n,
+    remainingAllocations: [2_000n],
+  },
+  {
+    name: "uses unallocated surplus without reducing progress",
+    positionCents: 22_000n,
+    addThirdWant: false,
+    buyTrip: false,
+    actualAmountCents: 12_000n,
+    remainingAllocations: [8_000n],
+  },
+  {
+    name: "preserves progress when the purchase costs less than estimated",
     positionCents: 15_000n,
-  });
-  const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
-
-  const before = await asOwner.query(api.reserve.getSummary, {
-    now: serverNow,
-  });
-  const preview = await asOwner.query(api.wants.previewPurchase, {
-    itemId: seeded.cameraId,
+    addThirdWant: false,
+    buyTrip: false,
+    actualAmountCents: 8_000n,
+    remainingAllocations: [7_000n],
+  },
+  {
+    name: "leaves the remaining allocation at zero when no reserve is available",
+    positionCents: 0n,
+    addThirdWant: false,
+    buyTrip: false,
     actualAmountCents: 12_000n,
-    now: serverNow,
-  });
-
-  expect(before.activeAllocations).toEqual([
-    expect.objectContaining({
-      itemId: seeded.cameraId,
-      allocatedCents: 10_000n,
-    }),
-    expect.objectContaining({
-      itemId: seeded.tripId,
-      allocatedCents: 5_000n,
-    }),
-  ]);
-  expect(preview).toMatchObject({
-    reserveUsedCents: 12_000n,
-    budgetImpactCents: 0n,
-    lowerItemImpacts: [
-      {
-        itemId: seeded.tripId,
-        name: "Trip",
-        lostCents: 2_000n,
-        allocatedCentsAfter: 3_000n,
-      },
-    ],
-  });
-
-  await asOwner.mutation(api.wants.purchase, {
-    itemId: seeded.cameraId,
+    remainingAllocations: [0n],
+  },
+  {
+    name: "preserves progress when reserve exactly covers both estimates",
+    positionCents: 18_000n,
+    addThirdWant: false,
+    buyTrip: false,
+    actualAmountCents: 10_000n,
+    remainingAllocations: [8_000n],
+  },
+  {
+    name: "reports the loss when only one other item remains",
+    positionCents: 15_000n,
+    addThirdWant: false,
+    buyTrip: false,
     actualAmountCents: 12_000n,
-    purchaseLocalDate,
-  });
+    remainingAllocations: [3_000n],
+  },
+])(
+  "purchase preview $name",
+  async ({ positionCents, addThirdWant, buyTrip, actualAmountCents, remainingAllocations }) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(serverNow);
 
-  const after = await asOwner.query(api.reserve.getSummary, {
-    now: serverNow,
-  });
+    const t = convexTest(schema, modules);
+    const seeded = await seedPurchaseHouseholds(t, {
+      allowanceCents: positionCents === 0n ? 5_000n : positionCents,
+      positionCents: 0n,
+      firstEligibleLocalDate: positionCents === 0n ? purchaseLocalDate : "2026-03-09",
+      lastClosedLocalDate: null,
+    });
+    await t.mutation(internal.reserveMaintenance.closeEligibleDays, { cursor: null });
 
-  expect(after).toMatchObject({
-    positionCents: 3_000n,
-    availableReserveCents: 3_000n,
-    activeAllocations: [
-      {
-        itemId: seeded.tripId,
-        allocatedCents: 3_000n,
-        remainingCents: 5_000n,
-        progressBasisPoints: 3_750,
-      },
-    ],
-  });
-});
+    if (addThirdWant) {
+      await t.run(async (ctx) => {
+        await ctx.db.insert("wantItems", {
+          householdId: seeded.householdId,
+          name: "Bike",
+          estimatedCostCents: 5_000n,
+          priority: "medium",
+          notes: "",
+          status: "plan_for_it",
+          order: 2,
+          createdBy: seeded.ownerId,
+          updatedBy: seeded.ownerId,
+          createdAt: 4,
+          updatedAt: 4,
+        });
+      });
+    }
+
+    const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
+    const itemId = buyTrip ? seeded.tripId : seeded.cameraId;
+    const before = await asOwner.query(api.reserve.getSummary, { now: serverNow });
+    const preview = await asOwner.query(api.wants.previewPurchase, {
+      itemId,
+      actualAmountCents,
+      now: serverNow,
+    });
+
+    const purchase = await asOwner.mutation(api.wants.purchase, {
+      itemId,
+      actualAmountCents,
+      purchaseLocalDate,
+    });
+    const after = await asOwner.query(api.reserve.getSummary, { now: serverNow });
+    const snapshot = await readSnapshot(t, seeded.householdId);
+    const expense = snapshot.expenses.find((candidate) => candidate.wantItemId === itemId);
+
+    expect(purchase.status).toBe("purchased");
+    expect(before.availableReserveCents).toBe(positionCents);
+    expect(after.activeAllocations.map(({ allocatedCents }) => allocatedCents)).toEqual(
+      remainingAllocations,
+    );
+    expect(preview.reserveUsedCents).toBe(expense?.reserveUsedCents);
+    expect(preview.budgetImpactCents).toBe(actualAmountCents - preview.reserveUsedCents);
+
+    const impacts = after.activeAllocations.flatMap((allocation) => {
+      const previous = before.activeAllocations.find((item) => item.itemId === allocation.itemId);
+      const want = snapshot.wants.find((item) => item._id === allocation.itemId);
+      if (!previous || !want) {
+        throw new Error("Expected the remaining Want and its original allocation");
+      }
+
+      const lostCents = previous.allocatedCents - allocation.allocatedCents;
+      return lostCents > 0n
+        ? [
+            {
+              itemId: allocation.itemId,
+              name: want.name,
+              lostCents,
+              allocatedCentsAfter: allocation.allocatedCents,
+            },
+          ]
+        : [];
+    });
+    expect(preview).toHaveProperty("itemImpacts", impacts);
+  },
+);
 
 test("recalculates funding from current server state instead of trusting a stale preview", async () => {
   vi.useFakeTimers();
