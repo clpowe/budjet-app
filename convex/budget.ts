@@ -1,13 +1,12 @@
 import { v } from "convex/values";
 import { getEffectiveTimeZone } from "./households";
 import { loadActiveWantQueue, projectActiveWantAllocations } from "./lib/active_want_queue";
-import { getAuthenticatedUser } from "./lib/helpers";
-import { getCurrentReserveSnapshot } from "./lib/live_reserve";
+import { requireHouseholdMember } from "./lib/household_access";
+import { getReserveSnapshot, listReserveActivity } from "./lib/reserve_account";
 import { getLocalMonthPeriod } from "./lib/want_reserve";
 import { query } from "./_generated/server";
 
 const DAYS_IN_PLAN = 30n;
-const MAX_MONTH_ROWS = 31;
 
 const nextPlannedWantSummaryValidator = v.object({
   itemId: v.id("wantItems"),
@@ -59,10 +58,6 @@ type SafeToSpendInputs = {
   closedPositiveReserveContributionCents: bigint;
 };
 
-type LocalDateRow = {
-  localDate: string;
-};
-
 export function calculateSafeToSpendCents({
   planAllowanceCents,
   budgetImpactExpenseCents,
@@ -71,67 +66,24 @@ export function calculateSafeToSpendCents({
   return planAllowanceCents - budgetImpactExpenseCents - closedPositiveReserveContributionCents;
 }
 
-function assertValidMonthlyRows(rows: readonly LocalDateRow[], label: string): void {
-  if (rows.length > MAX_MONTH_ROWS) {
-    throw new Error(`${label} exceed the monthly invariant`);
-  }
-
-  const localDates = new Set<string>();
-
-  for (const row of rows) {
-    if (localDates.has(row.localDate)) {
-      throw new Error(`${label} contain duplicate local dates`);
-    }
-
-    localDates.add(row.localDate);
-  }
-}
-
 export const getHomeSummary = query({
   args: {
     asOfTimestamp: v.number(),
   },
   returns: homeSummaryValidator,
   handler: async (ctx, args) => {
-    const user = await getAuthenticatedUser(ctx);
-
-    if (!user.householdId) {
-      throw new Error("User is not in a household");
-    }
-
-    const household = await ctx.db.get(user.householdId);
-
-    if (!household) {
-      throw new Error("Household not found");
-    }
+    const { household } = await requireHouseholdMember(ctx);
 
     const timeZone = getEffectiveTimeZone(household, args.asOfTimestamp);
     const period = getLocalMonthPeriod(args.asOfTimestamp, timeZone);
-    const [rollups, reserveDays, currentReserve, activeItems] = await Promise.all([
-      ctx.db
-        .query("dailyBudgetRollups")
-        .withIndex("by_household_and_local_date", (q) =>
-          q
-            .eq("householdId", household._id)
-            .gte("localDate", period.startLocalDate)
-            .lt("localDate", period.toDateEndExclusiveLocalDate),
-        )
-        .take(MAX_MONTH_ROWS + 1),
-      ctx.db
-        .query("goalReserveDays")
-        .withIndex("by_household_and_local_date", (q) =>
-          q
-            .eq("householdId", household._id)
-            .gte("localDate", period.startLocalDate)
-            .lt("localDate", period.toDateEndExclusiveLocalDate),
-        )
-        .take(MAX_MONTH_ROWS + 1),
-      getCurrentReserveSnapshot(ctx, household, args.asOfTimestamp),
+    const [{ rollups, reserveDays }, currentReserve, activeItems] = await Promise.all([
+      listReserveActivity(ctx, household._id, {
+        startLocalDate: period.startLocalDate,
+        endExclusiveLocalDate: period.toDateEndExclusiveLocalDate,
+      }),
+      getReserveSnapshot(ctx, household, args.asOfTimestamp),
       loadActiveWantQueue(ctx, household._id),
     ]);
-
-    assertValidMonthlyRows(rollups, "Daily budget rollups");
-    assertValidMonthlyRows(reserveDays, "Goal reserve days");
 
     const monthToDateSpending = rollups.reduce(
       (sum, rollup) => ({

@@ -4,6 +4,7 @@ import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, expect, test, vi } from "vitest";
 import { api } from "./_generated/api";
 import schema from "./schema";
+import { insertHousehold } from "./test_utils/seed";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -17,44 +18,15 @@ afterEach(() => {
 
 async function seedHouseholds(t: TestConvex<typeof schema>) {
   return await t.run(async (ctx) => {
-    const ownerId = await ctx.db.insert("users", {
-      identityKey: "test|owner",
-      email: "owner@example.com",
-      role: "owner",
-      createdAt: 0,
-    });
-    const otherOwnerId = await ctx.db.insert("users", {
-      identityKey: "test|other",
-      email: "other@example.com",
-      role: "owner",
-      createdAt: 0,
-    });
+    const primary = await insertHousehold(ctx, { owner: "owner", inviteCode: "PRIMARY" });
+    const other = await insertHousehold(ctx, { owner: "other", inviteCode: "OTHER" });
 
-    const householdId = await ctx.db.insert("households", {
-      name: "Primary household",
-      inviteCode: "PRIMARY",
-      ownerId,
-      allowance: 55,
-      allowanceCents: 5_500n,
-      timeZone: "America/New_York",
-      moneyMigrationCompletedAt: 0,
-      createdAt: 0,
-    });
-    const otherHouseholdId = await ctx.db.insert("households", {
-      name: "Other household",
-      inviteCode: "OTHER",
-      ownerId: otherOwnerId,
-      allowance: 55,
-      allowanceCents: 5_500n,
-      timeZone: "America/New_York",
-      moneyMigrationCompletedAt: 0,
-      createdAt: 0,
-    });
-
-    await ctx.db.patch(ownerId, { householdId });
-    await ctx.db.patch(otherOwnerId, { householdId: otherHouseholdId });
-
-    return { householdId, otherHouseholdId, ownerId, otherOwnerId };
+    return {
+      householdId: primary.householdId,
+      otherHouseholdId: other.householdId,
+      ownerId: primary.ownerId,
+      otherOwnerId: other.ownerId,
+    };
   });
 }
 
@@ -320,6 +292,9 @@ test("refuses generic edits and deletes for want purchases", async () => {
 });
 
 test("corrects closed-day reserve snapshots and position transactionally", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(march11);
+
   const t = convexTest(schema, modules);
   const seeded = await seedHouseholds(t);
   const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
@@ -330,6 +305,8 @@ test("corrects closed-day reserve snapshots and position transactionally", async
       positionCents: 1_000n,
       activatedAt: 0,
       firstEligibleLocalDate: "2026-03-01",
+      // Every day through March 10 is closed, so the edit needs no catch-up.
+      lastClosedLocalDate: "2026-03-10",
       updatedAt: 0,
     });
     await ctx.db.insert("goalReserveLedgerEntries", {
@@ -426,4 +403,114 @@ test("corrects closed-day reserve snapshots and position transactionally", async
   expect(result.entries.reduce((sum, entry) => sum + entry.amountCents, 0n)).toBe(
     result.state?.positionCents,
   );
+});
+
+test("editing an expense after a time-zone change keeps it on its original local day", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(march10At1159pmNewYork);
+
+  const t = convexTest(schema, modules);
+  const seeded = await seedHouseholds(t);
+  const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
+
+  // 23:59 on March 10 in New York is already March 11 in UTC.
+  await asOwner.mutation(api.expenses.createExpense, {
+    name: "Late dinner",
+    notes: "",
+    amountCents: 2_000n,
+    date: march10At1159pmNewYork,
+  });
+
+  await t.run(async (ctx) => {
+    await ctx.db.patch("households", seeded.householdId, { timeZone: "UTC" });
+  });
+
+  const expense = await t.run(async (ctx) => {
+    return await ctx.db
+      .query("expenses")
+      .withIndex("by_household", (q) => q.eq("householdId", seeded.householdId))
+      .unique();
+  });
+
+  if (!expense) throw new Error("Expected the created expense");
+
+  expect(expense.localDate).toBe("2026-03-10");
+
+  await asOwner.mutation(api.expenses.updateExpense, {
+    expenseId: expense._id,
+    name: "Late dinner",
+    notes: "with tip",
+    amountCents: 2_500n,
+    date: expense.date,
+  });
+
+  expect(await getRollup(t, seeded.householdId, "2026-03-10")).toMatchObject({
+    expenseCents: 2_500n,
+    budgetImpactExpenseCents: 2_500n,
+  });
+  expect(await getRollup(t, seeded.householdId, "2026-03-11")).toBeNull();
+
+  await asOwner.mutation(api.expenses.deleteExpense, { expenseId: expense._id });
+
+  expect(await getRollup(t, seeded.householdId, "2026-03-10")).toMatchObject({
+    expenseCents: 0n,
+    budgetImpactExpenseCents: 0n,
+  });
+  expect(await getRollup(t, seeded.householdId, "2026-03-11")).toBeNull();
+});
+
+test("expense writes wait while the reserve catches up on closed days", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(march10);
+
+  const t = convexTest(schema, modules);
+  const seeded = await seedHouseholds(t);
+  const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
+
+  await t.run(async (ctx) => {
+    await ctx.db.insert("goalReserveStates", {
+      householdId: seeded.householdId,
+      positionCents: 0n,
+      activatedAt: 0,
+      firstEligibleLocalDate: "2026-01-01",
+      updatedAt: 0,
+    });
+  });
+
+  const result = await asOwner.mutation(api.expenses.createExpense, {
+    name: "Coffee",
+    notes: "",
+    amountCents: 500n,
+    date: march10,
+  });
+
+  expect(result).toEqual({ success: false, reason: "reserve_syncing" });
+
+  const syncing = await t.run(async (ctx) => ({
+    expenses: await ctx.db
+      .query("expenses")
+      .withIndex("by_household", (q) => q.eq("householdId", seeded.householdId))
+      .collect(),
+    state: await ctx.db
+      .query("goalReserveStates")
+      .withIndex("by_household", (q) => q.eq("householdId", seeded.householdId))
+      .unique(),
+  }));
+
+  expect(syncing.expenses).toEqual([]);
+  expect(syncing.state?.lastClosedLocalDate).toBe("2026-01-31");
+
+  await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+
+  await expect(
+    asOwner.mutation(api.expenses.createExpense, {
+      name: "Coffee",
+      notes: "",
+      amountCents: 500n,
+      date: march10,
+    }),
+  ).resolves.toEqual({ success: true });
+  expect(await getRollup(t, seeded.householdId, "2026-03-10")).toMatchObject({
+    budgetImpactExpenseCents: 500n,
+  });
 });

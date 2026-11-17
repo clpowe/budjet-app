@@ -124,6 +124,7 @@ export function useDate(timeZoneInput?: TimeZoneInput) {
     currentDate,
     currentMonth,
     timeZone,
+    localDate,
     queryDayBounds,
     queryMonthBounds,
     appDay,

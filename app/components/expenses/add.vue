@@ -62,6 +62,8 @@ async function handleSubmit() {
 
     if (res.success) {
       formState.value = makeFormState(date);
+    } else {
+      submitError.value = "The reserve is still syncing. Try again in a moment.";
     }
   } catch (error) {
     submitError.value =

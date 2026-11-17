@@ -1,22 +1,46 @@
-import type { Id } from "../_generated/dataModel";
+import { legacyDollarsToCents } from "../../shared/utils/money-cents";
+import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { applyReserveEvent } from "../reserve";
 import { getLocalDateKey } from "./want_reserve";
 
 export type ExpenseFacts = {
-  date: number;
+  /** Household-local day the expense counts against, fixed when it was written. */
+  localDate: string;
   amountCents: bigint;
   reserveUsedCents: bigint;
 };
 
+/**
+ * The household-local day an expense belongs to. Uses the day stored on the
+ * expense; legacy rows written before `localDate` existed fall back to the
+ * given zone until the backfill has run.
+ */
+export function getExpenseLocalDate(
+  expense: Pick<Doc<"expenses">, "date" | "localDate">,
+  fallbackTimeZone: string,
+): string {
+  return expense.localDate ?? getLocalDateKey(expense.date, fallbackTimeZone);
+}
+
+export function toExpenseFacts(
+  expense: Pick<
+    Doc<"expenses">,
+    "amount" | "amountCents" | "date" | "localDate" | "reserveUsedCents"
+  >,
+  fallbackTimeZone: string,
+): ExpenseFacts {
+  return {
+    localDate: getExpenseLocalDate(expense, fallbackTimeZone),
+    amountCents: expense.amountCents ?? legacyDollarsToCents(expense.amount),
+    reserveUsedCents: expense.reserveUsedCents ?? 0n,
+  };
+}
+
 type ApplyExpenseDeltaArgs = {
   householdId: Id<"households">;
-  timeZone: string;
   before?: ExpenseFacts;
   after?: ExpenseFacts;
   now: number;
-  actorId: Id<"users">;
-  sourceExpenseId: Id<"expenses">;
 };
 
 type DailyBudgetRollupValues = {
@@ -100,7 +124,9 @@ type RollupDelta = {
   budgetImpactExpenseCents: bigint;
 };
 
-export function getBudgetImpactCents(expense: ExpenseFacts): bigint {
+export function getBudgetImpactCents(
+  expense: Pick<ExpenseFacts, "amountCents" | "reserveUsedCents">,
+): bigint {
   if (expense.amountCents <= 0n) {
     throw new Error("Expense amount must be greater than zero");
   }
@@ -131,18 +157,29 @@ function addDelta(
   deltas.set(localDate, delta);
 }
 
+export type BudgetImpactChange = {
+  localDate: string;
+  budgetImpactDeltaCents: bigint;
+};
+
+/**
+ * Moves an expense's money between daily budget rollups. Pure rollup
+ * bookkeeping: returns the days whose budget impact changed so the Reserve
+ * account can correct any of them that are already closed.
+ */
 export async function applyExpenseDelta(
   ctx: MutationCtx,
-  { householdId, timeZone, before, after, now, actorId, sourceExpenseId }: ApplyExpenseDeltaArgs,
-): Promise<void> {
+  { householdId, before, after, now }: ApplyExpenseDeltaArgs,
+): Promise<BudgetImpactChange[]> {
   const deltas = new Map<string, RollupDelta>();
+  const changes: BudgetImpactChange[] = [];
 
   if (before) {
-    addDelta(deltas, getLocalDateKey(before.date, timeZone), before, -1n);
+    addDelta(deltas, before.localDate, before, -1n);
   }
 
   if (after) {
-    addDelta(deltas, getLocalDateKey(after.date, timeZone), after, 1n);
+    addDelta(deltas, after.localDate, after, 1n);
   }
 
   for (const [localDate, delta] of deltas) {
@@ -162,7 +199,7 @@ export async function applyExpenseDelta(
       .unique();
 
     if (rollup) {
-      await ctx.db.patch(rollup._id, {
+      await ctx.db.patch("dailyBudgetRollups", rollup._id, {
         expenseCents: rollup.expenseCents + delta.expenseCents,
         reserveFundedExpenseCents:
           rollup.reserveFundedExpenseCents + delta.reserveFundedExpenseCents,
@@ -180,41 +217,10 @@ export async function applyExpenseDelta(
       });
     }
 
-    if (delta.budgetImpactExpenseCents === 0n) {
-      continue;
+    if (delta.budgetImpactExpenseCents !== 0n) {
+      changes.push({ localDate, budgetImpactDeltaCents: delta.budgetImpactExpenseCents });
     }
-
-    const closedDay = await ctx.db
-      .query("goalReserveDays")
-      .withIndex("by_household_and_local_date", (q) =>
-        q.eq("householdId", householdId).eq("localDate", localDate),
-      )
-      .unique();
-
-    if (!closedDay) {
-      continue;
-    }
-
-    const reserveState = await ctx.db
-      .query("goalReserveStates")
-      .withIndex("by_household", (q) => q.eq("householdId", householdId))
-      .unique();
-
-    if (!reserveState) {
-      throw new Error("Closed reserve day is missing its reserve state");
-    }
-
-    await applyReserveEvent(
-      ctx,
-      reserveState,
-      {
-        kind: "closed_day_correction",
-        localDate,
-        budgetImpactDeltaCents: delta.budgetImpactExpenseCents,
-        expenseId: sourceExpenseId,
-        actorId,
-      },
-      now,
-    );
   }
+
+  return changes;
 }

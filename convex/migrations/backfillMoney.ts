@@ -99,8 +99,11 @@ export const processHousehold = internalMutation({
       const amountCents = expense.amountCents ?? legacyDollarsToCents(expense.amount);
       const localDate = getLocalDateKey(expense.date, timeZone);
 
-      if (expense.amountCents === undefined) {
-        await ctx.db.patch(expense._id, { amountCents });
+      if (expense.amountCents === undefined || expense.localDate === undefined) {
+        await ctx.db.patch(expense._id, {
+          amountCents,
+          localDate: expense.localDate ?? localDate,
+        });
       }
 
       await ensureDailyBudgetRollup(ctx, {
@@ -238,7 +241,6 @@ export const rebuildDailyBudgetRollup = internalMutation({
       expenseCents += amountCents;
       reserveFundedExpenseCents += reserveUsedCents;
       budgetImpactExpenseCents += getBudgetImpactCents({
-        date: expense.date,
         amountCents,
         reserveUsedCents,
       });

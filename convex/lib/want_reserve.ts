@@ -12,7 +12,7 @@ export interface ReserveAllocation<Id extends string = string> {
   remainingCents: Cents;
 }
 
-export interface LowerItemImpact<Id extends string = string> {
+export interface ProgressLoss<Id extends string = string> {
   id: Id;
   lostCents: Cents;
   allocatedCentsAfter: Cents;
@@ -155,36 +155,34 @@ export function getBudgetImpact(amountCents: Cents, reserveUsedCents: Cents): Ce
   return amountCents - reserveUsedCents;
 }
 
-export function calculateLowerItemImpact<Id extends string>(
+export function calculateProgressLosses<Id extends string>(
   allocationsBefore: readonly ReserveAllocation<Id>[],
-  reserveUsedCents: Cents,
-): LowerItemImpact<Id>[] {
-  assertNonNegativeCents(reserveUsedCents, "Reserve used");
+  allocationsAfter: readonly ReserveAllocation<Id>[],
+): ProgressLoss<Id>[] {
+  const allocatedCentsBeforeById = new Map(
+    allocationsBefore.map((allocation) => [allocation.id, allocation.allocatedCents]),
+  );
+  const losses: ProgressLoss<Id>[] = [];
 
-  let remainingReserveUseCents = reserveUsedCents;
-  const impacts: LowerItemImpact<Id>[] = [];
+  for (const allocationAfter of allocationsAfter) {
+    const allocatedCentsBefore = allocatedCentsBeforeById.get(allocationAfter.id);
 
-  for (const allocation of allocationsBefore) {
-    assertNonNegativeCents(allocation.allocatedCents, "Allocated amount");
-    assertNonNegativeCents(allocation.remainingCents, "Remaining amount");
+    if (allocatedCentsBefore === undefined) {
+      throw new Error("Remaining Want is missing its allocation from before the purchase");
+    }
 
-    const lostCents =
-      allocation.allocatedCents < remainingReserveUseCents
-        ? allocation.allocatedCents
-        : remainingReserveUseCents;
-
-    remainingReserveUseCents -= lostCents;
+    const lostCents = allocatedCentsBefore - allocationAfter.allocatedCents;
 
     if (lostCents > 0n) {
-      impacts.push({
-        id: allocation.id,
+      losses.push({
+        id: allocationAfter.id,
         lostCents,
-        allocatedCentsAfter: allocation.allocatedCents - lostCents,
+        allocatedCentsAfter: allocationAfter.allocatedCents,
       });
     }
   }
 
-  return impacts;
+  return losses;
 }
 
 export function getLocalDateKey(timestamp: number, timeZone: string): string {

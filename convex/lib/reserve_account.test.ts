@@ -2,7 +2,7 @@
 
 import { expect, test } from "vitest";
 import { convexTest } from "convex-test";
-import { getCurrentReserveSnapshot } from "./live_reserve";
+import { getReserveSnapshot } from "./reserve_account";
 import schema from "../schema";
 
 const modules = import.meta.glob("../**/*.ts");
@@ -50,7 +50,7 @@ test("assembles the live reserve snapshot from the household, state, and current
       throw new Error("Expected household");
     }
 
-    const result = await getCurrentReserveSnapshot(ctx, household, march10AtNoonNewYork);
+    const result = await getReserveSnapshot(ctx, household, march10AtNoonNewYork);
 
     return { result, stateId };
   });
@@ -94,7 +94,7 @@ test("defaults missing reserve state and current rollup to zero", async () => {
       throw new Error("Expected household");
     }
 
-    return await getCurrentReserveSnapshot(ctx, household, march10AtNoonNewYork);
+    return await getReserveSnapshot(ctx, household, march10AtNoonNewYork);
   });
 
   expect(snapshot).toMatchObject({

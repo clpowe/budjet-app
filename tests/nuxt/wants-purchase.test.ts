@@ -39,12 +39,12 @@ function makeWant(status: WantItem["status"] = "plan_for_it"): WantItem {
 function makePreview({
   actualAmountCents = 10_000n,
   budgetImpactCents = 0n,
-  lowerItemImpacts = [],
+  progressLosses = [],
   reserveUsedCents = 10_000n,
 }: {
   actualAmountCents?: bigint;
   budgetImpactCents?: bigint;
-  lowerItemImpacts?: Array<{
+  progressLosses?: Array<{
     itemId: Id<"wantItems">;
     name: string;
     lostCents: bigint;
@@ -56,7 +56,7 @@ function makePreview({
     actualAmountCents,
     reserveUsedCents,
     budgetImpactCents,
-    lowerItemImpacts,
+    progressLosses,
   };
 }
 
@@ -106,12 +106,12 @@ describe("WantsPurchaseDialog", () => {
     wrapper.unmount();
   });
 
-  it("names progress taken from later Wants", () => {
+  it("shows affected Wants and their remaining progress", () => {
     const wrapper = mountDialog({
       preview: makePreview({
         actualAmountCents: 12_000n,
         reserveUsedCents: 12_000n,
-        lowerItemImpacts: [
+        progressLosses: [
           {
             itemId: "want-trip" as Id<"wantItems">,
             name: "Trip",
@@ -122,8 +122,9 @@ describe("WantsPurchaseDialog", () => {
       }),
     });
 
-    const impact = wrapper.get('[data-test="lower-item-impacts"]');
+    const impact = wrapper.get('[data-test="progress-losses"]');
 
+    expect(impact.get("h3").text()).toBe("Progress affected on other Wants");
     expect(impact.text()).toContain("Trip");
     expect(impact.text()).toContain("$20.00 progress used");
     expect(impact.text()).toContain("$30.00 remains allocated");

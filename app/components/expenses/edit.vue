@@ -19,6 +19,7 @@ const makeFormState = (expense: Doc<"expenses">) => ({
 });
 
 const formState = ref(makeFormState(props.expense));
+const submitError = ref("");
 
 const { mutate: editSpending, isPending: isSaving } = useConvexMutation(api.expenses.updateExpense);
 
@@ -37,13 +38,26 @@ async function handleSubmit() {
 
   const { name, notes, amount, date } = formState.value;
 
-  await editSpending({
-    expenseId: props.expense._id,
-    name,
-    notes,
-    amountCents: legacyDollarsToCents(amount),
-    date: toTransactionTimestamp(date),
-  });
+  submitError.value = "";
+
+  try {
+    const result = await editSpending({
+      expenseId: props.expense._id,
+      name,
+      notes,
+      amountCents: legacyDollarsToCents(amount),
+      date: toTransactionTimestamp(date),
+    });
+
+    if (!result.success) {
+      submitError.value = "The reserve is still syncing. Try again in a moment.";
+      return;
+    }
+  } catch (error) {
+    submitError.value =
+      error instanceof Error ? error.message : "Could not update spending. Try again.";
+    return;
+  }
 
   emit("updated", props.expense._id);
 }
@@ -54,6 +68,7 @@ async function handleSubmit() {
     v-model="formState"
     :show-date="true"
     :is-submitting="isSaving"
+    :errors="{ form: submitError || undefined }"
     submit-label="Update"
     @submit="handleSubmit"
   />
