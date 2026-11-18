@@ -291,7 +291,7 @@ test("refuses generic edits and deletes for want purchases", async () => {
   );
 });
 
-test("corrects closed-day reserve snapshots and position transactionally", async () => {
+test("editing an expense on a closed day moves the reserve position", async () => {
   vi.useFakeTimers();
   vi.setSystemTime(march11);
 
@@ -308,33 +308,6 @@ test("corrects closed-day reserve snapshots and position transactionally", async
       // Every day through March 10 is closed, so the edit needs no catch-up.
       lastClosedLocalDate: "2026-03-10",
       updatedAt: 0,
-    });
-    await ctx.db.insert("goalReserveLedgerEntries", {
-      householdId: seeded.householdId,
-      kind: "activation",
-      amountCents: 0n,
-      localDate: "2026-02-28",
-      actorId: seeded.ownerId,
-      createdAt: 0,
-    });
-    await ctx.db.insert("goalReserveLedgerEntries", {
-      householdId: seeded.householdId,
-      kind: "daily_close",
-      amountCents: 1_000n,
-      localDate: "2026-03-01",
-      allowanceSnapshotCents: 5_500n,
-      spendingSnapshotCents: 4_500n,
-      createdAt: 0,
-    });
-    await ctx.db.insert("goalReserveDays", {
-      householdId: seeded.householdId,
-      localDate: "2026-03-10",
-      timeZone: "America/New_York",
-      allowanceSnapshotCents: 5_500n,
-      spendingSnapshotCents: 1_000n,
-      contributionCents: 4_500n,
-      closedAt: march11,
-      updatedAt: march11,
     });
     await ctx.db.insert("dailyBudgetRollups", {
       householdId: seeded.householdId,
@@ -363,46 +336,20 @@ test("corrects closed-day reserve snapshots and position transactionally", async
     date: march10,
   });
 
-  const result = await t.run(async (ctx) => {
-    const day = await ctx.db
-      .query("goalReserveDays")
-      .withIndex("by_household_and_local_date", (q) =>
-        q.eq("householdId", seeded.householdId).eq("localDate", "2026-03-10"),
-      )
-      .unique();
-    const state = await ctx.db
+  const state = await t.run((ctx) =>
+    ctx.db
       .query("goalReserveStates")
       .withIndex("by_household", (q) => q.eq("householdId", seeded.householdId))
-      .unique();
-    const entries = await ctx.db
-      .query("goalReserveLedgerEntries")
-      .withIndex("by_household_and_local_date", (q) => q.eq("householdId", seeded.householdId))
-      .collect();
-
-    return { day, entries, state };
-  });
+      .unique(),
+  );
 
   expect(await getRollup(t, seeded.householdId, "2026-03-10")).toMatchObject({
     expenseCents: 1_300n,
     reserveFundedExpenseCents: 0n,
     budgetImpactExpenseCents: 1_300n,
   });
-  expect(result.day).toMatchObject({
-    spendingSnapshotCents: 1_300n,
-    contributionCents: 4_200n,
-  });
-  expect(result.state?.positionCents).toBe(700n);
-  expect(result.entries).toContainEqual(
-    expect.objectContaining({
-      kind: "correction",
-      amountCents: -300n,
-      localDate: "2026-03-10",
-      sourceExpenseId: expenseId,
-    }),
-  );
-  expect(result.entries.reduce((sum, entry) => sum + entry.amountCents, 0n)).toBe(
-    result.state?.positionCents,
-  );
+  // March 10 is closed: its budget impact rose 300, so the reserve drops 300.
+  expect(state?.positionCents).toBe(700n);
 });
 
 test("editing an expense after a time-zone change keeps it on its original local day", async () => {
@@ -510,6 +457,104 @@ test("expense writes wait while the reserve catches up on closed days", async ()
       date: march10,
     }),
   ).resolves.toEqual({ success: true });
+  expect(await getRollup(t, seeded.householdId, "2026-03-10")).toMatchObject({
+    budgetImpactExpenseCents: 500n,
+  });
+});
+
+test("edits before the reserve's first eligible day leave the position alone", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(march11);
+
+  const t = convexTest(schema, modules);
+  const seeded = await seedHouseholds(t);
+  const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
+  const march3 = Date.UTC(2026, 2, 3, 16);
+
+  const expenseId = await t.run(async (ctx) => {
+    await ctx.db.insert("goalReserveStates", {
+      householdId: seeded.householdId,
+      positionCents: 1_000n,
+      activatedAt: 0,
+      firstEligibleLocalDate: "2026-03-05",
+      lastClosedLocalDate: "2026-03-10",
+      updatedAt: 0,
+    });
+    await ctx.db.insert("dailyBudgetRollups", {
+      householdId: seeded.householdId,
+      localDate: "2026-03-03",
+      expenseCents: 1_000n,
+      reserveFundedExpenseCents: 0n,
+      budgetImpactExpenseCents: 1_000n,
+      updatedAt: 0,
+    });
+
+    return await ctx.db.insert("expenses", {
+      householdId: seeded.householdId,
+      name: "Before activation",
+      notes: "",
+      amount: 10,
+      amountCents: 1_000n,
+      date: march3,
+      localDate: "2026-03-03",
+    });
+  });
+
+  await asOwner.mutation(api.expenses.updateExpense, {
+    expenseId,
+    name: "Before activation",
+    notes: "",
+    amountCents: 1_300n,
+    date: march3,
+  });
+
+  const state = await t.run((ctx) =>
+    ctx.db
+      .query("goalReserveStates")
+      .withIndex("by_household", (q) => q.eq("householdId", seeded.householdId))
+      .unique(),
+  );
+
+  expect(await getRollup(t, seeded.householdId, "2026-03-03")).toMatchObject({
+    budgetImpactExpenseCents: 1_300n,
+  });
+  expect(state?.positionCents).toBe(1_000n);
+});
+
+test("rejects an expense change that would push a daily rollup below zero", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(march11);
+
+  const t = convexTest(schema, modules);
+  const seeded = await seedHouseholds(t);
+  const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
+
+  const expenseId = await t.run(async (ctx) => {
+    // Inconsistent on purpose: the rollup holds less than the expense on that day.
+    await ctx.db.insert("dailyBudgetRollups", {
+      householdId: seeded.householdId,
+      localDate: "2026-03-10",
+      expenseCents: 500n,
+      reserveFundedExpenseCents: 0n,
+      budgetImpactExpenseCents: 500n,
+      updatedAt: 0,
+    });
+
+    return await ctx.db.insert("expenses", {
+      householdId: seeded.householdId,
+      name: "Too big",
+      notes: "",
+      amount: 10,
+      amountCents: 1_000n,
+      date: march10,
+      localDate: "2026-03-10",
+    });
+  });
+
+  await expect(asOwner.mutation(api.expenses.deleteExpense, { expenseId })).rejects.toThrow(
+    "Daily budget rollup cannot go below zero",
+  );
+
   expect(await getRollup(t, seeded.householdId, "2026-03-10")).toMatchObject({
     budgetImpactExpenseCents: 500n,
   });

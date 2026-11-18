@@ -119,27 +119,6 @@ async function seedPurchaseHouseholds(
       ...(lastClosedLocalDate === null ? {} : { lastClosedLocalDate }),
       updatedAt: 0,
     });
-    await ctx.db.insert("goalReserveLedgerEntries", {
-      householdId,
-      kind: "activation",
-      amountCents: 0n,
-      localDate: "2026-03-08",
-      actorId: ownerId,
-      createdAt: 0,
-    });
-
-    if (positionCents !== 0n) {
-      await ctx.db.insert("goalReserveLedgerEntries", {
-        householdId,
-        kind: "daily_close",
-        amountCents: positionCents,
-        localDate: "2026-03-09",
-        allowanceSnapshotCents: allowanceCents,
-        spendingSnapshotCents: 0n,
-        createdAt: 0,
-      });
-    }
-
     return {
       householdId,
       otherHouseholdId,
@@ -166,14 +145,6 @@ async function readSnapshot(
       .query("expenses")
       .withIndex("by_household", (q) => q.eq("householdId", householdId))
       .collect();
-    const entries = await ctx.db
-      .query("goalReserveLedgerEntries")
-      .withIndex("by_household_and_local_date", (q) => q.eq("householdId", householdId))
-      .collect();
-    const days = await ctx.db
-      .query("goalReserveDays")
-      .withIndex("by_household_and_local_date", (q) => q.eq("householdId", householdId))
-      .collect();
     const rollups = await ctx.db
       .query("dailyBudgetRollups")
       .withIndex("by_household_and_local_date", (q) => q.eq("householdId", householdId))
@@ -183,20 +154,8 @@ async function readSnapshot(
       .withIndex("by_household_and_status", (q) => q.eq("householdId", householdId))
       .collect();
 
-    return { state, expenses, entries, days, rollups, wants };
+    return { state, expenses, rollups, wants };
   });
-}
-
-type PurchaseSnapshot = Awaited<ReturnType<typeof readSnapshot>>;
-
-function expectLedgerInvariant(snapshot: PurchaseSnapshot): void {
-  if (!snapshot.state) {
-    throw new Error("Expected a reserve state");
-  }
-
-  expect(snapshot.entries.reduce((sum, entry) => sum + entry.amountCents, 0n)).toBe(
-    snapshot.state.positionCents,
-  );
 }
 
 test.each([
@@ -259,9 +218,6 @@ test.each([
 
     const snapshot = await readSnapshot(t, seeded.householdId);
     const expense = snapshot.expenses.find((candidate) => candidate.wantItemId === seeded.cameraId);
-    const purchaseEntry = snapshot.entries.find(
-      (entry) => entry.kind === "purchase" && entry.wantItemId === seeded.cameraId,
-    );
     const rollup = snapshot.rollups.find((candidate) => candidate.localDate === purchaseLocalDate);
     const camera = snapshot.wants.find((item) => item._id === seeded.cameraId);
     const trip = snapshot.wants.find((item) => item._id === seeded.tripId);
@@ -273,14 +229,6 @@ test.each([
       amountCents: actualAmountCents,
       wantItemId: seeded.cameraId,
       reserveUsedCents,
-    });
-    expect(purchaseEntry).toMatchObject({
-      householdId: seeded.householdId,
-      amountCents: -reserveUsedCents,
-      localDate: purchaseLocalDate,
-      sourceExpenseId: expense?._id,
-      wantItemId: seeded.cameraId,
-      actorId: seeded.ownerId,
     });
     expect(snapshot.state?.positionCents).toBe(availableReserveCents - reserveUsedCents);
     expect(camera).toMatchObject({
@@ -300,8 +248,6 @@ test.each([
       reserveFundedExpenseCents: reserveUsedCents,
       budgetImpactExpenseCents: budgetImpactCents,
     });
-
-    expectLedgerInvariant(snapshot);
   },
 );
 
@@ -491,7 +437,6 @@ test("recalculates funding from current server state instead of trusting a stale
     2_000n,
   );
   expect(snapshot.state?.positionCents).toBe(5_000n);
-  expectLedgerInvariant(snapshot);
 });
 
 test("serializes competing purchases so the same reserve cannot be spent twice", async () => {
@@ -519,22 +464,17 @@ test("serializes competing purchases so the same reserve cannot be spent twice",
 
   const snapshot = await readSnapshot(t, seeded.householdId);
   const purchaseExpenses = snapshot.expenses.filter((expense) => expense.wantItemId !== undefined);
-  const purchaseEntries = snapshot.entries.filter((entry) => entry.kind === "purchase");
 
   expect(purchaseExpenses).toHaveLength(2);
   expect(
     purchaseExpenses.reduce((sum, expense) => sum + (expense.reserveUsedCents ?? 0n), 0n),
   ).toBe(10_000n);
-  expect(purchaseEntries).toHaveLength(2);
-  expect(purchaseEntries.reduce((sum, entry) => sum + entry.amountCents, 0n)).toBe(-10_000n);
   expect(snapshot.state?.positionCents).toBe(0n);
   expect(
     snapshot.wants
       .filter((item) => item._id === seeded.cameraId || item._id === seeded.tripId)
       .map((item) => item.status),
   ).toEqual(["bought", "bought"]);
-
-  expectLedgerInvariant(snapshot);
 });
 
 test("blocks cross-household, future-date, and client-timed purchases", async () => {
@@ -579,7 +519,6 @@ test("blocks cross-household, future-date, and client-timed purchases", async ()
   expect(snapshot.wants.find((item) => item._id === seeded.cameraId)).toMatchObject({
     status: "plan_for_it",
   });
-  expectLedgerInvariant(snapshot);
 });
 
 test("commits only bounded catch-up work while the reserve is still syncing", async () => {
@@ -604,8 +543,6 @@ test("commits only bounded catch-up work while the reserve is still syncing", as
 
   const syncing = await readSnapshot(t, seeded.householdId);
 
-  expect(syncing.days).toHaveLength(31);
-  expect(syncing.entries.filter((entry) => entry.kind === "daily_close")).toHaveLength(31);
   expect(syncing.state).toMatchObject({
     positionCents: 155_000n,
     lastClosedLocalDate: "2026-01-31",
@@ -614,7 +551,6 @@ test("commits only bounded catch-up work while the reserve is still syncing", as
   expect(syncing.wants.find((item) => item._id === seeded.cameraId)).toMatchObject({
     status: "plan_for_it",
   });
-  expectLedgerInvariant(syncing);
 
   await t.finishAllScheduledFunctions(() => vi.runAllTimers());
 
@@ -630,7 +566,6 @@ test("commits only bounded catch-up work while the reserve is still syncing", as
   expect(completed.wants.find((item) => item._id === seeded.cameraId)).toMatchObject({
     status: "bought",
   });
-  expectLedgerInvariant(completed);
 });
 
 test("a purchase racing the hourly closer credits and closes each day once", async () => {
@@ -657,27 +592,7 @@ test("a purchase racing the hourly closer credits and closes each day once", asy
   ]);
 
   const snapshot = await readSnapshot(t, seeded.householdId);
-  const dailyCloseEntries = snapshot.entries.filter((entry) => entry.kind === "daily_close");
-  const purchaseEntries = snapshot.entries.filter((entry) => entry.kind === "purchase");
 
-  expect(snapshot.days).toEqual([
-    expect.objectContaining({
-      localDate: "2026-03-09",
-      contributionCents: 5_000n,
-    }),
-  ]);
-  expect(dailyCloseEntries).toEqual([
-    expect.objectContaining({
-      localDate: "2026-03-09",
-      amountCents: 5_000n,
-    }),
-  ]);
-  expect(purchaseEntries).toEqual([
-    expect.objectContaining({
-      wantItemId: seeded.cameraId,
-      amountCents: -5_000n,
-    }),
-  ]);
   expect(snapshot.expenses).toEqual([
     expect.objectContaining({
       wantItemId: seeded.cameraId,
@@ -685,8 +600,11 @@ test("a purchase racing the hourly closer credits and closes each day once", asy
       reserveUsedCents: 5_000n,
     }),
   ]);
-  expect(snapshot.state?.positionCents).toBe(0n);
-  expectLedgerInvariant(snapshot);
+  // March 9 credited +5_000 once; the purchase spent it.
+  expect(snapshot.state).toMatchObject({
+    positionCents: 0n,
+    lastClosedLocalDate: "2026-03-09",
+  });
 });
 
 test("corrects the linked purchase in place and recalculates exact funding", async () => {
@@ -723,7 +641,6 @@ test("corrects the linked purchase in place and recalculates exact funding", asy
   const correctedExpense = corrected.expenses.find(
     (expense) => expense.wantItemId === seeded.cameraId,
   );
-  const correctionEntries = corrected.entries.filter((entry) => entry.kind === "correction");
   const rollup = corrected.rollups.find((candidate) => candidate.localDate === purchaseLocalDate);
 
   expect(corrected.expenses).toHaveLength(1);
@@ -733,14 +650,6 @@ test("corrects the linked purchase in place and recalculates exact funding", asy
     reserveUsedCents: 8_000n,
     wantItemId: seeded.cameraId,
   });
-  expect(correctionEntries).toContainEqual(
-    expect.objectContaining({
-      amountCents: 2_000n,
-      sourceExpenseId: originalExpense._id,
-      wantItemId: seeded.cameraId,
-      actorId: seeded.ownerId,
-    }),
-  );
   expect(rollup).toMatchObject({
     expenseCents: 8_000n,
     reserveFundedExpenseCents: 8_000n,
@@ -751,7 +660,6 @@ test("corrects the linked purchase in place and recalculates exact funding", asy
     status: "bought",
     expenseId: originalExpense._id,
   });
-  expectLedgerInvariant(corrected);
 });
 
 test("undoes a purchase, reverses its rollup, and restores the item at the queue bottom", async () => {
@@ -786,19 +694,9 @@ test("undoes a purchase, reverses its rollup, and restores the item at the queue
   const undone = await readSnapshot(t, seeded.householdId);
   const camera = undone.wants.find((item) => item._id === seeded.cameraId);
   const trip = undone.wants.find((item) => item._id === seeded.tripId);
-  const purchaseUndoEntries = undone.entries.filter((entry) => entry.kind === "purchase_undo");
   const rollup = undone.rollups.find((candidate) => candidate.localDate === purchaseLocalDate);
 
   expect(undone.expenses).toEqual([]);
-  expect(purchaseUndoEntries).toEqual([
-    expect.objectContaining({
-      amountCents: 10_000n,
-      localDate: purchaseLocalDate,
-      sourceExpenseId: originalExpense._id,
-      wantItemId: seeded.cameraId,
-      actorId: seeded.ownerId,
-    }),
-  ]);
   expect(rollup).toMatchObject({
     expenseCents: 0n,
     reserveFundedExpenseCents: 0n,
@@ -817,7 +715,6 @@ test("undoes a purchase, reverses its rollup, and restores the item at the queue
   expect(camera?.purchasedBy).toBeUndefined();
   expect(camera?.purchasedAt).toBeUndefined();
   expect(camera?.expenseId).toBeUndefined();
-  expectLedgerInvariant(undone);
 });
 
 const march12AtNoonNewYork = Date.UTC(2026, 2, 12, 16);
@@ -860,11 +757,6 @@ test("correcting a past purchase closes pending days first and corrects the clos
 
   const corrected = await readSnapshot(t, seeded.householdId);
 
-  expect(corrected.days.map((day) => day.localDate)).toEqual(["2026-03-10", "2026-03-11"]);
-  expect(corrected.days[0]).toMatchObject({
-    spendingSnapshotCents: 0n,
-    contributionCents: 5_000n,
-  });
   expect(corrected.rollups.find((rollup) => rollup.localDate === purchaseLocalDate)).toMatchObject({
     expenseCents: 8_000n,
     reserveFundedExpenseCents: 8_000n,
@@ -874,7 +766,6 @@ test("correcting a past purchase closes pending days first and corrects the clos
     positionCents: 12_000n,
     lastClosedLocalDate: "2026-03-11",
   });
-  expectLedgerInvariant(corrected);
 });
 
 test("undoing a closed-day purchase after a time-zone change reverses its original day", async () => {
@@ -900,13 +791,8 @@ test("undoing a closed-day purchase after a time-zone change reverses its origin
     expenseCents: 0n,
     budgetImpactExpenseCents: 0n,
   });
-  expect(undone.days.find((day) => day.localDate === purchaseLocalDate)).toMatchObject({
-    spendingSnapshotCents: 0n,
-    contributionCents: 5_000n,
-  });
   // $100 start + $50 (Mar 10, corrected) + $50 (Mar 11), as if never bought.
   expect(undone.state?.positionCents).toBe(20_000n);
-  expectLedgerInvariant(undone);
 });
 
 test("correcting and undoing wait for the reserve to finish syncing", async () => {
@@ -928,8 +814,7 @@ test("correcting and undoing wait for the reserve to finish syncing", async () =
   expect(syncing.expenses).toEqual([
     expect.objectContaining({ amountCents: 12_000n, reserveUsedCents: 10_000n }),
   ]);
-  expect(syncing.days).toHaveLength(31);
-  expectLedgerInvariant(syncing);
+  expect(syncing.state?.lastClosedLocalDate).toBe("2026-04-09");
 
   await expect(
     asOwner.mutation(api.wants.undoPurchase, { itemId: seeded.cameraId }),
@@ -947,5 +832,4 @@ test("correcting and undoing wait for the reserve to finish syncing", async () =
   const caughtUp = await readSnapshot(t, seeded.householdId);
 
   expect(caughtUp.state?.lastClosedLocalDate).toBe("2026-05-31");
-  expectLedgerInvariant(caughtUp);
 });

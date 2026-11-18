@@ -25,6 +25,7 @@ import type * as lib_reserve_account from "../lib/reserve_account.js";
 import type * as lib_want_reserve from "../lib/want_reserve.js";
 import type * as migrations_backfillExpenseLocalDates from "../migrations/backfillExpenseLocalDates.js";
 import type * as migrations_backfillMoney from "../migrations/backfillMoney.js";
+import type * as migrations_clearReserveHistory from "../migrations/clearReserveHistory.js";
 import type * as reserve from "../reserve.js";
 import type * as reserveMaintenance from "../reserveMaintenance.js";
 import type * as test_utils_seed from "../test_utils/seed.js";
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   "lib/want_reserve": typeof lib_want_reserve;
   "migrations/backfillExpenseLocalDates": typeof migrations_backfillExpenseLocalDates;
   "migrations/backfillMoney": typeof migrations_backfillMoney;
+  "migrations/clearReserveHistory": typeof migrations_clearReserveHistory;
   reserve: typeof reserve;
   reserveMaintenance: typeof reserveMaintenance;
   "test_utils/seed": typeof test_utils_seed;

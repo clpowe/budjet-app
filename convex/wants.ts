@@ -400,7 +400,7 @@ export const changeStatus = mutation({
     }
 
     if (isActivating) {
-      await activateReserve(ctx, { household, actorId: user._id, now });
+      await activateReserve(ctx, { household, now });
     }
 
     const updatedWantItem = await ctx.db.get(wantItem._id);
@@ -540,7 +540,6 @@ export const purchase = mutation({
 
     const result = await recordPurchase(ctx, {
       household,
-      actorId: user._id,
       want: wantItem,
       amountCents: args.actualAmountCents,
       localDate: args.purchaseLocalDate,
@@ -592,7 +591,6 @@ export const correctPurchase = mutation({
 
     const result = await correctReserveFundedPurchase(ctx, {
       household,
-      actorId: user._id,
       expense,
       amountCents: args.actualAmountCents,
       now: serverNow,
@@ -632,7 +630,6 @@ export const undoPurchase = mutation({
 
     const result = await undoReserveFundedPurchase(ctx, {
       household,
-      actorId: user._id,
       expense,
       now: serverNow,
     });

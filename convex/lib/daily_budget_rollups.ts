@@ -198,21 +198,29 @@ export async function applyExpenseDelta(
       )
       .unique();
 
+    const next = {
+      expenseCents: (rollup?.expenseCents ?? 0n) + delta.expenseCents,
+      reserveFundedExpenseCents:
+        (rollup?.reserveFundedExpenseCents ?? 0n) + delta.reserveFundedExpenseCents,
+      budgetImpactExpenseCents:
+        (rollup?.budgetImpactExpenseCents ?? 0n) + delta.budgetImpactExpenseCents,
+    };
+
+    if (
+      next.expenseCents < 0n ||
+      next.reserveFundedExpenseCents < 0n ||
+      next.budgetImpactExpenseCents < 0n
+    ) {
+      throw new Error("Daily budget rollup cannot go below zero");
+    }
+
     if (rollup) {
-      await ctx.db.patch("dailyBudgetRollups", rollup._id, {
-        expenseCents: rollup.expenseCents + delta.expenseCents,
-        reserveFundedExpenseCents:
-          rollup.reserveFundedExpenseCents + delta.reserveFundedExpenseCents,
-        budgetImpactExpenseCents: rollup.budgetImpactExpenseCents + delta.budgetImpactExpenseCents,
-        updatedAt: now,
-      });
+      await ctx.db.patch("dailyBudgetRollups", rollup._id, { ...next, updatedAt: now });
     } else {
       await ctx.db.insert("dailyBudgetRollups", {
         householdId,
         localDate,
-        expenseCents: delta.expenseCents,
-        reserveFundedExpenseCents: delta.reserveFundedExpenseCents,
-        budgetImpactExpenseCents: delta.budgetImpactExpenseCents,
+        ...next,
         updatedAt: now,
       });
     }
