@@ -111,7 +111,8 @@ async function seedPurchaseHouseholds(
       updatedAt: 3,
     });
 
-    await ctx.db.insert("goalReserveStates", {
+    await ctx.db.insert("savingsMigration", { verifiedAt: 0 });
+    await ctx.db.insert("goalSavingsStates", {
       householdId,
       positionCents,
       activatedAt: 0,
@@ -138,7 +139,7 @@ async function readSnapshot(
 ) {
   return await t.run(async (ctx) => {
     const state = await ctx.db
-      .query("goalReserveStates")
+      .query("goalSavingsStates")
       .withIndex("by_household", (q) => q.eq("householdId", householdId))
       .unique();
     const expenses = await ctx.db
@@ -163,32 +164,32 @@ test.each([
     name: "fully funds an estimate-matching purchase",
     estimateCents: 10_000n,
     actualAmountCents: 10_000n,
-    availableReserveCents: 10_000n,
-    reserveUsedCents: 10_000n,
+    availableSavingsCents: 10_000n,
+    savingsUsedCents: 10_000n,
     budgetImpactCents: 0n,
   },
   {
     name: "partially funds an over-estimate purchase",
     estimateCents: 10_000n,
     actualAmountCents: 12_000n,
-    availableReserveCents: 10_000n,
-    reserveUsedCents: 10_000n,
+    availableSavingsCents: 10_000n,
+    savingsUsedCents: 10_000n,
     budgetImpactCents: 2_000n,
   },
   {
-    name: "fully funds an over-estimate purchase when reserve is available",
+    name: "fully funds an over-estimate purchase when savings is available",
     estimateCents: 10_000n,
     actualAmountCents: 12_000n,
-    availableReserveCents: 15_000n,
-    reserveUsedCents: 12_000n,
+    availableSavingsCents: 15_000n,
+    savingsUsedCents: 12_000n,
     budgetImpactCents: 0n,
   },
   {
-    name: "uses the ordinary budget when no reserve is available",
+    name: "uses the ordinary budget when no savings is available",
     estimateCents: 10_000n,
     actualAmountCents: 12_000n,
-    availableReserveCents: 0n,
-    reserveUsedCents: 0n,
+    availableSavingsCents: 0n,
+    savingsUsedCents: 0n,
     budgetImpactCents: 12_000n,
   },
 ])(
@@ -196,8 +197,8 @@ test.each([
   async ({
     estimateCents,
     actualAmountCents,
-    availableReserveCents,
-    reserveUsedCents,
+    availableSavingsCents,
+    savingsUsedCents,
     budgetImpactCents,
   }) => {
     vi.useFakeTimers();
@@ -206,7 +207,7 @@ test.each([
     const t = convexTest(schema, modules);
     const seeded = await seedPurchaseHouseholds(t, {
       estimatedCostCents: estimateCents,
-      positionCents: availableReserveCents,
+      positionCents: availableSavingsCents,
     });
     const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
 
@@ -228,9 +229,9 @@ test.each([
       name: "Camera",
       amountCents: actualAmountCents,
       wantItemId: seeded.cameraId,
-      reserveUsedCents,
+      savingsUsedCents,
     });
-    expect(snapshot.state?.positionCents).toBe(availableReserveCents - reserveUsedCents);
+    expect(snapshot.state?.positionCents).toBe(availableSavingsCents - savingsUsedCents);
     expect(camera).toMatchObject({
       status: "bought",
       purchasedBy: seeded.ownerId,
@@ -245,7 +246,7 @@ test.each([
     });
     expect(rollup).toMatchObject({
       expenseCents: actualAmountCents,
-      reserveFundedExpenseCents: reserveUsedCents,
+      savingsFundedExpenseCents: savingsUsedCents,
       budgetImpactExpenseCents: budgetImpactCents,
     });
   },
@@ -285,7 +286,7 @@ test.each([
     remainingAllocations: [7_000n],
   },
   {
-    name: "leaves the remaining allocation at zero when no reserve is available",
+    name: "leaves the remaining allocation at zero when no savings is available",
     positionCents: 0n,
     addThirdWant: false,
     buyTrip: false,
@@ -293,7 +294,7 @@ test.each([
     remainingAllocations: [0n],
   },
   {
-    name: "preserves progress when reserve exactly covers both estimates",
+    name: "preserves progress when savings exactly covers both estimates",
     positionCents: 18_000n,
     addThirdWant: false,
     buyTrip: false,
@@ -321,7 +322,7 @@ test.each([
       firstEligibleLocalDate: positionCents === 0n ? purchaseLocalDate : "2026-03-09",
       lastClosedLocalDate: null,
     });
-    await t.mutation(internal.reserveMaintenance.closeEligibleDays, { cursor: null });
+    await t.mutation(internal.savingsMaintenance.closeEligibleDays, { cursor: null });
 
     if (addThirdWant) {
       await t.run(async (ctx) => {
@@ -343,7 +344,7 @@ test.each([
 
     const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
     const itemId = buyTrip ? seeded.tripId : seeded.cameraId;
-    const before = await asOwner.query(api.reserve.getSummary, { now: serverNow });
+    const before = await asOwner.query(api.savings.getSummary, { now: serverNow });
     const preview = await asOwner.query(api.wants.previewPurchase, {
       itemId,
       actualAmountCents,
@@ -355,17 +356,17 @@ test.each([
       actualAmountCents,
       purchaseLocalDate,
     });
-    const after = await asOwner.query(api.reserve.getSummary, { now: serverNow });
+    const after = await asOwner.query(api.savings.getSummary, { now: serverNow });
     const snapshot = await readSnapshot(t, seeded.householdId);
     const expense = snapshot.expenses.find((candidate) => candidate.wantItemId === itemId);
 
     expect(purchase.status).toBe("purchased");
-    expect(before.availableReserveCents).toBe(positionCents);
+    expect(before.availableSavingsCents).toBe(positionCents);
     expect(after.activeAllocations.map(({ allocatedCents }) => allocatedCents)).toEqual(
       remainingAllocations,
     );
-    expect(preview.reserveUsedCents).toBe(expense?.reserveUsedCents);
-    expect(preview.budgetImpactCents).toBe(actualAmountCents - preview.reserveUsedCents);
+    expect(preview.savingsUsedCents).toBe(expense?.savingsUsedCents);
+    expect(preview.budgetImpactCents).toBe(actualAmountCents - preview.savingsUsedCents);
 
     const impacts = after.activeAllocations.flatMap((allocation) => {
       const previous = before.activeAllocations.find((item) => item.itemId === allocation.itemId);
@@ -407,7 +408,7 @@ test("recalculates funding from current server state instead of trusting a stale
   });
 
   expect(preview).toMatchObject({
-    reserveUsedCents: 12_000n,
+    savingsUsedCents: 12_000n,
     budgetImpactCents: 0n,
   });
 
@@ -431,15 +432,15 @@ test("recalculates funding from current server state instead of trusting a stale
 
   expect(purchaseExpense).toMatchObject({
     amountCents: 12_000n,
-    reserveUsedCents: 10_000n,
+    savingsUsedCents: 10_000n,
   });
-  expect((purchaseExpense?.amountCents ?? 0n) - (purchaseExpense?.reserveUsedCents ?? 0n)).toBe(
+  expect((purchaseExpense?.amountCents ?? 0n) - (purchaseExpense?.savingsUsedCents ?? 0n)).toBe(
     2_000n,
   );
   expect(snapshot.state?.positionCents).toBe(5_000n);
 });
 
-test("serializes competing purchases so the same reserve cannot be spent twice", async () => {
+test("serializes competing purchases so the same savings cannot be spent twice", async () => {
   vi.useFakeTimers();
   vi.setSystemTime(serverNow);
 
@@ -467,7 +468,7 @@ test("serializes competing purchases so the same reserve cannot be spent twice",
 
   expect(purchaseExpenses).toHaveLength(2);
   expect(
-    purchaseExpenses.reduce((sum, expense) => sum + (expense.reserveUsedCents ?? 0n), 0n),
+    purchaseExpenses.reduce((sum, expense) => sum + (expense.savingsUsedCents ?? 0n), 0n),
   ).toBe(10_000n);
   expect(snapshot.state?.positionCents).toBe(0n);
   expect(
@@ -521,52 +522,60 @@ test("blocks cross-household, future-date, and client-timed purchases", async ()
   });
 });
 
-test("commits only bounded catch-up work while the reserve is still syncing", async () => {
-  vi.useFakeTimers();
-  vi.setSystemTime(serverNow);
+test.each([
+  { apiVersion: undefined, syncing: "reserve_syncing" },
+  { apiVersion: 2 as const, syncing: "savings_syncing" },
+])(
+  "commits only bounded catch-up work while savings are still syncing ($syncing)",
+  async ({ apiVersion, syncing: expectedStatus }) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(serverNow);
 
-  const t = convexTest(schema, modules);
-  const seeded = await seedPurchaseHouseholds(t, {
-    positionCents: 0n,
-    firstEligibleLocalDate: "2026-01-01",
-    lastClosedLocalDate: null,
-  });
-  const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
+    const t = convexTest(schema, modules);
+    const seeded = await seedPurchaseHouseholds(t, {
+      positionCents: 0n,
+      firstEligibleLocalDate: "2026-01-01",
+      lastClosedLocalDate: null,
+    });
+    const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
 
-  const result = await asOwner.mutation(api.wants.purchase, {
-    itemId: seeded.cameraId,
-    actualAmountCents: 10_000n,
-    purchaseLocalDate,
-  });
+    const result = await asOwner.mutation(api.wants.purchase, {
+      apiVersion,
+      itemId: seeded.cameraId,
+      actualAmountCents: 10_000n,
+      purchaseLocalDate,
+    });
 
-  expect(result).toEqual({ status: "reserve_syncing" });
+    expect(result).toEqual({ status: expectedStatus });
 
-  const syncing = await readSnapshot(t, seeded.householdId);
+    const syncing = await readSnapshot(t, seeded.householdId);
 
-  expect(syncing.state).toMatchObject({
-    positionCents: 155_000n,
-    lastClosedLocalDate: "2026-01-31",
-  });
-  expect(syncing.expenses).toEqual([]);
-  expect(syncing.wants.find((item) => item._id === seeded.cameraId)).toMatchObject({
-    status: "plan_for_it",
-  });
+    expect(syncing.state).toMatchObject({
+      positionCents: 155_000n,
+      lastClosedLocalDate: "2026-01-31",
+    });
+    expect(syncing.expenses).toEqual([]);
+    expect(syncing.wants.find((item) => item._id === seeded.cameraId)).toMatchObject({
+      status: "plan_for_it",
+    });
 
-  await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
 
-  await asOwner.mutation(api.wants.purchase, {
-    itemId: seeded.cameraId,
-    actualAmountCents: 10_000n,
-    purchaseLocalDate,
-  });
+    await asOwner.mutation(api.wants.purchase, {
+      apiVersion,
+      itemId: seeded.cameraId,
+      actualAmountCents: 10_000n,
+      purchaseLocalDate,
+    });
 
-  const completed = await readSnapshot(t, seeded.householdId);
+    const completed = await readSnapshot(t, seeded.householdId);
 
-  expect(completed.expenses).toHaveLength(1);
-  expect(completed.wants.find((item) => item._id === seeded.cameraId)).toMatchObject({
-    status: "bought",
-  });
-});
+    expect(completed.expenses).toHaveLength(1);
+    expect(completed.wants.find((item) => item._id === seeded.cameraId)).toMatchObject({
+      status: "bought",
+    });
+  },
+);
 
 test("a purchase racing the hourly closer credits and closes each day once", async () => {
   vi.useFakeTimers();
@@ -586,7 +595,7 @@ test("a purchase racing the hourly closer credits and closes each day once", asy
       actualAmountCents: 5_000n,
       purchaseLocalDate,
     }),
-    t.mutation(internal.reserveMaintenance.closeEligibleDays, {
+    t.mutation(internal.savingsMaintenance.closeEligibleDays, {
       cursor: null,
     }),
   ]);
@@ -597,7 +606,7 @@ test("a purchase racing the hourly closer credits and closes each day once", asy
     expect.objectContaining({
       wantItemId: seeded.cameraId,
       amountCents: 5_000n,
-      reserveUsedCents: 5_000n,
+      savingsUsedCents: 5_000n,
     }),
   ]);
   // March 9 credited +5_000 once; the purchase spent it.
@@ -647,12 +656,12 @@ test("corrects the linked purchase in place and recalculates exact funding", asy
   expect(correctedExpense).toMatchObject({
     _id: originalExpense._id,
     amountCents: 8_000n,
-    reserveUsedCents: 8_000n,
+    savingsUsedCents: 8_000n,
     wantItemId: seeded.cameraId,
   });
   expect(rollup).toMatchObject({
     expenseCents: 8_000n,
-    reserveFundedExpenseCents: 8_000n,
+    savingsFundedExpenseCents: 8_000n,
     budgetImpactExpenseCents: 0n,
   });
   expect(corrected.state?.positionCents).toBe(2_000n);
@@ -687,9 +696,7 @@ test("undoes a purchase, reverses its rollup, and restores the item at the queue
     throw new Error("Expected the linked purchase expense");
   }
 
-  await asOwner.mutation(api.wants.undoPurchase, {
-    itemId: seeded.cameraId,
-  });
+  await asOwner.mutation(api.wants.undoPurchase, { itemId: seeded.cameraId });
 
   const undone = await readSnapshot(t, seeded.householdId);
   const camera = undone.wants.find((item) => item._id === seeded.cameraId);
@@ -699,7 +706,7 @@ test("undoes a purchase, reverses its rollup, and restores the item at the queue
   expect(undone.expenses).toEqual([]);
   expect(rollup).toMatchObject({
     expenseCents: 0n,
-    reserveFundedExpenseCents: 0n,
+    savingsFundedExpenseCents: 0n,
     budgetImpactExpenseCents: 0n,
   });
   expect(undone.state?.positionCents).toBe(10_000n);
@@ -726,7 +733,7 @@ async function purchaseCameraOnMarch10(t: TestConvex<typeof schema>) {
   const seeded = await seedPurchaseHouseholds(t, { positionCents: 10_000n });
   const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
 
-  // $120 against a $100 reserve: $100 from reserve, $20 budget impact on March 10.
+  // $120 against a $100 savings: $100 from savings, $20 budget impact on March 10.
   await asOwner.mutation(api.wants.purchase, {
     itemId: seeded.cameraId,
     actualAmountCents: 12_000n,
@@ -747,11 +754,11 @@ test("correcting a past purchase closes pending days first and corrects the clos
     actualAmountCents: 8_000n,
   });
 
-  // Without the purchase the reserve would be $100 + $50 + $50 = $200, so the
-  // corrected $80 is fully reserve-funded.
+  // Without the purchase the savings would be $100 + $50 + $50 = $200, so the
+  // corrected $80 is fully savings-funded.
   expect(result).toMatchObject({
     success: true,
-    reserveUsedCents: 8_000n,
+    savingsUsedCents: 8_000n,
     budgetImpactCents: 0n,
   });
 
@@ -759,7 +766,7 @@ test("correcting a past purchase closes pending days first and corrects the clos
 
   expect(corrected.rollups.find((rollup) => rollup.localDate === purchaseLocalDate)).toMatchObject({
     expenseCents: 8_000n,
-    reserveFundedExpenseCents: 8_000n,
+    savingsFundedExpenseCents: 8_000n,
     budgetImpactExpenseCents: 0n,
   });
   expect(corrected.state).toMatchObject({
@@ -795,7 +802,7 @@ test("undoing a closed-day purchase after a time-zone change reverses its origin
   expect(undone.state?.positionCents).toBe(20_000n);
 });
 
-test("correcting and undoing wait for the reserve to finish syncing", async () => {
+test("correcting and undoing wait for the savings to finish syncing", async () => {
   const t = convexTest(schema, modules);
   const { seeded, asOwner } = await purchaseCameraOnMarch10(t);
 
@@ -804,21 +811,22 @@ test("correcting and undoing wait for the reserve to finish syncing", async () =
 
   await expect(
     asOwner.mutation(api.wants.correctPurchase, {
+      apiVersion: 2,
       itemId: seeded.cameraId,
       actualAmountCents: 8_000n,
     }),
-  ).resolves.toEqual({ status: "reserve_syncing" });
+  ).resolves.toEqual({ status: "savings_syncing" });
 
   const syncing = await readSnapshot(t, seeded.householdId);
 
   expect(syncing.expenses).toEqual([
-    expect.objectContaining({ amountCents: 12_000n, reserveUsedCents: 10_000n }),
+    expect.objectContaining({ amountCents: 12_000n, savingsUsedCents: 10_000n }),
   ]);
   expect(syncing.state?.lastClosedLocalDate).toBe("2026-04-09");
 
   await expect(
-    asOwner.mutation(api.wants.undoPurchase, { itemId: seeded.cameraId }),
-  ).resolves.toEqual({ status: "reserve_syncing" });
+    asOwner.mutation(api.wants.undoPurchase, { apiVersion: 2, itemId: seeded.cameraId }),
+  ).resolves.toEqual({ status: "savings_syncing" });
   expect(
     (await readSnapshot(t, seeded.householdId)).wants.find((item) => item._id === seeded.cameraId),
   ).toMatchObject({ status: "bought" });
@@ -826,7 +834,7 @@ test("correcting and undoing wait for the reserve to finish syncing", async () =
   await t.finishAllScheduledFunctions(() => vi.runAllTimers());
 
   await expect(
-    asOwner.mutation(api.wants.undoPurchase, { itemId: seeded.cameraId }),
+    asOwner.mutation(api.wants.undoPurchase, { apiVersion: 2, itemId: seeded.cameraId }),
   ).resolves.toEqual({ success: true });
 
   const caughtUp = await readSnapshot(t, seeded.householdId);

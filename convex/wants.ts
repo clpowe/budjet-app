@@ -13,17 +13,17 @@ import {
 } from "./lib/active_want_queue.ts";
 import { requireHouseholdDoc, requireHouseholdMember } from "./lib/household_access";
 import {
-  activateReserve,
-  correctPurchase as correctReserveFundedPurchase,
-  getReserveSnapshot,
+  activateSavings,
+  correctPurchase as correctSavingsFundedPurchase,
+  getSavingsSnapshot,
   recordPurchase,
-  undoPurchase as undoReserveFundedPurchase,
-} from "./lib/reserve_account";
+  undoPurchase as undoSavingsFundedPurchase,
+} from "./lib/savings_account";
 import {
-  allocateReserve,
+  allocateSavings,
   calculateProgressLosses,
   calculatePurchaseFunding,
-} from "./lib/want_reserve";
+} from "./lib/want_savings";
 
 export const INACTIVE_WANTS_PAGE_SIZE = 25;
 
@@ -80,6 +80,7 @@ const progressLossValidator = v.object({
 });
 
 const previewPurchaseResultValidator = v.object({
+  savingsUsedCents: v.int64(),
   reserveUsedCents: v.int64(),
   budgetImpactCents: v.int64(),
   progressLosses: v.array(progressLossValidator),
@@ -87,32 +88,34 @@ const previewPurchaseResultValidator = v.object({
 
 const purchaseResultValidator = v.union(
   v.object({
-    status: v.literal("reserve_syncing"),
+    status: v.union(v.literal("savings_syncing"), v.literal("reserve_syncing")),
   }),
   v.object({
     status: v.literal("purchased"),
     expenseId: v.id("expenses"),
+    savingsUsedCents: v.int64(),
     reserveUsedCents: v.int64(),
     budgetImpactCents: v.int64(),
   }),
 );
 
-const reserveSyncingValidator = v.object({
-  status: v.literal("reserve_syncing"),
+const savingsSyncingValidator = v.object({
+  status: v.union(v.literal("savings_syncing"), v.literal("reserve_syncing")),
 });
 
 const correctPurchaseResultValidator = v.union(
-  reserveSyncingValidator,
+  savingsSyncingValidator,
   v.object({
     success: v.literal(true),
     expenseId: v.id("expenses"),
+    savingsUsedCents: v.int64(),
     reserveUsedCents: v.int64(),
     budgetImpactCents: v.int64(),
   }),
 );
 
 const undoPurchaseResultValidator = v.union(
-  reserveSyncingValidator,
+  savingsSyncingValidator,
   v.object({
     success: v.literal(true),
   }),
@@ -180,10 +183,10 @@ async function requireLinkedPurchase(
     throw new Error("Linked purchase is missing its cent-valued amount");
   }
 
-  const reserveUsedCents = expense.reserveUsedCents ?? 0n;
+  const savingsUsedCents = expense.savingsUsedCents ?? expense.reserveUsedCents ?? 0n;
 
-  if (reserveUsedCents < 0n || reserveUsedCents > expense.amountCents) {
-    throw new Error("Linked purchase contains invalid reserve funding");
+  if (savingsUsedCents < 0n || savingsUsedCents > expense.amountCents) {
+    throw new Error("Linked purchase contains invalid savings funding");
   }
 
   return { item, expense };
@@ -392,7 +395,7 @@ export const changeStatus = mutation({
         updatedAt: now,
       });
     } else {
-      // Preserve the existing behavior of refreshing update metadata.
+      // Psavings the existing behavior of refreshing update metadata.
       await ctx.db.patch(wantItem._id, {
         updatedBy: user._id,
         updatedAt: now,
@@ -400,7 +403,7 @@ export const changeStatus = mutation({
     }
 
     if (isActivating) {
-      await activateReserve(ctx, { household, now });
+      await activateSavings(ctx, { household, now });
     }
 
     const updatedWantItem = await ctx.db.get(wantItem._id);
@@ -466,7 +469,7 @@ export const previewPurchase = query({
       throw new Error("Only planned Want items can be purchased");
     }
 
-    const reserveSnapshot = await getReserveSnapshot(ctx, household, args.now);
+    const savingsSnapshot = await getSavingsSnapshot(ctx, household, args.now);
     const activeItems = await loadActiveWantQueue(ctx, household._id);
     const isInActiveQueue = activeItems.some((activeItem) => activeItem._id === wantItem._id);
 
@@ -474,21 +477,21 @@ export const previewPurchase = query({
       throw new Error("Want item is not in the active queue");
     }
 
-    const toReserveItem = (activeItem: Doc<"wantItems">) => ({
+    const toSavingsItem = (activeItem: Doc<"wantItems">) => ({
       id: activeItem._id,
       estimatedCostCents: activeItem.estimatedCostCents,
     });
     const funding = calculatePurchaseFunding(
       args.actualAmountCents,
-      reserveSnapshot.availableCents,
+      savingsSnapshot.availableCents,
     );
-    const allocationsBefore = allocateReserve(
-      reserveSnapshot.availableCents,
-      activeItems.map(toReserveItem),
+    const allocationsBefore = allocateSavings(
+      savingsSnapshot.availableCents,
+      activeItems.map(toSavingsItem),
     );
-    const allocationsAfter = allocateReserve(
-      reserveSnapshot.availableCents - funding.reserveUsedCents,
-      activeItems.filter((activeItem) => activeItem._id !== wantItem._id).map(toReserveItem),
+    const allocationsAfter = allocateSavings(
+      savingsSnapshot.availableCents - funding.savingsUsedCents,
+      activeItems.filter((activeItem) => activeItem._id !== wantItem._id).map(toSavingsItem),
     );
     const progressLosses = calculateProgressLosses(allocationsBefore, allocationsAfter).map(
       (loss) => {
@@ -509,6 +512,7 @@ export const previewPurchase = query({
 
     return {
       ...funding,
+      reserveUsedCents: funding.savingsUsedCents,
       progressLosses,
     };
   },
@@ -516,6 +520,7 @@ export const previewPurchase = query({
 
 export const purchase = mutation({
   args: {
+    apiVersion: v.optional(v.literal(2)),
     itemId: v.id("wantItems"),
     actualAmountCents: v.int64(),
     purchaseLocalDate: v.string(),
@@ -546,8 +551,8 @@ export const purchase = mutation({
       now: serverNow,
     });
 
-    if (result.status === "reserve_syncing") {
-      return result;
+    if (result.status === "savings_syncing") {
+      return args.apiVersion === 2 ? result : { status: "reserve_syncing" as const };
     }
 
     await removeActiveWant(ctx, {
@@ -566,7 +571,8 @@ export const purchase = mutation({
     return {
       status: "purchased" as const,
       expenseId: result.expenseId,
-      reserveUsedCents: result.reserveUsedCents,
+      savingsUsedCents: result.savingsUsedCents,
+      reserveUsedCents: result.savingsUsedCents,
       budgetImpactCents: result.budgetImpactCents,
     };
   },
@@ -574,6 +580,7 @@ export const purchase = mutation({
 
 export const correctPurchase = mutation({
   args: {
+    apiVersion: v.optional(v.literal(2)),
     itemId: v.id("wantItems"),
     actualAmountCents: v.int64(),
   },
@@ -589,15 +596,15 @@ export const correctPurchase = mutation({
       household._id,
     );
 
-    const result = await correctReserveFundedPurchase(ctx, {
+    const result = await correctSavingsFundedPurchase(ctx, {
       household,
       expense,
       amountCents: args.actualAmountCents,
       now: serverNow,
     });
 
-    if (result.status === "reserve_syncing") {
-      return result;
+    if (result.status === "savings_syncing") {
+      return args.apiVersion === 2 ? result : { status: "reserve_syncing" as const };
     }
 
     await ctx.db.patch("wantItems", wantItem._id, {
@@ -608,7 +615,8 @@ export const correctPurchase = mutation({
     return {
       success: true as const,
       expenseId: expense._id,
-      reserveUsedCents: result.reserveUsedCents,
+      savingsUsedCents: result.savingsUsedCents,
+      reserveUsedCents: result.savingsUsedCents,
       budgetImpactCents: result.budgetImpactCents,
     };
   },
@@ -616,6 +624,7 @@ export const correctPurchase = mutation({
 
 export const undoPurchase = mutation({
   args: {
+    apiVersion: v.optional(v.literal(2)),
     itemId: v.id("wantItems"),
   },
   returns: undoPurchaseResultValidator,
@@ -628,14 +637,14 @@ export const undoPurchase = mutation({
       household._id,
     );
 
-    const result = await undoReserveFundedPurchase(ctx, {
+    const result = await undoSavingsFundedPurchase(ctx, {
       household,
       expense,
       now: serverNow,
     });
 
-    if (result.status === "reserve_syncing") {
-      return result;
+    if (result.status === "savings_syncing") {
+      return args.apiVersion === 2 ? result : { status: "reserve_syncing" as const };
     }
 
     // Throws (rolling back the undo) when the active queue is full.

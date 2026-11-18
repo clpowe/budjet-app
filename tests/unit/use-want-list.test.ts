@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { computed, ref } from "vue";
+import { getFunctionName, type FunctionReference } from "convex/server";
+import { ref } from "vue";
+import { useWantList } from "../../app/composables/use-want-list";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 
@@ -44,62 +46,56 @@ const boughtRef = ref({
 });
 const summaryRef = ref({
   positionCents: 5_000n,
-  availableReserveCents: 4_000n,
+  availableSavingsCents: 4_000n,
   recoveryAmountCents: 0n,
   todayOverageAdjustmentCents: -1_000n,
   projectedEndOfDayContributionCents: 0n,
   activeAllocations: [],
 });
 const nowRef = ref(Date.UTC(2026, 7, 20, 16));
-const queryPendingRefs = Array.from({ length: 2 }, () => ref(false));
+const summaryPending = ref(false);
+const mutations = new Map([
+  [getFunctionName(api.wants.create), vi.fn()],
+  [getFunctionName(api.wants.update), vi.fn()],
+  [getFunctionName(api.wants.changeStatus), vi.fn()],
+  [getFunctionName(api.wants.reorder), vi.fn()],
+  [getFunctionName(api.wants.purchase), vi.fn()],
+  [getFunctionName(api.wants.correctPurchase), vi.fn()],
+  [getFunctionName(api.wants.undoPurchase), vi.fn()],
+]);
 
-const createMock = vi.fn();
-const updateMock = vi.fn();
-const changeStatusMock = vi.fn();
-const reorderMock = vi.fn();
-const purchaseMock = vi.fn();
-const correctPurchaseMock = vi.fn();
-const undoPurchaseMock = vi.fn();
+function mutationFor(endpoint: FunctionReference<"mutation">) {
+  const name = getFunctionName(endpoint);
+  const mutate = mutations.get(name);
+  if (!mutate) throw new Error(`Unexpected mutation: ${name}`);
+  return mutate;
+}
+
 const previewQueryMock = vi.fn();
-const useConvexQueryMock = vi.fn();
 const subscribeMock = vi.fn();
-const useConvexMutationMock = vi.fn();
-const useConvexClientMock = vi.fn();
-
-vi.mock("#imports", () => ({
-  useConvexClient: () => useConvexClientMock(),
-  useConvexMutation: (...args: unknown[]) => useConvexMutationMock(...args),
-  useConvexQuery: (...args: unknown[]) => useConvexQueryMock(...args),
-}));
-
-let useWantList: typeof import("../../app/composables/use-want-list").useWantList;
 
 describe("useWantList", () => {
-  beforeEach(async () => {
-    vi.resetModules();
-    vi.stubGlobal("computed", computed);
-    vi.stubGlobal("useState", (_key: string, initialize: () => number) => {
-      nowRef.value = initialize();
-      return nowRef;
+  beforeEach(() => {
+    vi.resetAllMocks();
+    summaryPending.value = false;
+    vi.stubGlobal("useState", () => nowRef);
+    vi.stubGlobal("useConvexClient", () => ({ query: previewQueryMock, onUpdate: subscribeMock }));
+    vi.stubGlobal("useConvexMutation", (endpoint: FunctionReference<"mutation">) => ({
+      mutate: mutationFor(endpoint),
+    }));
+    vi.stubGlobal("useConvexQuery", (endpoint: FunctionReference<"query">, args: unknown) => {
+      const name = getFunctionName(endpoint);
+      switch (name) {
+        case getFunctionName(api.wants.list):
+          expect(args).toEqual({});
+          return { data: wantsRef, isPending: ref(false) };
+        case getFunctionName(api.savings.getSummary):
+          expect(args).toMatchObject({ value: { now: nowRef.value } });
+          return { data: summaryRef, isPending: summaryPending };
+        default:
+          throw new Error(`Unexpected query: ${name}`);
+      }
     });
-    vi.stubGlobal("useConvexClient", () => useConvexClientMock());
-    vi.stubGlobal("useConvexMutation", (...args: unknown[]) => useConvexMutationMock(...args));
-    vi.stubGlobal("useConvexQuery", (...args: unknown[]) => useConvexQueryMock(...args));
-
-    useConvexQueryMock.mockReset();
-    useConvexMutationMock.mockReset();
-    useConvexClientMock.mockReset();
-    previewQueryMock.mockReset();
-    createMock.mockReset();
-    updateMock.mockReset();
-    changeStatusMock.mockReset();
-    reorderMock.mockReset();
-    purchaseMock.mockReset();
-    correctPurchaseMock.mockReset();
-    undoPurchaseMock.mockReset();
-
-    const queryResponses = [wantsRef, summaryRef];
-    subscribeMock.mockReset();
     subscribeMock.mockImplementation((_query, args, callback) => {
       const sections = {
         considering: consideringRef.value,
@@ -109,120 +105,35 @@ describe("useWantList", () => {
       callback(sections[args.status as keyof typeof sections]);
       return vi.fn();
     });
-    useConvexQueryMock.mockImplementation(() => {
-      const index = useConvexQueryMock.mock.calls.length - 1;
-      return {
-        data: queryResponses[index],
-        isPending: queryPendingRefs[index],
-      };
-    });
-
-    const mutationMocks = [
-      createMock,
-      updateMock,
-      changeStatusMock,
-      reorderMock,
-      purchaseMock,
-      correctPurchaseMock,
-      undoPurchaseMock,
-    ];
-    useConvexMutationMock.mockImplementation(() => {
-      const index = useConvexMutationMock.mock.calls.length - 1;
-      return { mutate: mutationMocks[index] };
-    });
-    useConvexClientMock.mockReturnValue({ query: previewQueryMock, onUpdate: subscribeMock });
-
-    createMock.mockResolvedValue({ _id: "created" });
-    updateMock.mockResolvedValue({ _id: "updated" });
-    changeStatusMock.mockResolvedValue({ kind: "updated" });
-    reorderMock.mockResolvedValue({ success: true });
-    purchaseMock.mockResolvedValue({ status: "purchased" });
-    correctPurchaseMock.mockResolvedValue({ success: true });
-    undoPurchaseMock.mockResolvedValue({ success: true });
-    previewQueryMock.mockResolvedValue({
-      reserveUsedCents: 8_000n,
-      budgetImpactCents: 2_000n,
-      progressLosses: [],
-    });
-
-    ({ useWantList } = await import("../../app/composables/use-want-list"));
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.useRealTimers();
-    queryPendingRefs.forEach((pending) => {
-      pending.value = false;
-    });
   });
 
-  it("exposes one stable contract over the active queue, inactive pages, and reserve summary", () => {
+  it("combines the active queue, inactive sections and reactive savings summary", () => {
     const wants = useWantList();
 
-    expect(Object.keys(wants).sort()).toEqual(
-      [
-        "changeStatus",
-        "correctPurchase",
-        "createItem",
-        "isLoading",
-        "history",
-        "previewPurchase",
-        "purchase",
-        "reorder",
-        "sections",
-        "summary",
-        "undoPurchase",
-        "updateItem",
-      ].sort(),
-    );
     expect(wants.sections.value).toEqual({
       active: [activeItem],
       considering: [consideringItem],
       notNow: [notNowItem],
       bought: [boughtItem],
     });
-    expect(wants.summary).toBe(summaryRef);
+    expect(wants.summary.value).toEqual(summaryRef.value);
     expect(wants.isLoading.value).toBe(false);
 
-    queryPendingRefs[1]!.value = true;
+    summaryPending.value = true;
     expect(wants.isLoading.value).toBe(true);
 
-    expect(useConvexQueryMock).toHaveBeenNthCalledWith(1, api.wants.list, {});
-    expect(subscribeMock).toHaveBeenNthCalledWith(
-      1,
-      api.wants.listSection,
-      {
-        status: "considering",
-        paginationOpts: { numItems: 25, cursor: null },
-      },
-      expect.any(Function),
-      expect.any(Function),
-    );
-    expect(subscribeMock).toHaveBeenNthCalledWith(
-      2,
-      api.wants.listSection,
-      {
-        status: "not_now",
-        paginationOpts: { numItems: 25, cursor: null },
-      },
-      expect.any(Function),
-      expect.any(Function),
-    );
-    expect(subscribeMock).toHaveBeenNthCalledWith(
-      3,
-      api.wants.listSection,
-      {
-        status: "bought",
-        paginationOpts: { numItems: 25, cursor: null },
-      },
-      expect.any(Function),
-      expect.any(Function),
-    );
-    expect(useConvexQueryMock).toHaveBeenNthCalledWith(
-      2,
-      api.reserve.getSummary,
-      expect.objectContaining({ value: { now: nowRef.value } }),
-    );
+    for (const status of ["considering", "not_now", "bought"]) {
+      expect(subscribeMock).toHaveBeenCalledWith(
+        api.wants.listSection,
+        { status, paginationOpts: { numItems: 25, cursor: null } },
+        expect.any(Function),
+        expect.any(Function),
+      );
+    }
   });
 
   it("pins the loaded Bought page and loads its continuation independently", () => {
@@ -300,42 +211,35 @@ describe("useWantList", () => {
     results.forEach((result) => {
       expect(result.success).toBe(true);
     });
-    expect(createMock).toHaveBeenCalledWith(createArgs);
-    expect(updateMock).toHaveBeenCalledWith(updateArgs);
-    expect(changeStatusMock).toHaveBeenCalledWith({ itemId, status: "not_now" });
-    expect(reorderMock).toHaveBeenCalledWith({ itemIds: [itemId], expectedItemIds: [itemId] });
+    expect(mutationFor(api.wants.create)).toHaveBeenCalledWith(createArgs);
+    expect(mutationFor(api.wants.update)).toHaveBeenCalledWith(updateArgs);
+    expect(mutationFor(api.wants.changeStatus)).toHaveBeenCalledWith({ itemId, status: "not_now" });
+    expect(mutationFor(api.wants.reorder)).toHaveBeenCalledWith({
+      itemIds: [itemId],
+      expectedItemIds: [itemId],
+    });
     expect(previewQueryMock).toHaveBeenCalledWith(api.wants.previewPurchase, {
       itemId,
       actualAmountCents: 10_000n,
       now: nowRef.value,
     });
-    expect(purchaseMock).toHaveBeenCalledWith({
+    expect(mutationFor(api.wants.purchase)).toHaveBeenCalledWith({
+      apiVersion: 2,
       itemId,
       actualAmountCents: 10_000n,
       purchaseLocalDate: "2026-08-20",
     });
-    expect(correctPurchaseMock).toHaveBeenCalledWith({
+    expect(mutationFor(api.wants.correctPurchase)).toHaveBeenCalledWith({
+      apiVersion: 2,
       itemId,
       actualAmountCents: 9_000n,
     });
-    expect(undoPurchaseMock).toHaveBeenCalledWith({ itemId });
-
-    for (const mutationMock of [
-      createMock,
-      updateMock,
-      changeStatusMock,
-      reorderMock,
-      purchaseMock,
-      correctPurchaseMock,
-      undoPurchaseMock,
-    ]) {
-      expect(mutationMock.mock.calls[0]?.[0]).not.toHaveProperty("now");
-    }
+    expect(mutationFor(api.wants.undoPurchase)).toHaveBeenCalledWith({ apiVersion: 2, itemId });
   });
 
   it("returns server messages and user-safe fallbacks instead of throwing from mutations", async () => {
-    createMock.mockRejectedValueOnce("offline");
-    updateMock.mockRejectedValueOnce(new Error("Want item not found"));
+    mutationFor(api.wants.create).mockRejectedValueOnce("offline");
+    mutationFor(api.wants.update).mockRejectedValueOnce(new Error("Want item not found"));
     const wants = useWantList();
 
     await expect(

@@ -1,12 +1,12 @@
 import { format, tzDate } from "@formkit/tempo";
 import type { Cents } from "../../shared/utils/money-cents";
 
-export interface ReserveItem<Id extends string = string> {
+export interface SavingsItem<Id extends string = string> {
   id: Id;
   estimatedCostCents: Cents;
 }
 
-export interface ReserveAllocation<Id extends string = string> {
+export interface SavingsAllocation<Id extends string = string> {
   id: Id;
   allocatedCents: Cents;
   remainingCents: Cents;
@@ -62,13 +62,13 @@ function parseLocalDate(localDate: string): Date {
   return date;
 }
 
-export function allocateReserve<Id extends string>(
+export function allocateSavings<Id extends string>(
   positionCents: Cents,
-  items: readonly ReserveItem<Id>[],
-): ReserveAllocation<Id>[] {
+  items: readonly SavingsItem<Id>[],
+): SavingsAllocation<Id>[] {
   assertUniqueIds(
     items.map((item) => item.id),
-    "Active reserve items",
+    "Active savings items",
   );
 
   let remainingPositionCents = positionCents > 0n ? positionCents : 0n;
@@ -93,34 +93,34 @@ export function allocateReserve<Id extends string>(
 
 export function calculatePurchaseFunding(
   actualAmountCents: Cents,
-  availableReserveCents: Cents,
-): { reserveUsedCents: Cents; budgetImpactCents: Cents } {
+  availableSavingsCents: Cents,
+): { savingsUsedCents: Cents; budgetImpactCents: Cents } {
   assertPositiveCents(actualAmountCents, "Actual amount");
-  assertNonNegativeCents(availableReserveCents, "Available reserve");
+  assertNonNegativeCents(availableSavingsCents, "Savings");
 
-  const reserveUsedCents =
-    actualAmountCents < availableReserveCents ? actualAmountCents : availableReserveCents;
+  const savingsUsedCents =
+    actualAmountCents < availableSavingsCents ? actualAmountCents : availableSavingsCents;
 
   return {
-    reserveUsedCents,
-    budgetImpactCents: actualAmountCents - reserveUsedCents,
+    savingsUsedCents,
+    budgetImpactCents: actualAmountCents - savingsUsedCents,
   };
 }
 
-export function getBudgetImpact(amountCents: Cents, reserveUsedCents: Cents): Cents {
+export function getBudgetImpact(amountCents: Cents, savingsUsedCents: Cents): Cents {
   assertPositiveCents(amountCents, "Amount");
-  assertNonNegativeCents(reserveUsedCents, "Reserve used");
+  assertNonNegativeCents(savingsUsedCents, "Paid from savings");
 
-  if (reserveUsedCents > amountCents) {
-    throw new RangeError("Reserve used cannot exceed the amount");
+  if (savingsUsedCents > amountCents) {
+    throw new RangeError("Paid from savings cannot exceed the amount");
   }
 
-  return amountCents - reserveUsedCents;
+  return amountCents - savingsUsedCents;
 }
 
 export function calculateProgressLosses<Id extends string>(
-  allocationsBefore: readonly ReserveAllocation<Id>[],
-  allocationsAfter: readonly ReserveAllocation<Id>[],
+  allocationsBefore: readonly SavingsAllocation<Id>[],
+  allocationsAfter: readonly SavingsAllocation<Id>[],
 ): ProgressLoss<Id>[] {
   const allocatedCentsBeforeById = new Map(
     allocationsBefore.map((allocation) => [allocation.id, allocation.allocatedCents]),

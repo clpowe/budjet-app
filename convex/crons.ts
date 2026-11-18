@@ -4,9 +4,9 @@ import { internal } from "./_generated/api";
 const crons = cronJobs();
 
 crons.interval(
-  "close household goal reserve days",
+  "close household goal savings days",
   { hours: 1 },
-  internal.reserveMaintenance.closeEligibleDays,
+  internal.savingsMaintenance.closeEligibleDays,
   { cursor: null },
 );
 

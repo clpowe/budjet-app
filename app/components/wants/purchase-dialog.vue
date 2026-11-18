@@ -6,7 +6,7 @@ type WantItem = Doc<"wantItems">;
 
 type PurchasePreview = {
   actualAmountCents: bigint;
-  reserveUsedCents: bigint;
+  savingsUsedCents: bigint;
   budgetImpactCents: bigint;
   progressLosses: Array<{
     itemId: Id<"wantItems">;
@@ -286,9 +286,9 @@ function submit() {
           </div>
 
           <div>
-            <dt>Reserve used</dt>
+            <dt>Paid from savings</dt>
             <dd>
-              {{ formatCents(matchingPreview.reserveUsedCents) }}
+              {{ formatCents(matchingPreview.savingsUsedCents) }}
             </dd>
           </div>
 

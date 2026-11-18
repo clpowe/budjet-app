@@ -14,7 +14,7 @@ const props = defineProps<{
 
 const recentDailyPaceCents = computed(() => {
   return (
-    props.summary.plan.closedPositiveReserveContributionCents /
+    props.summary.plan.closedPositiveSavingsContributionCents /
     BigInt(props.summary.period.elapsedDays)
   );
 });
@@ -29,8 +29,8 @@ const guidance = computed(() => {
     todayLocalDate: props.todayLocalDate,
     targetLocalDate: props.targetLocalDate,
     recentDailyPaceCents: recentDailyPaceCents.value,
-    recoveryAmountCents: props.summary.reserve.recoveryCents,
-    todayOverageAdjustmentCents: props.summary.reserve.todayOverageAdjustmentCents,
+    recoveryAmountCents: props.summary.savings.recoveryCents,
+    todayOverageAdjustmentCents: props.summary.savings.todayOverageAdjustmentCents,
   });
 });
 
@@ -44,9 +44,9 @@ const guidanceCopy = computed(() => {
     case "ready":
       return `${nextPlannedWant.name} is fully funded and ready when you are.`;
     case "recovery":
-      return `${formatCents(currentGuidance.amountCents)} needs to be recovered before the reserve can grow again.`;
+      return `${formatCents(currentGuidance.amountCents)} needs to be recovered before your savings can grow again.`;
     case "negative_today":
-      return `Today's spending moved ${formatCents(currentGuidance.amountCents)} out of current reserve progress.`;
+      return `Today's spending moved ${formatCents(currentGuidance.amountCents)} out of your savings.`;
     case "target":
       return `Set aside ${formatCents(currentGuidance.dailyCents)} a day to reach your ${formatLocalDate(currentGuidance.targetLocalDate)} target.`;
     case "pace":
@@ -68,7 +68,7 @@ function formatLocalDate(localDate: string): string {
   <section aria-labelledby="next-planned-want-heading">
     <div>
       <div>
-        <p>Shared goal reserve</p>
+        <p>Shared savings</p>
         <h2 id="next-planned-want-heading">Next planned Want</h2>
       </div>
 
@@ -95,7 +95,7 @@ function formatLocalDate(localDate: string): string {
       <p>{{ formatCents(summary.nextPlannedWant.remainingCents) }} remains to fund this Want.</p>
 
       <p v-if="guidance">
-        <span v-if="guidance.kind === 'recovery'">Reserve recovery. </span>
+        <span v-if="guidance.kind === 'recovery'">Savings recovery. </span>
         {{ guidanceCopy }}
       </p>
     </template>
@@ -106,16 +106,16 @@ function formatLocalDate(localDate: string): string {
 
     <dl>
       <div>
-        <dt>Available reserve</dt>
+        <dt>Savings</dt>
         <dd>
-          {{ formatCents(summary.reserve.availableCents) }}
+          {{ formatCents(summary.savings.availableCents) }}
         </dd>
       </div>
 
       <div>
         <dt>Potential tonight</dt>
         <dd>
-          {{ formatCents(summary.reserve.projectedEndOfDayContributionCents) }}
+          {{ formatCents(summary.savings.projectedEndOfDayContributionCents) }}
         </dd>
       </div>
     </dl>

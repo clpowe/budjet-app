@@ -9,6 +9,13 @@ type HomeSummary = FunctionReturnType<typeof api.budget.getHomeSummary>;
 type NextPlannedWant = NonNullable<HomeSummary["nextPlannedWant"]>;
 
 function makeSummary(): HomeSummary {
+  const savings = {
+    positionCents: 4_000n,
+    availableCents: 4_000n,
+    recoveryCents: 0n,
+    todayOverageAdjustmentCents: 0n,
+    projectedEndOfDayContributionCents: 1_000n,
+  };
   return {
     period: {
       localMonth: "2026-08",
@@ -18,11 +25,13 @@ function makeSummary(): HomeSummary {
       dailyAllowanceCents: 10_000n,
       allowanceCents: 300_000n,
       safeToSpendCents: 277_500n,
+      closedPositiveSavingsContributionCents: 2_500n,
       closedPositiveReserveContributionCents: 2_500n,
     },
     spending: {
       monthToDate: {
         expenseCents: 20_000n,
+        savingsFundedCents: 0n,
         reserveFundedCents: 0n,
         budgetImpactCents: 20_000n,
         averageDailyBudgetImpactCents: 2_000n,
@@ -33,13 +42,8 @@ function makeSummary(): HomeSummary {
         budgetImpactCents: 0n,
       },
     },
-    reserve: {
-      positionCents: 4_000n,
-      availableCents: 4_000n,
-      recoveryCents: 0n,
-      todayOverageAdjustmentCents: 0n,
-      projectedEndOfDayContributionCents: 1_000n,
-    },
+    savings,
+    reserve: savings,
     nextPlannedWant: {
       itemId: "want-camera" as NextPlannedWant["itemId"],
       name: "Camera",
@@ -81,12 +85,12 @@ describe("WantsNextPlannedWantCard", () => {
     expect(wrapper.get('a[href="/wants"]').text()).toContain("View Wants");
   });
 
-  it("shows partial funding with progress and reserve labels", () => {
+  it("shows partial funding with progress and savings labels", () => {
     const wrapper = mountCard();
 
     expect(wrapper.text()).toContain("Camera");
     expect(wrapper.text()).toContain("$40.00 of $100.00 funded");
-    expect(wrapper.text()).toContain("Available reserve");
+    expect(wrapper.text()).toContain("Savings");
     expect(wrapper.text()).toContain("Potential tonight");
     expect(wrapper.get('a[href="/wants"]').text()).toContain("View Wants");
 
@@ -110,16 +114,16 @@ describe("WantsNextPlannedWantCard", () => {
     expect(wrapper.text()).not.toContain("can't afford");
   });
 
-  it("explains reserve recovery constructively", () => {
+  it("explains savings recovery constructively", () => {
     const summary = makeSummary();
-    summary.reserve.recoveryCents = 500n;
-    summary.reserve.todayOverageAdjustmentCents = -500n;
+    summary.savings.recoveryCents = 500n;
+    summary.savings.todayOverageAdjustmentCents = -500n;
 
     const wrapper = mountCard(summary);
 
-    expect(wrapper.text()).toContain("Reserve recovery");
+    expect(wrapper.text()).toContain("Savings recovery");
     expect(wrapper.text()).toContain("$5.00");
-    expect(wrapper.text()).toContain("before the reserve can grow again");
+    expect(wrapper.text()).toContain("before your savings can grow again");
     expect(wrapper.text()).not.toContain("can't afford");
   });
 });

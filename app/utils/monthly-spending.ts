@@ -4,11 +4,11 @@ export type ExpenseAmount = {
 };
 
 export type MonthlySpendingRow = {
-  budget: number;
+  budgetToDate: number;
   day: number;
   id: string;
   label: string;
-  spent: number | null;
+  spentToDate: number | null;
 };
 
 const dayFormatter = new Intl.DateTimeFormat("en-US", {
@@ -87,11 +87,11 @@ function buildCumulativeRows(
     if (day <= throughDay) cumulativeSpend += dailyTotals.get(day) ?? 0;
 
     return {
-      budget: safeDailyBudget * day,
+      budgetToDate: safeDailyBudget * day,
       day,
       id: `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
       label: dayFormatter.format(date),
-      spent: day <= throughDay ? cumulativeSpend : null,
+      spentToDate: day <= throughDay ? cumulativeSpend : null,
     };
   });
 }

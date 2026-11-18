@@ -30,6 +30,7 @@ it("uses the stored date and only requests a move when the date field changes", 
   await wrapper.get("form").trigger("submit");
   await flushPromises();
   expect(mutate).toHaveBeenLastCalledWith({
+    apiVersion: 2,
     expenseId: expense._id,
     name: "Late dinner",
     notes: "With tip",

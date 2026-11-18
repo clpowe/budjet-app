@@ -3,7 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { findCurrentUser, getAuthenticatedUser } from "./lib/helpers";
 import { requireHouseholdMember } from "./lib/household_access";
 import type { Doc } from "./_generated/dataModel";
-import { getLocalDateKey, getLocalDayBounds, getNextLocalDate } from "./lib/want_reserve";
+import { getLocalDateKey, getLocalDayBounds, getNextLocalDate } from "./lib/want_savings";
 
 const DEFAULT_HOUSEHOLD_TIME_ZONE = "America/New_York";
 

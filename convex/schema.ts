@@ -1,6 +1,15 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+const savingsState = {
+  householdId: v.id("households"),
+  positionCents: v.int64(),
+  activatedAt: v.number(),
+  firstEligibleLocalDate: v.string(),
+  lastClosedLocalDate: v.optional(v.string()),
+  updatedAt: v.number(),
+};
+
 export default defineSchema({
   users: defineTable({
     identityKey: v.optional(v.string()),
@@ -36,6 +45,7 @@ export default defineSchema({
     /** Household-local YYYY-MM-DD the expense counts against; fixed at write time. */
     localDate: v.optional(v.string()),
     wantItemId: v.optional(v.id("wantItems")),
+    savingsUsedCents: v.optional(v.int64()),
     reserveUsedCents: v.optional(v.int64()),
   })
     .index("by_household", ["householdId", "date"])
@@ -84,19 +94,15 @@ export default defineSchema({
     .index("by_household_and_status", ["householdId", "status"])
     .index("by_household_and_status_and_order", ["householdId", "status", "order"]),
 
-  goalReserveStates: defineTable({
-    householdId: v.id("households"),
-    positionCents: v.int64(),
-    activatedAt: v.number(),
-    firstEligibleLocalDate: v.string(),
-    lastClosedLocalDate: v.optional(v.string()),
-    updatedAt: v.number(),
-  }).index("by_household", ["householdId"]),
+  goalSavingsStates: defineTable(savingsState).index("by_household", ["householdId"]),
+  goalReserveStates: defineTable(savingsState).index("by_household", ["householdId"]),
+  savingsMigration: defineTable({ verifiedAt: v.number() }),
 
   dailyBudgetRollups: defineTable({
     householdId: v.id("households"),
     localDate: v.string(),
     expenseCents: v.int64(),
+    savingsFundedExpenseCents: v.optional(v.int64()),
     reserveFundedExpenseCents: v.int64(),
     budgetImpactExpenseCents: v.int64(),
     updatedAt: v.number(),

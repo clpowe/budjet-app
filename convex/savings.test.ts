@@ -3,7 +3,7 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { convexTest, type TestConvex } from "convex-test";
 import { api } from "./_generated/api";
-import { reduceReserveEvent } from "./lib/reserve_account";
+import { reduceSavingsEvent } from "./lib/savings_account";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -69,20 +69,20 @@ async function seedHousehold(
   });
 }
 
-async function readReserve(
+async function readSavings(
   t: TestConvex<typeof schema>,
   householdId: Awaited<ReturnType<typeof seedHousehold>>["householdId"],
 ) {
   return await t.run(async (ctx) => {
     const state = await ctx.db
-      .query("goalReserveStates")
+      .query("goalSavingsStates")
       .withIndex("by_household", (q) => q.eq("householdId", householdId))
       .unique();
     return { state };
   });
 }
 
-test("requires completed money migration before activating the reserve", async () => {
+test("requires completed money migration before activating the savings", async () => {
   const t = convexTest(schema, modules);
   const seeded = await seedHousehold(t, { moneyMigrationComplete: false });
   const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
@@ -93,7 +93,7 @@ test("requires completed money migration before activating the reserve", async (
   });
 
   expect(result).toEqual({ kind: "money_migration_pending" });
-  expect(await readReserve(t, seeded.householdId)).toEqual({
+  expect(await readSavings(t, seeded.householdId)).toEqual({
     state: null,
   });
 });
@@ -118,7 +118,7 @@ test("activates exactly once at zero and preserves the state after the queue emp
   expect(firstResult.kind).toBe("updated");
   expect(secondResult.kind).toBe("updated");
 
-  const activated = await readReserve(t, seeded.householdId);
+  const activated = await readSavings(t, seeded.householdId);
 
   expect(activated.state).toMatchObject({
     householdId: seeded.householdId,
@@ -136,16 +136,16 @@ test("activates exactly once at zero and preserves the state after the queue emp
     status: "not_now",
   });
 
-  expect(await readReserve(t, seeded.householdId)).toMatchObject({
+  expect(await readSavings(t, seeded.householdId)).toMatchObject({
     state: activated.state,
   });
 });
 
-test("reserve transitions reject invalid amounts and stale daily closes", async () => {
+test("savings transitions reject invalid amounts and stale daily closes", async () => {
   const t = convexTest(schema, modules);
   const seeded = await seedHousehold(t);
   const state = await t.run(async (ctx) => {
-    const stateId = await ctx.db.insert("goalReserveStates", {
+    const stateId = await ctx.db.insert("goalSavingsStates", {
       householdId: seeded.householdId,
       positionCents: 3_000n,
       activatedAt: 0,
@@ -153,28 +153,28 @@ test("reserve transitions reject invalid amounts and stale daily closes", async 
       lastClosedLocalDate: "2026-03-11",
       updatedAt: 0,
     });
-    return await ctx.db.get("goalReserveStates", stateId);
+    return await ctx.db.get("goalSavingsStates", stateId);
   });
 
   if (!state) {
-    throw new Error("Expected reserve state");
+    throw new Error("Expected savings state");
   }
 
   expect(() =>
-    reduceReserveEvent(state, {
+    reduceSavingsEvent(state, {
       kind: "daily_close",
       localDate: "2026-03-11",
       allowanceCents: 5_500n,
       spendingCents: 1_000n,
     }),
-  ).toThrow("Reserve days must close after the recorded close cursor");
+  ).toThrow("Savings days must close after the recorded close cursor");
 
-  expect(() => reduceReserveEvent(state, { kind: "purchase", reserveUsedCents: -1n })).toThrow(
-    "Reserve used cannot be negative",
+  expect(() => reduceSavingsEvent(state, { kind: "purchase", savingsUsedCents: -1n })).toThrow(
+    "Paid from savings cannot be negative",
   );
 });
 
-test("reports open-day underspending as potential instead of funded reserve", async () => {
+test("reports open-day underspending as potential instead of funded savings", async () => {
   const t = convexTest(schema, modules);
   const seeded = await seedHousehold(t);
 
@@ -187,7 +187,7 @@ test("reports open-day underspending as potential instead of funded reserve", as
       status: "plan_for_it",
       order: 1,
     });
-    await ctx.db.insert("goalReserveStates", {
+    await ctx.db.insert("goalSavingsStates", {
       householdId: seeded.householdId,
       positionCents: 3_000n,
       activatedAt: 0,
@@ -198,6 +198,7 @@ test("reports open-day underspending as potential instead of funded reserve", as
       householdId: seeded.householdId,
       localDate: "2026-03-10",
       expenseCents: 3_000n,
+      savingsFundedExpenseCents: 0n,
       reserveFundedExpenseCents: 0n,
       budgetImpactExpenseCents: 3_000n,
       updatedAt: 0,
@@ -205,13 +206,13 @@ test("reports open-day underspending as potential instead of funded reserve", as
   });
 
   const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
-  const summary = await asOwner.query(api.reserve.getSummary, {
+  const summary = await asOwner.query(api.savings.getSummary, {
     now: march10AtNoonNewYork,
   });
 
   expect(summary).toMatchObject({
     positionCents: 3_000n,
-    availableReserveCents: 3_000n,
+    availableSavingsCents: 3_000n,
     recoveryAmountCents: 0n,
     todayOverageAdjustmentCents: 0n,
     projectedEndOfDayContributionCents: 2_500n,
@@ -243,7 +244,7 @@ test("immediately reduces visible progress when open-day spending exceeds allowa
       status: "plan_for_it",
       order: 0,
     });
-    await ctx.db.insert("goalReserveStates", {
+    await ctx.db.insert("goalSavingsStates", {
       householdId: seeded.householdId,
       positionCents: 1_000n,
       activatedAt: 0,
@@ -254,6 +255,7 @@ test("immediately reduces visible progress when open-day spending exceeds allowa
       householdId: seeded.householdId,
       localDate: "2026-03-10",
       expenseCents: 7_000n,
+      savingsFundedExpenseCents: 0n,
       reserveFundedExpenseCents: 0n,
       budgetImpactExpenseCents: 7_000n,
       updatedAt: 0,
@@ -261,13 +263,13 @@ test("immediately reduces visible progress when open-day spending exceeds allowa
   });
 
   const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
-  const summary = await asOwner.query(api.reserve.getSummary, {
+  const summary = await asOwner.query(api.savings.getSummary, {
     now: march10AtNoonNewYork,
   });
 
   expect(summary).toMatchObject({
     positionCents: 1_000n,
-    availableReserveCents: 0n,
+    availableSavingsCents: 0n,
     recoveryAmountCents: 500n,
     todayOverageAdjustmentCents: -1_500n,
     projectedEndOfDayContributionCents: 0n,

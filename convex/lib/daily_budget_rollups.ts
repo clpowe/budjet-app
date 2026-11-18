@@ -1,13 +1,13 @@
 import { legacyDollarsToCents } from "../../shared/utils/money-cents";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { getLocalDateKey } from "./want_reserve";
+import { getLocalDateKey } from "./want_savings";
 
 export type ExpenseFacts = {
   /** Household-local day the expense counts against, fixed when it was written. */
   localDate: string;
   amountCents: bigint;
-  reserveUsedCents: bigint;
+  savingsUsedCents: bigint;
 };
 
 /**
@@ -25,14 +25,14 @@ export function getExpenseLocalDate(
 export function toExpenseFacts(
   expense: Pick<
     Doc<"expenses">,
-    "amount" | "amountCents" | "date" | "localDate" | "reserveUsedCents"
+    "amount" | "amountCents" | "date" | "localDate" | "savingsUsedCents" | "reserveUsedCents"
   >,
   fallbackTimeZone: string,
 ): ExpenseFacts {
   return {
     localDate: getExpenseLocalDate(expense, fallbackTimeZone),
     amountCents: expense.amountCents ?? legacyDollarsToCents(expense.amount),
-    reserveUsedCents: expense.reserveUsedCents ?? 0n,
+    savingsUsedCents: expense.savingsUsedCents ?? expense.reserveUsedCents ?? 0n,
   };
 }
 
@@ -45,7 +45,7 @@ type ApplyExpenseDeltaArgs = {
 
 type DailyBudgetRollupValues = {
   expenseCents: bigint;
-  reserveFundedExpenseCents: bigint;
+  savingsFundedExpenseCents: bigint;
   budgetImpactExpenseCents: bigint;
 };
 
@@ -74,6 +74,7 @@ export async function ensureDailyBudgetRollup(
     householdId,
     localDate,
     expenseCents: 0n,
+    savingsFundedExpenseCents: 0n,
     reserveFundedExpenseCents: 0n,
     budgetImpactExpenseCents: 0n,
     updatedAt: now,
@@ -87,7 +88,7 @@ export async function replaceDailyBudgetRollup(
     localDate,
     now,
     expenseCents,
-    reserveFundedExpenseCents,
+    savingsFundedExpenseCents,
     budgetImpactExpenseCents,
   }: DailyBudgetRollupArgs & DailyBudgetRollupValues,
 ): Promise<void> {
@@ -101,7 +102,8 @@ export async function replaceDailyBudgetRollup(
   if (existing) {
     await ctx.db.patch(existing._id, {
       expenseCents,
-      reserveFundedExpenseCents,
+      savingsFundedExpenseCents,
+      reserveFundedExpenseCents: savingsFundedExpenseCents,
       budgetImpactExpenseCents,
       updatedAt: now,
     });
@@ -112,7 +114,8 @@ export async function replaceDailyBudgetRollup(
     householdId,
     localDate,
     expenseCents,
-    reserveFundedExpenseCents,
+    savingsFundedExpenseCents,
+    reserveFundedExpenseCents: savingsFundedExpenseCents,
     budgetImpactExpenseCents,
     updatedAt: now,
   });
@@ -120,22 +123,22 @@ export async function replaceDailyBudgetRollup(
 
 type RollupDelta = {
   expenseCents: bigint;
-  reserveFundedExpenseCents: bigint;
+  savingsFundedExpenseCents: bigint;
   budgetImpactExpenseCents: bigint;
 };
 
 export function getBudgetImpactCents(
-  expense: Pick<ExpenseFacts, "amountCents" | "reserveUsedCents">,
+  expense: Pick<ExpenseFacts, "amountCents" | "savingsUsedCents">,
 ): bigint {
   if (expense.amountCents <= 0n) {
     throw new Error("Expense amount must be greater than zero");
   }
 
-  if (expense.reserveUsedCents < 0n || expense.reserveUsedCents > expense.amountCents) {
-    throw new Error("Reserve used must be between zero and the expense amount");
+  if (expense.savingsUsedCents < 0n || expense.savingsUsedCents > expense.amountCents) {
+    throw new Error("Paid from savings must be between zero and the expense amount");
   }
 
-  return expense.amountCents - expense.reserveUsedCents;
+  return expense.amountCents - expense.savingsUsedCents;
 }
 
 function addDelta(
@@ -146,12 +149,12 @@ function addDelta(
 ) {
   const delta = deltas.get(localDate) ?? {
     expenseCents: 0n,
-    reserveFundedExpenseCents: 0n,
+    savingsFundedExpenseCents: 0n,
     budgetImpactExpenseCents: 0n,
   };
 
   delta.expenseCents += direction * expense.amountCents;
-  delta.reserveFundedExpenseCents += direction * expense.reserveUsedCents;
+  delta.savingsFundedExpenseCents += direction * expense.savingsUsedCents;
   delta.budgetImpactExpenseCents += direction * getBudgetImpactCents(expense);
 
   deltas.set(localDate, delta);
@@ -164,7 +167,7 @@ export type BudgetImpactChange = {
 
 /**
  * Moves an expense's money between daily budget rollups. Pure rollup
- * bookkeeping: returns the days whose budget impact changed so the Reserve
+ * bookkeeping: returns the days whose budget impact changed so the Savings
  * account can correct any of them that are already closed.
  */
 export async function applyExpenseDelta(
@@ -185,7 +188,7 @@ export async function applyExpenseDelta(
   for (const [localDate, delta] of deltas) {
     if (
       delta.expenseCents === 0n &&
-      delta.reserveFundedExpenseCents === 0n &&
+      delta.savingsFundedExpenseCents === 0n &&
       delta.budgetImpactExpenseCents === 0n
     ) {
       continue;
@@ -200,27 +203,33 @@ export async function applyExpenseDelta(
 
     const next = {
       expenseCents: (rollup?.expenseCents ?? 0n) + delta.expenseCents,
-      reserveFundedExpenseCents:
-        (rollup?.reserveFundedExpenseCents ?? 0n) + delta.reserveFundedExpenseCents,
+      savingsFundedExpenseCents:
+        (rollup?.savingsFundedExpenseCents ?? rollup?.reserveFundedExpenseCents ?? 0n) +
+        delta.savingsFundedExpenseCents,
       budgetImpactExpenseCents:
         (rollup?.budgetImpactExpenseCents ?? 0n) + delta.budgetImpactExpenseCents,
     };
 
     if (
       next.expenseCents < 0n ||
-      next.reserveFundedExpenseCents < 0n ||
+      next.savingsFundedExpenseCents < 0n ||
       next.budgetImpactExpenseCents < 0n
     ) {
       throw new Error("Daily budget rollup cannot go below zero");
     }
 
     if (rollup) {
-      await ctx.db.patch("dailyBudgetRollups", rollup._id, { ...next, updatedAt: now });
+      await ctx.db.patch("dailyBudgetRollups", rollup._id, {
+        ...next,
+        reserveFundedExpenseCents: next.savingsFundedExpenseCents,
+        updatedAt: now,
+      });
     } else {
       await ctx.db.insert("dailyBudgetRollups", {
         householdId,
         localDate,
         ...next,
+        reserveFundedExpenseCents: next.savingsFundedExpenseCents,
         updatedAt: now,
       });
     }

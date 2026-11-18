@@ -15,35 +15,28 @@ describe("calculateSafeToSpendCents", () => {
       scenario: "$30 spent and $20 saved today after close",
       planAllowanceCents: 150_000n,
       budgetImpactExpenseCents: 3_000n,
-      closedPositiveReserveContributionCents: 2_000n,
+      closedPositiveSavingsContributionCents: 2_000n,
       expected: 145_000n,
     },
     {
-      scenario: "the same $20 reserve is spent this month",
-      planAllowanceCents: 150_000n,
-      budgetImpactExpenseCents: 3_000n,
-      closedPositiveReserveContributionCents: 2_000n,
-      expected: 145_000n,
-    },
-    {
-      scenario: "$20 of prior-month reserve is spent this month",
+      scenario: "$20 of prior-month savings is spent this month",
       planAllowanceCents: 150_000n,
       budgetImpactExpenseCents: 0n,
-      closedPositiveReserveContributionCents: 0n,
+      closedPositiveSavingsContributionCents: 0n,
       expected: 150_000n,
     },
     {
-      scenario: "a $120 purchase uses $100 of prior-month reserve",
+      scenario: "a $120 purchase uses $100 of prior-month savings",
       planAllowanceCents: 150_000n,
       budgetImpactExpenseCents: 2_000n,
-      closedPositiveReserveContributionCents: 0n,
+      closedPositiveSavingsContributionCents: 0n,
       expected: 148_000n,
     },
     {
       scenario: "a closed day is corrected from +$20 to -$5",
       planAllowanceCents: 150_000n,
       budgetImpactExpenseCents: 5_500n,
-      closedPositiveReserveContributionCents: 0n,
+      closedPositiveSavingsContributionCents: 0n,
       expected: 144_500n,
     },
   ])("returns exact cents when $scenario", (row) => {
@@ -55,7 +48,7 @@ describe("calculateSafeToSpendCents", () => {
       calculateSafeToSpendCents({
         planAllowanceCents: 150_000n,
         budgetImpactExpenseCents: 7_000n,
-        closedPositiveReserveContributionCents: 0n,
+        closedPositiveSavingsContributionCents: 0n,
       }),
     ).toBe(143_000n);
   });
@@ -94,6 +87,7 @@ test("derives one nested month-to-date summary and excludes future local-date ro
       householdId: seeded.householdId,
       localDate: "2026-03-05",
       expenseCents: 4_000n,
+      savingsFundedExpenseCents: 1_000n,
       reserveFundedExpenseCents: 1_000n,
       budgetImpactExpenseCents: 3_000n,
       updatedAt: 0,
@@ -102,6 +96,7 @@ test("derives one nested month-to-date summary and excludes future local-date ro
       householdId: seeded.householdId,
       localDate: "2026-03-10",
       expenseCents: 7_000n,
+      savingsFundedExpenseCents: 0n,
       reserveFundedExpenseCents: 0n,
       budgetImpactExpenseCents: 7_000n,
       updatedAt: 0,
@@ -110,11 +105,12 @@ test("derives one nested month-to-date summary and excludes future local-date ro
       householdId: seeded.householdId,
       localDate: "2026-03-11",
       expenseCents: 100_000n,
+      savingsFundedExpenseCents: 0n,
       reserveFundedExpenseCents: 0n,
       budgetImpactExpenseCents: 100_000n,
       updatedAt: 0,
     });
-    await ctx.db.insert("goalReserveStates", {
+    await ctx.db.insert("goalSavingsStates", {
       householdId: seeded.householdId,
       positionCents: 6_000n,
       activatedAt: 0,
@@ -146,7 +142,8 @@ test("derives one nested month-to-date summary and excludes future local-date ro
       asOfTimestamp: march10AtNoonNewYork,
     });
 
-  expect(summary).toEqual({
+  expect(summary.reserve).toEqual(summary.savings);
+  expect(summary).toMatchObject({
     period: {
       localMonth: "2026-03",
       elapsedDays: 10,
@@ -155,12 +152,12 @@ test("derives one nested month-to-date summary and excludes future local-date ro
       dailyAllowanceCents: 5_000n,
       allowanceCents: 150_000n,
       safeToSpendCents: 138_000n,
-      closedPositiveReserveContributionCents: 2_000n,
+      closedPositiveSavingsContributionCents: 2_000n,
     },
     spending: {
       monthToDate: {
         expenseCents: 11_000n,
-        reserveFundedCents: 1_000n,
+        savingsFundedCents: 1_000n,
         budgetImpactCents: 10_000n,
         averageDailyBudgetImpactCents: 1_000n,
         budgetImpactVarianceCents: 40_000n,
@@ -170,7 +167,7 @@ test("derives one nested month-to-date summary and excludes future local-date ro
         budgetImpactCents: 7_000n,
       },
     },
-    reserve: {
+    savings: {
       positionCents: 6_000n,
       availableCents: 4_000n,
       recoveryCents: 0n,
@@ -198,6 +195,7 @@ test("rejects a 32nd monthly rollup as a corrupted month invariant", async () =>
         householdId: seeded.householdId,
         localDate: "2026-03-05",
         expenseCents: 1n,
+        savingsFundedExpenseCents: 0n,
         reserveFundedExpenseCents: 0n,
         budgetImpactExpenseCents: 1n,
         updatedAt: index,
@@ -222,6 +220,7 @@ test("rejects duplicate monthly rollup local dates below the row cap", async () 
         householdId: seeded.householdId,
         localDate: "2026-03-05",
         expenseCents: 1n,
+        savingsFundedExpenseCents: 0n,
         reserveFundedExpenseCents: 0n,
         budgetImpactExpenseCents: 1n,
         updatedAt: index,
@@ -236,7 +235,7 @@ test("rejects duplicate monthly rollup local dates below the row cap", async () 
   ).rejects.toThrow("Daily budget rollups contain duplicate local dates");
 });
 
-test("marks want purchases and returns exact reserve and budget-impact cents", async () => {
+test("marks want purchases and returns exact savings and budget-impact cents", async () => {
   const t = convexTest(schema, modules);
   const seeded = await seedHousehold(t);
 
@@ -259,7 +258,7 @@ test("marks want purchases and returns exact reserve and budget-impact cents", a
       notes: "",
       amount: 120,
       amountCents: 12_000n,
-      reserveUsedCents: 10_000n,
+      savingsUsedCents: 10_000n,
       wantItemId,
       date: march10AtNoonNewYork,
     });
@@ -275,7 +274,7 @@ test("marks want purchases and returns exact reserve and budget-impact cents", a
     expect.objectContaining({
       type: "expense",
       amountCents: 12_000n,
-      reserveUsedCents: 10_000n,
+      savingsUsedCents: 10_000n,
       budgetImpactCents: 2_000n,
       isWantPurchase: true,
     }),

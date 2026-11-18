@@ -16,12 +16,12 @@ const summaryRef = ref({
     dailyAllowanceCents: 5_000n,
     allowanceCents: 150_000n,
     safeToSpendCents: 139_000n,
-    closedPositiveReserveContributionCents: 2_000n,
+    closedPositiveSavingsContributionCents: 2_000n,
   },
   spending: {
     monthToDate: {
       expenseCents: 10_000n,
-      reserveFundedCents: 1_000n,
+      savingsFundedCents: 1_000n,
       budgetImpactCents: 9_000n,
       averageDailyBudgetImpactCents: 5_000n,
       budgetImpactVarianceCents: 1_000n,
@@ -31,7 +31,7 @@ const summaryRef = ref({
       budgetImpactCents: 500n,
     },
   },
-  reserve: {
+  savings: {
     positionCents: 4_000n,
     availableCents: 4_000n,
     recoveryCents: 0n,
@@ -98,12 +98,12 @@ describe("useExpenses", () => {
         dailyAllowanceCents: 5_000n,
         allowanceCents: 150_000n,
         safeToSpendCents: 139_000n,
-        closedPositiveReserveContributionCents: 2_000n,
+        closedPositiveSavingsContributionCents: 2_000n,
       },
       spending: {
         monthToDate: {
           expenseCents: 10_000n,
-          reserveFundedCents: 1_000n,
+          savingsFundedCents: 1_000n,
           budgetImpactCents: 9_000n,
           averageDailyBudgetImpactCents: 5_000n,
           budgetImpactVarianceCents: 1_000n,
@@ -113,7 +113,7 @@ describe("useExpenses", () => {
           budgetImpactCents: 500n,
         },
       },
-      reserve: {
+      savings: {
         positionCents: 4_000n,
         availableCents: 4_000n,
         recoveryCents: 0n,
@@ -124,15 +124,15 @@ describe("useExpenses", () => {
     };
   });
 
-  it("computes totals and burn rate based on convex data", () => {
+  it("computes totals and average daily spend based on convex data", () => {
     const composable = useExpenses();
 
     expect(composable.expenses.value).toEqual(expensesRef.value);
     expect(composable.monthToDateTotalDollars.value).toBe(100);
     expect(composable.totalToday.value).toEqual({ value: 6, isWithinBudget: true });
-    expect(composable.burnRate.value).toEqual({ value: 50, isWithinBudget: true });
+    expect(composable.averageDailySpend.value).toEqual({ value: 50, isWithinBudget: true });
     expect(composable.variance.value).toEqual({ value: 10, isWithinBudget: true });
-    expect(composable.dailyBudget.value).toBe(50);
+    expect(composable.dailyAllowanceDollars.value).toBe(50);
     expect(composable.remainingTodayDollars.value).toBe(45);
     expect(composable.safeToSpendCents.value).toBe(139_000n);
     expect(composable.summary.value).toBe(summaryRef.value);
@@ -149,15 +149,15 @@ describe("useExpenses", () => {
 
     expect(composable.monthToDateTotalDollars.value).toBe(0);
     expect(composable.totalToday.value).toEqual({ value: 0, isWithinBudget: true });
-    expect(composable.burnRate.value).toEqual({ value: 0, isWithinBudget: true });
+    expect(composable.averageDailySpend.value).toEqual({ value: 0, isWithinBudget: true });
     expect(composable.variance.value).toEqual({ value: 0, isWithinBudget: true });
     expect(composable.safeToSpendCents.value).toBe(0n);
   });
 
   it("calls convex mutation when removing an expense", () => {
     const composable = useExpenses();
-    composable.remove("expense-id" as Doc<"expenses">["_id"]);
+    composable.removeExpense("expense-id" as Doc<"expenses">["_id"]);
 
-    expect(deleteExpenseMock).toHaveBeenCalledWith({ expenseId: "expense-id" });
+    expect(deleteExpenseMock).toHaveBeenCalledWith({ apiVersion: 2, expenseId: "expense-id" });
   });
 });

@@ -74,6 +74,26 @@ describe("ExpensesList", () => {
     expect(wrapper.text()).not.toContain("Coffee");
   });
 
+  it("discloses Want purchase funding and omits generic edit and delete actions", () => {
+    const wrapper = mountList([
+      {
+        ...makeExpense("expense-want", "Camera", 120.01),
+        wantItemId: "want-camera" as NonNullable<Expense["wantItemId"]>,
+        amountCents: 12_001n,
+        savingsUsedCents: 10_002n,
+      },
+    ]);
+    const row = wrapper.get("tbody tr");
+
+    expect(row.find('button[aria-label="Edit Camera"]').exists()).toBe(false);
+    expect(row.find('button[aria-label="Delete Camera"]').exists()).toBe(false);
+    expect(row.find("dialog").exists()).toBe(false);
+    expect(row.text()).toContain("Want purchase");
+    expect(row.text()).toContain("$120.01 total");
+    expect(row.text()).toContain("$100.02 from savings");
+    expect(row.text()).toContain("$19.99 budget impact");
+  });
+
   it("only removes an expense after confirmation", async () => {
     const remove = vi.fn();
     const confirm = vi.fn().mockReturnValue(false);

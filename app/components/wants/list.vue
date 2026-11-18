@@ -8,8 +8,8 @@ import type { WantStatus } from "../../utils/want-status";
 import WantsItem from "./item.vue";
 
 type WantItem = Doc<"wantItems">;
-type ReserveSummary = FunctionReturnType<typeof api.reserve.getSummary>;
-type ActiveAllocation = ReserveSummary["activeAllocations"][number];
+type SavingsSummary = FunctionReturnType<typeof api.savings.getSummary>;
+type ActiveAllocation = SavingsSummary["activeAllocations"][number];
 
 const props = withDefaults(
   defineProps<{

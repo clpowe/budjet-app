@@ -11,7 +11,7 @@ type DebtPayment = {
   payment: number;
 };
 
-export function getSnowballTotal(debts: DebtPayment[]) {
+export function sumDebtPayments(debts: DebtPayment[]) {
   return debts.reduce((total, debt) => total + debt.payment, 0);
 }
 
@@ -76,7 +76,7 @@ export const getTotalPayment = query({
       .withIndex("by_household", (q) => q.eq("householdId", householdId))
       .collect();
 
-    return getSnowballTotal(debts);
+    return sumDebtPayments(debts);
   },
 });
 

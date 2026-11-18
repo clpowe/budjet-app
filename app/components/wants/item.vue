@@ -7,8 +7,8 @@ import { getWantStatusStrategy, type WantStatus } from "../../utils/want-status"
 import WantsStatusBadge from "./status-badge.vue";
 
 type WantItem = Doc<"wantItems">;
-type ReserveSummary = FunctionReturnType<typeof api.reserve.getSummary>;
-type ActiveAllocation = ReserveSummary["activeAllocations"][number];
+type SavingsSummary = FunctionReturnType<typeof api.savings.getSummary>;
+type ActiveAllocation = SavingsSummary["activeAllocations"][number];
 
 const props = defineProps<{
   item: WantItem;
@@ -68,7 +68,7 @@ const priorityLabel = computed(() => {
 
     <div v-if="allocation">
       <div>
-        <span>Reserve progress</span>
+        <span>Savings progress</span>
         <span>
           {{ formatCents(allocation.allocatedCents) }} of
           {{ formatCents(item.estimatedCostCents) }}

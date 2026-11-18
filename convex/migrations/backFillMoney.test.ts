@@ -149,13 +149,13 @@ test("backfills cents and exact local-day rollups across pages without double co
       expect.objectContaining({
         localDate: "2026-03-08",
         expenseCents: 30n,
-        reserveFundedExpenseCents: 0n,
+        savingsFundedExpenseCents: 0n,
         budgetImpactExpenseCents: 30n,
       }),
       expect.objectContaining({
         localDate: "2026-03-09",
         expenseCents: 10_100n,
-        reserveFundedExpenseCents: 0n,
+        savingsFundedExpenseCents: 0n,
         budgetImpactExpenseCents: 10_100n,
       }),
     ]),
@@ -164,7 +164,7 @@ test("backfills cents and exact local-day rollups across pages without double co
   const rollupsBeforeRetry = completed.rollups.map((rollup) => ({
     localDate: rollup.localDate,
     expenseCents: rollup.expenseCents,
-    reserveFundedExpenseCents: rollup.reserveFundedExpenseCents,
+    savingsFundedExpenseCents: rollup.savingsFundedExpenseCents,
     budgetImpactExpenseCents: rollup.budgetImpactExpenseCents,
   }));
 
@@ -175,7 +175,7 @@ test("backfills cents and exact local-day rollups across pages without double co
   const rollupsAfterRetry = afterRetry.rollups.map((rollup) => ({
     localDate: rollup.localDate,
     expenseCents: rollup.expenseCents,
-    reserveFundedExpenseCents: rollup.reserveFundedExpenseCents,
+    savingsFundedExpenseCents: rollup.savingsFundedExpenseCents,
     budgetImpactExpenseCents: rollup.budgetImpactExpenseCents,
   }));
 

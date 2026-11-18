@@ -2,6 +2,7 @@
 import { FlexRender, createColumnHelper, tableFeatures, useTable } from "@tanstack/vue-table";
 import type { Doc } from "../../../convex/_generated/dataModel";
 import { formatMoney } from "../../../shared/utils/format-money";
+import { formatCents, legacyDollarsToCents } from "../../../shared/utils/money-cents";
 
 type Expense = Doc<"expenses">;
 
@@ -36,6 +37,12 @@ const table = useTable({
   data: expenseData,
   getRowId: (row) => row._id,
 });
+
+function formatPurchaseFunding(expense: Expense) {
+  const total = expense.amountCents ?? legacyDollarsToCents(expense.amount);
+  const savings = expense.savingsUsedCents ?? 0n;
+  return `${formatCents(total)} total · ${formatCents(savings)} from savings · ${formatCents(total - savings)} budget impact`;
+}
 
 function onDelete(item: Expense) {
   const confirmed = window.confirm(`Delete "${item.name}"? This can't be undone.`);
@@ -76,7 +83,13 @@ function onExpenseUpdated(id: string) {
         <tbody>
           <tr v-for="row in table.getRowModel().rows" :key="row.id">
             <td v-for="cell in row.getAllCells()" :key="cell.id">
-              <template v-if="cell.column.id === 'actions'">
+              <template v-if="cell.column.id === 'amount' && row.original.wantItemId">
+                {{ formatPurchaseFunding(row.original) }}
+              </template>
+              <template v-else-if="cell.column.id === 'actions' && row.original.wantItemId">
+                Want purchase
+              </template>
+              <template v-else-if="cell.column.id === 'actions'">
                 <div class="actions">
                   <button
                     type="button"

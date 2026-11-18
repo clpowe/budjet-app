@@ -4,8 +4,7 @@ import { formatCents } from "../../shared/utils/money-cents";
 
 const { displayDate, formatDateInput, currentMonth, currentDate, setDate } = useDate();
 
-const { summary, safeToSpendCents, totalToday, burnRate, variance, remainingTodayDollars } =
-  useExpenses();
+const { summary, safeToSpendCents, totalToday, variance, remainingTodayDollars } = useExpenses();
 
 const { windfallTotal } = useWindfall();
 
@@ -86,7 +85,7 @@ const nextPlannedWantTargetLocalDate = computed(() => {
 <template>
   <div class="home">
     <div class="page-info">
-      <p>Date</p>
+      <p>{{ displayDate }}</p>
       <h1>Home</h1>
     </div>
     <div class="controls">
@@ -101,7 +100,28 @@ const nextPlannedWantTargetLocalDate = computed(() => {
             @toggle="syncActiveTab('today', $event)"
           >
             <summary @click.prevent="activeTab = 'today'">Today</summary>
-            <div>Content 1</div>
+            <div v-if="summary">
+              {{
+                formatCents(summary.plan.dailyAllowanceCents - summary.spending.today.expenseCents)
+              }}
+              <div>
+                Available to Spend
+                <div>
+                  {{ formatCents(summary.spending.today.budgetImpactCents) }}
+                  spent today
+                </div>
+
+                <div>
+                  {{
+                    formatCents(
+                      (summary.savings ?? summary.reserve).projectedEndOfDayContributionCents,
+                    )
+                  }}
+                  spent today
+                </div>
+              </div>
+            </div>
+            <p v-else role="status">Loading budget…</p>
           </details>
 
           <details

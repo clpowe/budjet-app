@@ -8,7 +8,7 @@ import {
   getBudgetImpactCents,
   replaceDailyBudgetRollup,
 } from "../lib/daily_budget_rollups";
-import { getLocalDateKey, getLocalDayBounds } from "../lib/want_reserve";
+import { getLocalDateKey, getLocalDayBounds } from "../lib/want_savings";
 
 export const HOUSEHOLDS_PER_BATCH = 10;
 export const EXPENSES_PER_BATCH = 100;
@@ -172,7 +172,7 @@ export const rebuildHouseholdRollups = internalMutation({
       timeZone: args.timeZone,
       expenseCursor: null,
       expenseCents: 0n,
-      reserveFundedExpenseCents: 0n,
+      savingsFundedExpenseCents: 0n,
       budgetImpactExpenseCents: 0n,
       nextRollupCursor: page.isDone ? null : page.continueCursor,
       completeWhenDone: page.isDone,
@@ -189,7 +189,8 @@ export const rebuildDailyBudgetRollup = internalMutation({
     timeZone: v.string(),
     expenseCursor: cursorValidator,
     expenseCents: v.int64(),
-    reserveFundedExpenseCents: v.int64(),
+    savingsFundedExpenseCents: v.optional(v.int64()),
+    reserveFundedExpenseCents: v.optional(v.int64()),
     budgetImpactExpenseCents: v.int64(),
     nextRollupCursor: cursorValidator,
     completeWhenDone: v.boolean(),
@@ -227,7 +228,10 @@ export const rebuildDailyBudgetRollup = internalMutation({
       });
 
     let expenseCents = args.expenseCents;
-    let reserveFundedExpenseCents = args.reserveFundedExpenseCents;
+    let savingsFundedExpenseCents =
+      args.savingsFundedExpenseCents ?? args.reserveFundedExpenseCents;
+    if (savingsFundedExpenseCents === undefined)
+      throw new Error("Missing accumulated savings funding");
     let budgetImpactExpenseCents = args.budgetImpactExpenseCents;
 
     for (const expense of page.page) {
@@ -235,14 +239,14 @@ export const rebuildDailyBudgetRollup = internalMutation({
         throw new Error("Cannot rebuild a rollup before every expense is migrated");
       }
 
-      const reserveUsedCents = expense.reserveUsedCents ?? 0n;
+      const savingsUsedCents = expense.savingsUsedCents ?? expense.reserveUsedCents ?? 0n;
       const amountCents = expense.amountCents;
 
       expenseCents += amountCents;
-      reserveFundedExpenseCents += reserveUsedCents;
+      savingsFundedExpenseCents += savingsUsedCents;
       budgetImpactExpenseCents += getBudgetImpactCents({
         amountCents,
-        reserveUsedCents,
+        savingsUsedCents,
       });
     }
 
@@ -251,7 +255,7 @@ export const rebuildDailyBudgetRollup = internalMutation({
         ...args,
         expenseCursor: page.continueCursor,
         expenseCents,
-        reserveFundedExpenseCents,
+        savingsFundedExpenseCents,
         budgetImpactExpenseCents,
       });
 
@@ -262,7 +266,7 @@ export const rebuildDailyBudgetRollup = internalMutation({
       householdId: household._id,
       localDate: args.localDate,
       expenseCents,
-      reserveFundedExpenseCents,
+      savingsFundedExpenseCents,
       budgetImpactExpenseCents,
       now,
     });

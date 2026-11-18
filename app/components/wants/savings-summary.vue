@@ -2,20 +2,20 @@
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@generated/api";
 
-type ReserveSummary = FunctionReturnType<typeof api.reserve.getSummary>;
+type SavingsSummary = FunctionReturnType<typeof api.savings.getSummary>;
 
 defineProps<{
-  summary: ReserveSummary;
+  summary: SavingsSummary;
   nextItemName?: string;
 }>();
 </script>
 
 <template>
-  <section aria-label="Goal reserve summary">
+  <section aria-label="Savings summary">
     <div>
       <div>
-        <h2>Goal reserve</h2>
-        <p>Shared money accumulated for the active Wants queue.</p>
+        <h2>Savings</h2>
+        <p>Money your household has set aside for planned purchases.</p>
       </div>
 
       <p v-if="nextItemName">Next: {{ nextItemName }}</p>
@@ -23,11 +23,10 @@ defineProps<{
 
     <dl>
       <div>
-        <dt>Available reserve</dt>
+        <dt>For planned purchases</dt>
         <dd>
-          {{ formatCents(summary.availableReserveCents) }}
+          {{ formatCents(summary.availableSavingsCents) }}
         </dd>
-        <p>Available to fund a Want purchase now.</p>
       </div>
 
       <div>
@@ -40,7 +39,7 @@ defineProps<{
     </dl>
 
     <div v-if="summary.recoveryAmountCents > 0n">
-      <h3>Reserve recovery</h3>
+      <h3>Savings recovery</h3>
       <p>
         {{ formatCents(summary.recoveryAmountCents) }} must be recovered before new progress is
         added.

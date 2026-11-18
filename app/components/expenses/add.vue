@@ -54,6 +54,7 @@ async function handleSubmit() {
 
   try {
     const res = await mutate({
+      apiVersion: 2,
       name,
       notes,
       amountCents: legacyDollarsToCents(amount),
@@ -63,7 +64,7 @@ async function handleSubmit() {
     if (res.success) {
       formState.value = makeFormState(date);
     } else {
-      submitError.value = "The reserve is still syncing. Try again in a moment.";
+      submitError.value = "Savings are still syncing. Try again in a moment.";
     }
   } catch (error) {
     submitError.value =

@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { Id } from "../../convex/_generated/dataModel";
-import { getDebtOrderUpdates, getSnowballTotal } from "../../convex/depts";
+import { getDebtOrderUpdates, sumDebtPayments } from "../../convex/depts";
 
 function debtId(id: string) {
   return id as Id<"debts">;
 }
 
-describe("getSnowballTotal", () => {
+describe("sumDebtPayments", () => {
   it("sums every household debt payment, including debts outside the priority list", () => {
     expect(
-      getSnowballTotal([
+      sumDebtPayments([
         { isPriority: false, payment: 350 },
         { isPriority: false, payment: 500 },
         { isPriority: true, payment: 200 },

@@ -20,7 +20,7 @@ export type SeededHousehold = {
   memberIds: Id<"users">[];
 };
 
-/** A migrated household: cents allowance $55, New York zone, reserve features unlocked. */
+/** A migrated household: cents allowance $55, New York zone, savings features unlocked. */
 export const DEFAULT_TEST_HOUSEHOLD: HouseholdFields = {
   name: "Test household",
   inviteCode: "TEST000",

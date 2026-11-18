@@ -62,7 +62,7 @@ describe("getWantGuidance", () => {
     ).toEqual({ kind: "ready" });
   });
 
-  it("surfaces today's negative reserve movement without treating it as a forecast", () => {
+  it("surfaces today's negative savings movement without treating it as a forecast", () => {
     expect(
       getWantGuidance({
         remainingCents: 10_000n,
@@ -77,7 +77,7 @@ describe("getWantGuidance", () => {
     });
   });
 
-  it("prioritizes reserve recovery over a new funding forecast", () => {
+  it("prioritizes savings recovery over a new funding forecast", () => {
     expect(
       getWantGuidance({
         remainingCents: 10_000n,

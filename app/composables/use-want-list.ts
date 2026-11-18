@@ -53,7 +53,7 @@ export function useWantList() {
   };
 
   const { data: summary, isPending: isSummaryPending } = useConvexQuery(
-    api.reserve.getSummary,
+    api.savings.getSummary,
     computed(() => ({
       now: now.value,
     })),
@@ -144,18 +144,24 @@ export function useWantList() {
   }
 
   function purchase(args: PurchaseArgs) {
-    return runAction(() => purchaseMutation(args), "Could not complete this purchase. Try again.");
+    return runAction(
+      () => purchaseMutation({ ...args, apiVersion: 2 }),
+      "Could not complete this purchase. Try again.",
+    );
   }
 
   function correctPurchase(args: CorrectPurchaseArgs) {
     return runAction(
-      () => correctPurchaseMutation(args),
+      () => correctPurchaseMutation({ ...args, apiVersion: 2 }),
       "Could not correct this purchase. Try again.",
     );
   }
 
   function undoPurchase(args: UndoPurchaseArgs) {
-    return runAction(() => undoPurchaseMutation(args), "Could not undo this purchase. Try again.");
+    return runAction(
+      () => undoPurchaseMutation({ ...args, apiVersion: 2 }),
+      "Could not undo this purchase. Try again.",
+    );
   }
 
   return {

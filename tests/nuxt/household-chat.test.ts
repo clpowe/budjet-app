@@ -69,6 +69,7 @@ describe("HouseholdChat status", () => {
     const wrapper = await mountChat();
 
     expect(wrapper.text()).toContain("Loading messages…");
+    expect(wrapper.find("ol").exists()).toBe(false);
   });
 
   it("shows the load error when the query fails", async () => {
@@ -76,7 +77,7 @@ describe("HouseholdChat status", () => {
 
     const wrapper = await mountChat();
 
-    expect(wrapper.text()).toContain("Couldn't load messages.");
+    expect(wrapper.get('[role="alert"]').text()).toBe("Couldn't load messages.");
   });
 
   it("passes messages through to the panel", async () => {
@@ -163,6 +164,7 @@ describe("HouseholdChat send lifecycle", () => {
     await wrapper.get("textarea").trigger("keydown", { key: "Enter" });
 
     expect(state.send).toHaveBeenCalledTimes(1);
+    expect(wrapper.get("textarea").attributes("readonly")).toBeDefined();
     expect(wrapper.get("button[type='submit']").attributes("disabled")).toBeDefined();
     expect(wrapper.get("button[type='submit']").text()).toBe("Sending…");
 

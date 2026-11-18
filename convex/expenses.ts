@@ -4,7 +4,7 @@ import { getEffectiveTimeZone } from "./households";
 import { toExpenseFacts } from "./lib/daily_budget_rollups";
 import { getHouseholdId } from "./lib/helpers";
 import { requireHouseholdDoc, requireHouseholdMember } from "./lib/household_access";
-import { addExpense, editExpense, removeExpense, type ReserveResult } from "./lib/reserve_account";
+import { addExpense, editExpense, removeExpense, type SavingsResult } from "./lib/savings_account";
 import {
   getBudgetImpact,
   getLocalDateKey,
@@ -12,24 +12,30 @@ import {
   getLocalMonthPeriod,
   getNextLocalDate,
   getNextMonthStart,
-} from "./lib/want_reserve";
+} from "./lib/want_savings";
 import schema from "./schema";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 
 /**
- * `success: false` means the reserve was still catching up on closed days; the
+ * `success: false` means savings were still catching up on closed days; the
  * expense was not written and the client should retry shortly.
  */
 const expenseWriteResultValidator = v.union(
   v.object({ success: v.literal(true) }),
-  v.object({ success: v.literal(false), reason: v.literal("reserve_syncing") }),
+  v.object({
+    success: v.literal(false),
+    reason: v.union(v.literal("savings_syncing"), v.literal("reserve_syncing")),
+  }),
 );
 
-function toWriteResult(result: ReserveResult) {
+function toWriteResult(result: SavingsResult, apiVersion?: 2) {
   return result.status === "ok"
     ? { success: true as const }
-    : { success: false as const, reason: "reserve_syncing" as const };
+    : {
+        success: false as const,
+        reason: apiVersion === 2 ? ("savings_syncing" as const) : ("reserve_syncing" as const),
+      };
 }
 
 const expenseDoc = schema.tables.expenses.validator.extend({
@@ -42,7 +48,7 @@ const monthlyTransaction = v.union(
     type: v.literal("expense"),
     localDate: v.string(),
     amountCents: v.int64(),
-    reserveUsedCents: v.int64(),
+    savingsUsedCents: v.int64(),
     budgetImpactCents: v.int64(),
     isWantPurchase: v.boolean(),
   }),
@@ -54,6 +60,13 @@ const monthlyTransaction = v.union(
     localDate: v.string(),
   }),
 );
+
+function withSavingsFunding(expense: Doc<"expenses">) {
+  const funding = expense.savingsUsedCents ?? expense.reserveUsedCents;
+  return funding === undefined
+    ? expense
+    : { ...expense, savingsUsedCents: funding, reserveUsedCents: funding };
+}
 
 async function readExpensesByLocalDate(
   ctx: QueryCtx,
@@ -85,7 +98,7 @@ async function readExpensesByLocalDate(
       )
       .collect(),
   ]);
-  return { expenses: [...stored, ...legacy], from, to };
+  return { expenses: [...stored, ...legacy].map(withSavingsFunding), from, to };
 }
 
 export const listDailyExpenses = query({
@@ -131,13 +144,14 @@ export const listMyExpenses = query({
   handler: async (ctx, args) => {
     const householdId = await getHouseholdId(ctx);
 
-    return await ctx.db
+    const expenses = await ctx.db
       .query("expenses")
       .withIndex("by_household", (q) =>
         q.eq("householdId", householdId).gte("date", args.from).lt("date", args.to),
       )
       .order("desc")
       .collect();
+    return expenses.map(withSavingsFunding);
   },
 });
 
@@ -189,6 +203,7 @@ export const getMyCurrentPosition = query({
 
 export const createExpense = mutation({
   args: {
+    apiVersion: v.optional(v.literal(2)),
     name: v.string(),
     notes: v.string(),
     amountCents: v.int64(),
@@ -203,12 +218,13 @@ export const createExpense = mutation({
       now: Date.now(),
     });
 
-    return toWriteResult(result);
+    return toWriteResult(result, args.apiVersion);
   },
 });
 
 export const updateExpense = mutation({
   args: {
+    apiVersion: v.optional(v.literal(2)),
     expenseId: v.id("expenses"),
     name: v.string(),
     notes: v.string(),
@@ -230,12 +246,13 @@ export const updateExpense = mutation({
       now: Date.now(),
     });
 
-    return toWriteResult(result);
+    return toWriteResult(result, args.apiVersion);
   },
 });
 
 export const deleteExpense = mutation({
   args: {
+    apiVersion: v.optional(v.literal(2)),
     expenseId: v.id("expenses"),
   },
   returns: expenseWriteResultValidator,
@@ -247,7 +264,7 @@ export const deleteExpense = mutation({
       now: Date.now(),
     });
 
-    return toWriteResult(result);
+    return toWriteResult(result, args.apiVersion);
   },
 });
 
@@ -274,14 +291,15 @@ export const listMonthlyTransactions = query({
 
     return [
       ...expenses.map((expense) => {
-        const { amountCents, localDate, reserveUsedCents } = toExpenseFacts(expense, timeZone);
+        const { amountCents, localDate, savingsUsedCents } = toExpenseFacts(expense, timeZone);
 
         return {
           ...expense,
           localDate,
           amountCents,
-          reserveUsedCents,
-          budgetImpactCents: getBudgetImpact(amountCents, reserveUsedCents),
+          savingsUsedCents,
+          reserveUsedCents: savingsUsedCents,
+          budgetImpactCents: getBudgetImpact(amountCents, savingsUsedCents),
           isWantPurchase: expense.wantItemId !== undefined,
           type: "expense" as const,
         };

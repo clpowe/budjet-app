@@ -48,9 +48,9 @@ const previousRows = computed(() =>
   buildPreviousMonthSpendingRows(previousMonthExpenses.value ?? [], currentDate.value),
 );
 
-const currentRow = computed(() => rows.value.findLast((row) => row.spent !== null));
-const spentToDate = computed(() => currentRow.value?.spent ?? 0);
-const budgetToDate = computed(() => currentRow.value?.budget ?? 0);
+const currentRow = computed(() => rows.value.findLast((row) => row.spentToDate !== null));
+const spentToDate = computed(() => currentRow.value?.spentToDate ?? 0);
+const budgetToDate = computed(() => currentRow.value?.budgetToDate ?? 0);
 const paceDifference = computed(() => budgetToDate.value - spentToDate.value);
 const isOnPace = computed(() => paceDifference.value >= 0);
 
@@ -68,14 +68,14 @@ const money = new Intl.NumberFormat("en-US", {
 const definition = computed(() => {
   const chartRows = rows.value;
   const actualRows = chartRows.filter(
-    (row): row is typeof row & { spent: number } => row.spent !== null,
+    (row): row is typeof row & { spentToDate: number } => row.spentToDate !== null,
   );
-  const finalBudget = chartRows.at(-1)?.budget ?? 0;
-  const maximumSpend = Math.max(0, ...actualRows.map((row) => row.spent));
+  const finalBudget = chartRows.at(-1)?.budgetToDate ?? 0;
+  const maximumSpend = Math.max(0, ...actualRows.map((row) => row.spentToDate));
   const previousActualRows = previousRows.value.filter(
-    (row): row is typeof row & { spent: number } => row.spent !== null,
+    (row): row is typeof row & { spentToDate: number } => row.spentToDate !== null,
   );
-  const maximumPreviousSpend = Math.max(0, ...previousActualRows.map((row) => row.spent));
+  const maximumPreviousSpend = Math.max(0, ...previousActualRows.map((row) => row.spentToDate));
   const yMaximum = Math.max(
     100,
     Math.ceil((Math.max(finalBudget, maximumSpend, maximumPreviousSpend) * 1.08) / 100) * 100,
@@ -90,7 +90,7 @@ const definition = computed(() => {
             id: "monthly-spending-area",
             x: "day",
             y1: 0,
-            y2: "spent",
+            y2: "spentToDate",
             key: "id",
             fill: "currentColor",
             fillOpacity: 0.05,
@@ -101,7 +101,7 @@ const definition = computed(() => {
           lineY(chartRows, {
             id: "monthly-budget-pace",
             x: "day",
-            y: "budget",
+            y: "budgetToDate",
             key: "id",
             stroke: "currentColor",
             strokeWidth: 1.5,
@@ -113,7 +113,7 @@ const definition = computed(() => {
           lineY(actualRows, {
             id: "monthly-spending",
             x: "day",
-            y: "spent",
+            y: "spentToDate",
             key: "id",
             stroke: "currentColor",
             strokeWidth: 3,
@@ -124,7 +124,7 @@ const definition = computed(() => {
           lineY(previousActualRows, {
             id: "monthly-previous-spending",
             x: "day",
-            y: "spent",
+            y: "spentToDate",
             key: "id",
             stroke: "currentColor",
             strokeWidth: 2,
@@ -135,7 +135,7 @@ const definition = computed(() => {
         dot(actualRows, {
           id: "monthly-spending-points",
           x: "day",
-          y: "spent",
+          y: "spentToDate",
           key: "id",
           r: 3,
           fill: "currentColor",
@@ -205,7 +205,7 @@ const definition = computed(() => {
         anchor: "point",
         placement: ["top", "right", "left"],
         offset: 10,
-        format: ({ datum }) => `${datum.label} · ${money.format(datum.spent ?? 0)} spent`,
+        format: ({ datum }) => `${datum.label} · ${money.format(datum.spentToDate ?? 0)} spent`,
       },
     },
   );

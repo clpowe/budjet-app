@@ -7,7 +7,7 @@ import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 
-type ReserveSeedOptions = {
+type SavingsSeedOptions = {
   allowanceCents?: bigint;
   firstEligibleLocalDate?: string;
   lastClosedLocalDate?: string;
@@ -16,7 +16,7 @@ type ReserveSeedOptions = {
   pendingTimeZoneEffectiveAt?: number;
 };
 
-async function seedReserve(
+async function seedSavings(
   t: TestConvex<typeof schema>,
   {
     allowanceCents = 5_000n,
@@ -25,7 +25,7 @@ async function seedReserve(
     timeZone = "America/New_York",
     pendingTimeZone,
     pendingTimeZoneEffectiveAt,
-  }: ReserveSeedOptions = {},
+  }: SavingsSeedOptions = {},
 ) {
   return await t.run(async (ctx) => {
     const ownerId = await ctx.db.insert("users", {
@@ -35,8 +35,8 @@ async function seedReserve(
       createdAt: 0,
     });
     const householdId = await ctx.db.insert("households", {
-      name: "Reserve household",
-      inviteCode: "RESERVE",
+      name: "Savings household",
+      inviteCode: "SAVINGS",
       ownerId,
       allowance: Number(allowanceCents) / 100,
       allowanceCents,
@@ -49,7 +49,7 @@ async function seedReserve(
 
     await ctx.db.patch(ownerId, { householdId });
 
-    await ctx.db.insert("goalReserveStates", {
+    await ctx.db.insert("goalSavingsStates", {
       householdId,
       positionCents: 0n,
       activatedAt: 0,
@@ -64,7 +64,7 @@ async function seedReserve(
 
 async function addRollup(
   t: TestConvex<typeof schema>,
-  householdId: Awaited<ReturnType<typeof seedReserve>>["householdId"],
+  householdId: Awaited<ReturnType<typeof seedSavings>>["householdId"],
   localDate: string,
   budgetImpactExpenseCents: bigint,
 ) {
@@ -73,6 +73,7 @@ async function addRollup(
       householdId,
       localDate,
       expenseCents: budgetImpactExpenseCents,
+      savingsFundedExpenseCents: 0n,
       reserveFundedExpenseCents: 0n,
       budgetImpactExpenseCents,
       updatedAt: 0,
@@ -80,14 +81,14 @@ async function addRollup(
   });
 }
 
-async function readReserve(
+async function readSavings(
   t: TestConvex<typeof schema>,
-  householdId: Awaited<ReturnType<typeof seedReserve>>["householdId"],
+  householdId: Awaited<ReturnType<typeof seedSavings>>["householdId"],
 ) {
   return await t.run(async (ctx) => {
     const household = await ctx.db.get(householdId);
     const state = await ctx.db
-      .query("goalReserveStates")
+      .query("goalSavingsStates")
       .withIndex("by_household", (q) => q.eq("householdId", householdId))
       .unique();
     return { household, state };
@@ -96,14 +97,14 @@ async function readReserve(
 
 test("closes eligible days exactly across a month boundary and is idempotent", async () => {
   const t = convexTest(schema, modules);
-  const seeded = await seedReserve(t);
+  const seeded = await seedSavings(t);
 
   await addRollup(t, seeded.householdId, "2026-01-30", 0n);
   await addRollup(t, seeded.householdId, "2026-01-31", 3_000n);
   await addRollup(t, seeded.householdId, "2026-02-01", 5_500n);
   await addRollup(t, seeded.householdId, "2026-02-02", 2_000n);
 
-  const result = await t.mutation(internal.reserveMaintenance.closeThrough, {
+  const result = await t.mutation(internal.savingsMaintenance.closeThrough, {
     householdId: seeded.householdId,
     throughExclusiveTimestamp: Date.UTC(2026, 1, 3, 17),
     maxDays: 31,
@@ -114,7 +115,7 @@ test("closes eligible days exactly across a month boundary and is idempotent", a
     lastClosedLocalDate: "2026-02-02",
   });
 
-  const closed = await readReserve(t, seeded.householdId);
+  const closed = await readSavings(t, seeded.householdId);
 
   // 2_000 + (−500) + 3_000; January 30 is before the first eligible day.
   expect(closed.state).toMatchObject({
@@ -123,24 +124,24 @@ test("closes eligible days exactly across a month boundary and is idempotent", a
     lastClosedLocalDate: "2026-02-02",
   });
 
-  await t.mutation(internal.reserveMaintenance.closeThrough, {
+  await t.mutation(internal.savingsMaintenance.closeThrough, {
     householdId: seeded.householdId,
     throughExclusiveTimestamp: Date.UTC(2026, 1, 3, 17),
     maxDays: 31,
   });
 
-  expect(await readReserve(t, seeded.householdId)).toEqual(closed);
+  expect(await readSavings(t, seeded.householdId)).toEqual(closed);
 });
 
 test("stops at the caller's bounded day count", async () => {
   const t = convexTest(schema, modules);
-  const seeded = await seedReserve(t);
+  const seeded = await seedSavings(t);
 
   await addRollup(t, seeded.householdId, "2026-01-31", 3_000n);
   await addRollup(t, seeded.householdId, "2026-02-01", 3_000n);
   await addRollup(t, seeded.householdId, "2026-02-02", 3_000n);
 
-  const result = await t.mutation(internal.reserveMaintenance.closeThrough, {
+  const result = await t.mutation(internal.savingsMaintenance.closeThrough, {
     householdId: seeded.householdId,
     throughExclusiveTimestamp: Date.UTC(2026, 1, 3, 17),
     maxDays: 2,
@@ -151,7 +152,7 @@ test("stops at the caller's bounded day count", async () => {
     lastClosedLocalDate: "2026-02-01",
   });
 
-  const closed = await readReserve(t, seeded.householdId);
+  const closed = await readSavings(t, seeded.householdId);
 
   expect(closed.state).toMatchObject({
     positionCents: 4_000n,
@@ -161,24 +162,24 @@ test("stops at the caller's bounded day count", async () => {
 
 test("two closers credit the day once", async () => {
   const t = convexTest(schema, modules);
-  const seeded = await seedReserve(t);
+  const seeded = await seedSavings(t);
 
   await addRollup(t, seeded.householdId, "2026-01-31", 3_000n);
 
   await Promise.all([
-    t.mutation(internal.reserveMaintenance.closeThrough, {
+    t.mutation(internal.savingsMaintenance.closeThrough, {
       householdId: seeded.householdId,
       throughExclusiveTimestamp: Date.UTC(2026, 1, 1, 17),
       maxDays: 31,
     }),
-    t.mutation(internal.reserveMaintenance.closeThrough, {
+    t.mutation(internal.savingsMaintenance.closeThrough, {
       householdId: seeded.householdId,
       throughExclusiveTimestamp: Date.UTC(2026, 1, 1, 17),
       maxDays: 31,
     }),
   ]);
 
-  const closed = await readReserve(t, seeded.householdId);
+  const closed = await readSavings(t, seeded.householdId);
 
   expect(closed.state).toMatchObject({
     positionCents: 2_000n,
@@ -189,7 +190,7 @@ test("two closers credit the day once", async () => {
 test("closes the final old-timezone day before promoting a pending timezone", async () => {
   const pendingTimeZoneEffectiveAt = Date.UTC(2026, 2, 2, 5);
   const t = convexTest(schema, modules);
-  const seeded = await seedReserve(t, {
+  const seeded = await seedSavings(t, {
     firstEligibleLocalDate: "2026-03-01",
     lastClosedLocalDate: "2026-02-28",
     timeZone: "America/New_York",
@@ -199,7 +200,7 @@ test("closes the final old-timezone day before promoting a pending timezone", as
 
   await addRollup(t, seeded.householdId, "2026-03-01", 3_000n);
 
-  const result = await t.mutation(internal.reserveMaintenance.closeThrough, {
+  const result = await t.mutation(internal.savingsMaintenance.closeThrough, {
     householdId: seeded.householdId,
     throughExclusiveTimestamp: Date.UTC(2026, 2, 2, 12),
     maxDays: 31,
@@ -210,7 +211,7 @@ test("closes the final old-timezone day before promoting a pending timezone", as
     lastClosedLocalDate: "2026-03-01",
   });
 
-  const closed = await readReserve(t, seeded.householdId);
+  const closed = await readSavings(t, seeded.householdId);
 
   expect(closed.state).toMatchObject({
     positionCents: 2_000n,

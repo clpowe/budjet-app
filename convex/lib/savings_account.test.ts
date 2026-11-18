@@ -2,13 +2,13 @@
 
 import { describe, expect, test } from "vitest";
 import { convexTest } from "convex-test";
-import { getReserveSnapshot, sumClosedPositiveContributions } from "./reserve_account";
+import { getSavingsSnapshot, sumClosedPositiveContributions } from "./savings_account";
 import schema from "../schema";
 
 const modules = import.meta.glob("../**/*.ts");
 const march10AtNoonNewYork = Date.UTC(2026, 2, 10, 16);
 
-test("assembles the live reserve snapshot from the household, state, and current rollup", async () => {
+test("assembles the live savings snapshot from the household, state, and current rollup", async () => {
   const t = convexTest(schema, modules);
 
   const snapshot = await t.run(async (ctx) => {
@@ -27,7 +27,7 @@ test("assembles the live reserve snapshot from the household, state, and current
       moneyMigrationCompletedAt: 0,
       createdAt: 0,
     });
-    const stateId = await ctx.db.insert("goalReserveStates", {
+    const stateId = await ctx.db.insert("goalSavingsStates", {
       householdId,
       positionCents: 1_000n,
       activatedAt: 0,
@@ -39,6 +39,7 @@ test("assembles the live reserve snapshot from the household, state, and current
       householdId,
       localDate: "2026-03-10",
       expenseCents: 7_000n,
+      savingsFundedExpenseCents: 0n,
       reserveFundedExpenseCents: 0n,
       budgetImpactExpenseCents: 7_000n,
       updatedAt: 0,
@@ -50,7 +51,7 @@ test("assembles the live reserve snapshot from the household, state, and current
       throw new Error("Expected household");
     }
 
-    const result = await getReserveSnapshot(ctx, household, march10AtNoonNewYork);
+    const result = await getSavingsSnapshot(ctx, household, march10AtNoonNewYork);
 
     return { result, stateId };
   });
@@ -69,7 +70,7 @@ test("assembles the live reserve snapshot from the household, state, and current
   });
 });
 
-test("defaults missing reserve state and current rollup to zero", async () => {
+test("defaults missing savings state and current rollup to zero", async () => {
   const t = convexTest(schema, modules);
 
   const snapshot = await t.run(async (ctx) => {
@@ -94,7 +95,7 @@ test("defaults missing reserve state and current rollup to zero", async () => {
       throw new Error("Expected household");
     }
 
-    return await getReserveSnapshot(ctx, household, march10AtNoonNewYork);
+    return await getSavingsSnapshot(ctx, household, march10AtNoonNewYork);
   });
 
   expect(snapshot).toMatchObject({
@@ -163,7 +164,7 @@ describe("sumClosedPositiveContributions", () => {
     ).toBe(5_000n);
   });
 
-  test("returns zero before the first close or without a reserve", () => {
+  test("returns zero before the first close or without a savings", () => {
     expect(
       sumClosedPositiveContributions({
         ...base,

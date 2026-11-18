@@ -193,7 +193,7 @@ async function requestPurchasePreview(value: {
   }
 }
 
-const RESERVE_SYNCING_MESSAGE = "The reserve is still syncing. Try again in a moment.";
+const SAVINGS_SYNCING_MESSAGE = "Savings are still syncing. Try again in a moment.";
 
 async function submitPurchase(
   value:
@@ -225,7 +225,7 @@ async function submitPurchase(
       }
 
       if ("status" in result.data) {
-        purchaseError.value = RESERVE_SYNCING_MESSAGE;
+        purchaseError.value = SAVINGS_SYNCING_MESSAGE;
         return;
       }
 
@@ -243,12 +243,12 @@ async function submitPurchase(
       return;
     }
 
-    if (result.data.status === "reserve_syncing") {
-      purchaseError.value = RESERVE_SYNCING_MESSAGE;
+    if (result.data.status !== "purchased") {
+      purchaseError.value = SAVINGS_SYNCING_MESSAGE;
       return;
     }
 
-    pageNotice.value = `${formatCents(value.actualAmountCents)} total · ${formatCents(result.data.reserveUsedCents)} from reserve · ${formatCents(result.data.budgetImpactCents)} budget impact.`;
+    pageNotice.value = `${formatCents(value.actualAmountCents)} total · ${formatCents(result.data.savingsUsedCents)} from savings · ${formatCents(result.data.budgetImpactCents)} budget impact.`;
     closePurchaseDialog(true);
   } finally {
     isSubmittingPurchase.value = false;
@@ -271,7 +271,7 @@ async function undoPurchaseFromHistory(itemId: Id<"wantItems">) {
     }
 
     if ("status" in result.data) {
-      boughtError.value = RESERVE_SYNCING_MESSAGE;
+      boughtError.value = SAVINGS_SYNCING_MESSAGE;
       return;
     }
 
@@ -425,7 +425,7 @@ async function saveOrder(order: FunctionArgs<typeof api.wants.reorder>) {
     <header class="l-cluster l-split">
       <div>
         <h1>Wants</h1>
-        <p>Decide together, order what matters, and track the shared reserve funding each goal.</p>
+        <p>Decide together, order what matters, and track the shared savings funding each goal.</p>
       </div>
 
       <button type="button" aria-label="Add Want" @click="openCreateForm">Add Want</button>
@@ -437,7 +437,7 @@ async function saveOrder(order: FunctionArgs<typeof api.wants.reorder>) {
     </div>
 
     <template v-else>
-      <WantsReserveSummary
+      <WantsSavingsSummary
         v-if="summary"
         :summary="summary"
         :next-item-name="sections.active[0]?.name"

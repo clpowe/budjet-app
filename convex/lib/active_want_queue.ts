@@ -1,6 +1,6 @@
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { allocateReserve } from "./want_reserve";
+import { allocateSavings } from "./want_savings";
 
 export const MAX_ACTIVE_WANTS = 100;
 
@@ -62,7 +62,7 @@ export function projectActiveWantAllocations(
   availableCents: bigint,
   activeItems: readonly Doc<"wantItems">[],
 ): ActiveWantAllocation[] {
-  const allocations = allocateReserve(
+  const allocations = allocateSavings(
     availableCents,
     activeItems.map((item) => ({
       id: item._id,

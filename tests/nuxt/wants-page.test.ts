@@ -69,7 +69,7 @@ function makeWant(id: string, name: string, status: WantStatus, order?: number):
 function makeSummary() {
   return {
     positionCents: 4_000n,
-    availableReserveCents: 4_000n,
+    availableSavingsCents: 4_000n,
     recoveryAmountCents: 0n,
     todayOverageAdjustmentCents: 0n,
     projectedEndOfDayContributionCents: 2_500n,
@@ -163,23 +163,23 @@ describe("WantsPage", () => {
     expect(wrapper.get('button[aria-label="Add Want"]').text()).toContain("Add Want");
   });
 
-  it("explains reserve recovery without presenting a negative available balance", () => {
+  it("explains savings recovery without presenting a negative available balance", () => {
     const summary = makeSummary();
     summary.positionCents = 1_000n;
-    summary.availableReserveCents = 0n;
+    summary.availableSavingsCents = 0n;
     summary.recoveryAmountCents = 500n;
     summary.todayOverageAdjustmentCents = -1_500n;
     summary.projectedEndOfDayContributionCents = 0n;
 
     const wrapper = arrangePage({ summary });
 
-    expect(wrapper.text()).toContain("Reserve recovery");
+    expect(wrapper.text()).toContain("Savings recovery");
     expect(wrapper.text()).toContain("$5.00");
     expect(wrapper.text()).toContain("before new progress");
     expect(wrapper.text()).not.toContain("-$5.00 available");
   });
 
-  it("renders the active queue with accessible reserve progress", () => {
+  it("renders the active queue with accessible savings progress", () => {
     const camera = makeWant("want-camera", "Camera", "plan_for_it", 0);
     const summary = makeSummary();
 
@@ -236,9 +236,9 @@ describe("WantsPage", () => {
 
   it("distinguishes money available now from the amount that may arrive tonight", () => {
     const wrapper = arrangePage();
-    const summary = wrapper.get('[aria-label="Goal reserve summary"]');
+    const summary = wrapper.get('[aria-label="Savings summary"]');
 
-    expect(summary.text()).toContain("Available reserve");
+    expect(summary.text()).toContain("Savings");
     expect(summary.text()).toContain("$40.00");
     expect(summary.text()).toContain("Potential tonight");
     expect(summary.text()).toContain("$25.00");

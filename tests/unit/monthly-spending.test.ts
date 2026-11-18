@@ -17,11 +17,11 @@ describe("buildMonthlySpendingRows", () => {
     );
 
     expect(rows).toHaveLength(31);
-    expect(rows.slice(0, 4).map(({ budget, day, spent }) => ({ budget, day, spent }))).toEqual([
-      { budget: 50, day: 1, spent: 15 },
-      { budget: 100, day: 2, spent: 15 },
-      { budget: 150, day: 3, spent: 30 },
-      { budget: 200, day: 4, spent: null },
+    expect(rows.slice(0, 4)).toMatchObject([
+      { budgetToDate: 50, day: 1, spentToDate: 15 },
+      { budgetToDate: 100, day: 2, spentToDate: 15 },
+      { budgetToDate: 150, day: 3, spentToDate: 30 },
+      { budgetToDate: 200, day: 4, spentToDate: null },
     ]);
   });
 
@@ -35,7 +35,7 @@ describe("buildMonthlySpendingRows", () => {
       Number.NaN,
     );
 
-    expect(rows[0]).toMatchObject({ budget: 0, spent: 0 });
+    expect(rows[0]).toMatchObject({ budgetToDate: 0, spentToDate: 0 });
   });
 
   it("builds a full cumulative comparison for the previous month", () => {
@@ -48,8 +48,8 @@ describe("buildMonthlySpendingRows", () => {
     );
 
     expect(rows).toHaveLength(31);
-    expect(rows[0].spent).toBe(20);
-    expect(rows[2].spent).toBe(20);
-    expect(rows[30].spent).toBe(35);
+    expect(rows[0].spentToDate).toBe(20);
+    expect(rows[2].spentToDate).toBe(20);
+    expect(rows[30].spentToDate).toBe(35);
   });
 });

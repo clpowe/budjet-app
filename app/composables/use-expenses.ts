@@ -27,7 +27,9 @@ export function useExpenses() {
 
   const { data: summary } = useConvexQuery(api.budget.getHomeSummary, dateParams);
 
-  const dailyBudget = computed(() => centsToDollars(summary.value?.plan.dailyAllowanceCents));
+  const dailyAllowanceDollars = computed(() =>
+    centsToDollars(summary.value?.plan.dailyAllowanceCents),
+  );
   const monthToDateTotalDollars = computed(() =>
     centsToDollars(summary.value?.spending.monthToDate.expenseCents),
   );
@@ -40,13 +42,13 @@ export function useExpenses() {
 
   const totalToday = computed(() => {
     const value = centsToDollars(summary.value?.spending.today.expenseCents);
-    const isWithinBudget = value <= dailyBudget.value;
+    const isWithinBudget = value <= dailyAllowanceDollars.value;
     return createBudgetMetric(value, isWithinBudget);
   });
 
-  const burnRate = computed(() => {
+  const averageDailySpend = computed(() => {
     const value = centsToDollars(summary.value?.spending.monthToDate.averageDailyBudgetImpactCents);
-    const isWithinBudget = value <= dailyBudget.value;
+    const isWithinBudget = value <= dailyAllowanceDollars.value;
     return createBudgetMetric(value, isWithinBudget);
   });
 
@@ -56,16 +58,17 @@ export function useExpenses() {
     return createBudgetMetric(value, isWithinBudget);
   });
 
-  const rollingBudget = computed(() => {
+  const safeToSpendPerDay = computed(() => {
     if (remainingDaysInMonth.value <= 0) return createBudgetMetric(0, false);
 
     const value = centsToDollars(safeToSpendCents.value) / remainingDaysInMonth.value;
-    const isWithinBudget = value >= dailyBudget.value;
+    const isWithinBudget = value >= dailyAllowanceDollars.value;
 
     return createBudgetMetric(value, isWithinBudget);
   });
 
-  const remove = (id: Doc<"expenses">["_id"]) => deleteExpense({ expenseId: id });
+  const removeExpense = (expenseId: Doc<"expenses">["_id"]) =>
+    deleteExpense({ expenseId, apiVersion: 2 });
 
   return {
     monthToDateTotalDollars,
@@ -73,11 +76,11 @@ export function useExpenses() {
     safeToSpendCents,
     expenses,
     totalToday,
-    burnRate,
+    averageDailySpend,
     variance,
-    dailyBudget,
+    dailyAllowanceDollars,
     remainingTodayDollars,
-    rollingBudget,
-    remove,
+    safeToSpendPerDay,
+    removeExpense,
   };
 }

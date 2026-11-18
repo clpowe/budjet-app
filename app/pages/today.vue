@@ -10,12 +10,12 @@ onMounted(() => {
 const {
   expenses,
   totalToday,
-  burnRate,
+  averageDailySpend,
   variance,
   remainingTodayDollars,
-  rollingBudget,
-  dailyBudget,
-  remove,
+  safeToSpendPerDay,
+  dailyAllowanceDollars,
+  removeExpense,
 } = useExpenses();
 
 const transactionDialog = ref<HTMLDialogElement | null>(null);
@@ -45,10 +45,10 @@ function openTransactionDialog() {
     >
       <template #items>
         <mini-card title="Spent today" :amount="totalToday" />
-        <mini-card title="Average daily spending" :amount="burnRate" />
+        <mini-card title="Average daily spending" :amount="averageDailySpend" />
         <mini-card title="Over/under budget" :amount="variance" />
-        <mini-card title="Daily Budget" :amount="dailyBudget" />
-        <mini-card title="Rolling Budget" :amount="rollingBudget" />
+        <mini-card title="Daily Budget" :amount="dailyAllowanceDollars" />
+        <mini-card title="Rolling Budget" :amount="safeToSpendPerDay" />
       </template>
       <template #actions> </template>
     </app-main-card>
@@ -60,6 +60,6 @@ function openTransactionDialog() {
       </header>
       <expenses-add />
     </dialog>
-    <expenses-list :expenses="expenses ?? []" :remove="remove" />
+    <expenses-list :expenses="expenses ?? []" :remove="removeExpense" />
   </main>
 </template>

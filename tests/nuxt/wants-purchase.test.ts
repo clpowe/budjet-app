@@ -40,7 +40,7 @@ function makePreview({
   actualAmountCents = 10_000n,
   budgetImpactCents = 0n,
   progressLosses = [],
-  reserveUsedCents = 10_000n,
+  savingsUsedCents = 10_000n,
 }: {
   actualAmountCents?: bigint;
   budgetImpactCents?: bigint;
@@ -50,11 +50,11 @@ function makePreview({
     lostCents: bigint;
     allocatedCentsAfter: bigint;
   }>;
-  reserveUsedCents?: bigint;
+  savingsUsedCents?: bigint;
 } = {}) {
   return {
     actualAmountCents,
-    reserveUsedCents,
+    savingsUsedCents,
     budgetImpactCents,
     progressLosses,
   };
@@ -86,16 +86,16 @@ describe("WantsPurchaseDialog", () => {
     {
       name: "fully funded",
       preview: makePreview(),
-      expected: ["Actual amount$100.00", "Reserve used$100.00", "General-budget impact$0.00"],
+      expected: ["Actual amount$100.00", "Paid from savings$100.00", "General-budget impact$0.00"],
     },
     {
       name: "partially funded",
       preview: makePreview({
         actualAmountCents: 12_000n,
-        reserveUsedCents: 10_000n,
+        savingsUsedCents: 10_000n,
         budgetImpactCents: 2_000n,
       }),
-      expected: ["Actual amount$120.00", "Reserve used$100.00", "General-budget impact$20.00"],
+      expected: ["Actual amount$120.00", "Paid from savings$100.00", "General-budget impact$20.00"],
     },
   ])("discloses a $name purchase breakdown", ({ preview, expected }) => {
     const wrapper = mountDialog({ preview });
@@ -110,7 +110,7 @@ describe("WantsPurchaseDialog", () => {
     const wrapper = mountDialog({
       preview: makePreview({
         actualAmountCents: 12_000n,
-        reserveUsedCents: 12_000n,
+        savingsUsedCents: 12_000n,
         progressLosses: [
           {
             itemId: "want-trip" as Id<"wantItems">,

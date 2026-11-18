@@ -3,11 +3,11 @@ import { getEffectiveTimeZone } from "./households";
 import { loadActiveWantQueue, projectActiveWantAllocations } from "./lib/active_want_queue";
 import { requireHouseholdMember } from "./lib/household_access";
 import {
-  getReserveSnapshot,
-  listReserveActivity,
+  getSavingsSnapshot,
+  listSavingsActivity,
   sumClosedPositiveContributions,
-} from "./lib/reserve_account";
-import { getLocalMonthPeriod } from "./lib/want_reserve";
+} from "./lib/savings_account";
+import { getLocalMonthPeriod } from "./lib/want_savings";
 import { query } from "./_generated/server";
 
 const DAYS_IN_PLAN = 30n;
@@ -22,6 +22,14 @@ const nextPlannedWantSummaryValidator = v.object({
   targetDate: v.optional(v.number()),
 });
 
+const savingsBalance = v.object({
+  positionCents: v.int64(),
+  availableCents: v.int64(),
+  recoveryCents: v.int64(),
+  todayOverageAdjustmentCents: v.int64(),
+  projectedEndOfDayContributionCents: v.int64(),
+});
+
 const homeSummaryValidator = v.object({
   period: v.object({
     localMonth: v.string(),
@@ -31,11 +39,13 @@ const homeSummaryValidator = v.object({
     dailyAllowanceCents: v.int64(),
     allowanceCents: v.int64(),
     safeToSpendCents: v.int64(),
+    closedPositiveSavingsContributionCents: v.int64(),
     closedPositiveReserveContributionCents: v.int64(),
   }),
   spending: v.object({
     monthToDate: v.object({
       expenseCents: v.int64(),
+      savingsFundedCents: v.int64(),
       reserveFundedCents: v.int64(),
       budgetImpactCents: v.int64(),
       averageDailyBudgetImpactCents: v.int64(),
@@ -46,28 +56,23 @@ const homeSummaryValidator = v.object({
       budgetImpactCents: v.int64(),
     }),
   }),
-  reserve: v.object({
-    positionCents: v.int64(),
-    availableCents: v.int64(),
-    recoveryCents: v.int64(),
-    todayOverageAdjustmentCents: v.int64(),
-    projectedEndOfDayContributionCents: v.int64(),
-  }),
+  savings: savingsBalance,
+  reserve: savingsBalance,
   nextPlannedWant: v.union(v.null(), nextPlannedWantSummaryValidator),
 });
 
 type SafeToSpendInputs = {
   planAllowanceCents: bigint;
   budgetImpactExpenseCents: bigint;
-  closedPositiveReserveContributionCents: bigint;
+  closedPositiveSavingsContributionCents: bigint;
 };
 
 export function calculateSafeToSpendCents({
   planAllowanceCents,
   budgetImpactExpenseCents,
-  closedPositiveReserveContributionCents,
+  closedPositiveSavingsContributionCents,
 }: SafeToSpendInputs): bigint {
-  return planAllowanceCents - budgetImpactExpenseCents - closedPositiveReserveContributionCents;
+  return planAllowanceCents - budgetImpactExpenseCents - closedPositiveSavingsContributionCents;
 }
 
 export const getHomeSummary = query({
@@ -80,33 +85,35 @@ export const getHomeSummary = query({
 
     const timeZone = getEffectiveTimeZone(household, args.asOfTimestamp);
     const period = getLocalMonthPeriod(args.asOfTimestamp, timeZone);
-    const [{ rollups }, currentReserve, activeItems] = await Promise.all([
-      listReserveActivity(ctx, household._id, {
+    const [{ rollups }, currentSavings, activeItems] = await Promise.all([
+      listSavingsActivity(ctx, household._id, {
         startLocalDate: period.startLocalDate,
         endExclusiveLocalDate: period.toDateEndExclusiveLocalDate,
       }),
-      getReserveSnapshot(ctx, household, args.asOfTimestamp),
+      getSavingsSnapshot(ctx, household, args.asOfTimestamp),
       loadActiveWantQueue(ctx, household._id),
     ]);
 
     const monthToDateSpending = rollups.reduce(
       (sum, rollup) => ({
         expenseCents: sum.expenseCents + rollup.expenseCents,
-        reserveFundedCents: sum.reserveFundedCents + rollup.reserveFundedExpenseCents,
+        savingsFundedCents:
+          sum.savingsFundedCents +
+          (rollup.savingsFundedExpenseCents ?? rollup.reserveFundedExpenseCents),
         budgetImpactCents: sum.budgetImpactCents + rollup.budgetImpactExpenseCents,
       }),
       {
         expenseCents: 0n,
-        reserveFundedCents: 0n,
+        savingsFundedCents: 0n,
         budgetImpactCents: 0n,
       },
     );
-    // Only positive closes move plan allowance into reserve. Negative closes are
+    // Only positive closes move plan allowance into savings. Negative closes are
     // already represented by the month's budget-impact spending.
-    const closedPositiveReserveContributionCents = sumClosedPositiveContributions({
+    const closedPositiveSavingsContributionCents = sumClosedPositiveContributions({
       rollups,
-      allowanceCents: currentReserve.dailyAllowanceCents,
-      state: currentReserve.state,
+      allowanceCents: currentSavings.dailyAllowanceCents,
+      state: currentSavings.state,
       startLocalDate: period.startLocalDate,
       endExclusiveLocalDate: period.toDateEndExclusiveLocalDate,
       timeZone,
@@ -115,19 +122,19 @@ export const getHomeSummary = query({
     const todayExpenseCents = currentDayRollup?.expenseCents ?? 0n;
     // Safe-to-spend uses the product's fixed 30-day plan even though pace is
     // reported for the household's calendar month to date.
-    const planAllowanceCents = currentReserve.dailyAllowanceCents * DAYS_IN_PLAN;
+    const planAllowanceCents = currentSavings.dailyAllowanceCents * DAYS_IN_PLAN;
     const safeToSpendCents = calculateSafeToSpendCents({
       planAllowanceCents,
       budgetImpactExpenseCents: monthToDateSpending.budgetImpactCents,
-      closedPositiveReserveContributionCents,
+      closedPositiveSavingsContributionCents,
     });
     const averageDailyBudgetImpactCents =
       monthToDateSpending.budgetImpactCents / BigInt(period.elapsedDays);
     const budgetImpactVarianceCents =
-      currentReserve.dailyAllowanceCents * BigInt(period.elapsedDays) -
+      currentSavings.dailyAllowanceCents * BigInt(period.elapsedDays) -
       monthToDateSpending.budgetImpactCents;
     const nextAllocation = projectActiveWantAllocations(
-      currentReserve.availableCents,
+      currentSavings.availableCents,
       activeItems,
     )[0];
     const nextPlannedWant = nextAllocation
@@ -144,35 +151,40 @@ export const getHomeSummary = query({
         }
       : null;
 
+    const savings = {
+      positionCents: currentSavings.positionCents,
+      availableCents: currentSavings.availableCents,
+      recoveryCents: currentSavings.recoveryCents,
+      todayOverageAdjustmentCents: currentSavings.todayOverageAdjustmentCents,
+      projectedEndOfDayContributionCents: currentSavings.projectedEndOfDayContributionCents,
+    };
+
     return {
       period: {
         localMonth: period.localMonth,
         elapsedDays: period.elapsedDays,
       },
       plan: {
-        dailyAllowanceCents: currentReserve.dailyAllowanceCents,
+        dailyAllowanceCents: currentSavings.dailyAllowanceCents,
         allowanceCents: planAllowanceCents,
         safeToSpendCents,
-        closedPositiveReserveContributionCents,
+        closedPositiveSavingsContributionCents,
+        closedPositiveReserveContributionCents: closedPositiveSavingsContributionCents,
       },
       spending: {
         monthToDate: {
           ...monthToDateSpending,
+          reserveFundedCents: monthToDateSpending.savingsFundedCents,
           averageDailyBudgetImpactCents,
           budgetImpactVarianceCents,
         },
         today: {
           expenseCents: todayExpenseCents,
-          budgetImpactCents: currentReserve.budgetImpactExpenseCents,
+          budgetImpactCents: currentSavings.budgetImpactExpenseCents,
         },
       },
-      reserve: {
-        positionCents: currentReserve.positionCents,
-        availableCents: currentReserve.availableCents,
-        recoveryCents: currentReserve.recoveryCents,
-        todayOverageAdjustmentCents: currentReserve.todayOverageAdjustmentCents,
-        projectedEndOfDayContributionCents: currentReserve.projectedEndOfDayContributionCents,
-      },
+      savings,
+      reserve: savings,
       nextPlannedWant,
     };
   },

@@ -6,7 +6,7 @@ import { formatCents } from "../../../shared/utils/money-cents";
 
 type Expense = Doc<"expenses">;
 
-const { expenses, remove } = useExpenses();
+const { expenses, removeExpense } = useExpenses();
 
 const features = tableFeatures({});
 const columnHelper = createColumnHelper<typeof features, Expense>();
@@ -38,7 +38,7 @@ const table = useTable({
 });
 
 function onDelete(id: Expense["_id"]) {
-  remove(id);
+  removeExpense(id);
 }
 
 const { closePopoverById } = usePopoverClose();
@@ -48,7 +48,7 @@ function onExpenseUpdated(id: string) {
 }
 
 function budgetImpactCents(expense: Expense): bigint {
-  return (expense.amountCents ?? 0n) - (expense.reserveUsedCents ?? 0n);
+  return (expense.amountCents ?? 0n) - (expense.savingsUsedCents ?? 0n);
 }
 </script>
 
@@ -79,9 +79,9 @@ function budgetImpactCents(expense: Expense): bigint {
                     : formatCents(row.original.amountCents)
                 }}
               </span>
-              <p v-if="(row.original.reserveUsedCents ?? 0n) > 0n">
+              <p v-if="(row.original.savingsUsedCents ?? 0n) > 0n">
                 {{ formatCents(row.original.amountCents ?? 0n) }} total ·
-                {{ formatCents(row.original.reserveUsedCents ?? 0n) }} from reserve ·
+                {{ formatCents(row.original.savingsUsedCents ?? 0n) }} from savings ·
                 {{ formatCents(budgetImpactCents(row.original)) }} budget impact
               </p>
             </template>

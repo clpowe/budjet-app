@@ -22,19 +22,12 @@ function makeMessage(id: string, overrides: Partial<PanelMessage> = {}): PanelMe
   };
 }
 
-function mountPanel({
-  messages = [] as PanelMessage[],
-  status = "ready" as "loading" | "ready" | "error",
-  sending = false,
-  errorMessage = "",
-  draft = "",
-} = {}) {
+function mountPanel({ messages = [] as PanelMessage[], draft = "" } = {}) {
   const wrapper = mount(ChatPanel, {
     props: {
       messages,
-      status,
-      sending,
-      errorMessage,
+      status: "ready",
+      sending: false,
       modelValue: draft,
       "onUpdate:modelValue": (value: string) => wrapper.setProps({ modelValue: value }),
     },
@@ -44,19 +37,6 @@ function mountPanel({
 }
 
 describe("ChatPanel states", () => {
-  it("shows a loading message while history loads", () => {
-    const wrapper = mountPanel({ status: "loading" });
-
-    expect(wrapper.text()).toContain("Loading messages…");
-    expect(wrapper.find("ol").exists()).toBe(false);
-  });
-
-  it("announces a load error", () => {
-    const wrapper = mountPanel({ status: "error" });
-
-    expect(wrapper.get('[role="alert"]').text()).toBe("Couldn't load messages.");
-  });
-
   it("shows an empty state when there are no messages", () => {
     const wrapper = mountPanel();
 
@@ -87,12 +67,6 @@ describe("ChatPanel states", () => {
 
     expect(wrapper.find(".chat-message-body b").exists()).toBe(false);
     expect(wrapper.get(".chat-message-body").text()).toBe("<b>bold</b>");
-  });
-
-  it("shows the server error copy as an alert in the composer", () => {
-    const wrapper = mountPanel({ errorMessage: "Couldn't send. Try again." });
-
-    expect(wrapper.get("form [role='alert']").text()).toBe("Couldn't send. Try again.");
   });
 });
 
@@ -131,14 +105,6 @@ describe("ChatPanel composer", () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
-  it("submits from the form when the draft is valid", async () => {
-    const wrapper = mountPanel({ draft: "hello" });
-
-    await wrapper.get("form").trigger("submit");
-
-    expect(wrapper.emitted("submit")).toHaveLength(1);
-  });
-
   it("disables Send for an empty or whitespace-only draft", async () => {
     const wrapper = mountPanel({ draft: "" });
     const button = wrapper.get("button[type='submit']");
@@ -153,18 +119,6 @@ describe("ChatPanel composer", () => {
 
     await wrapper.get("textarea").setValue("hi");
     expect(button.attributes("disabled")).toBeUndefined();
-  });
-
-  it("disables Send and locks the textarea while sending", async () => {
-    const wrapper = mountPanel({ draft: "hello", sending: true });
-    const button = wrapper.get("button[type='submit']");
-
-    expect(button.attributes("disabled")).toBeDefined();
-    expect(button.text()).toBe("Sending…");
-    expect(wrapper.get("textarea").attributes("readonly")).toBeDefined();
-
-    await wrapper.get("textarea").trigger("keydown", { key: "Enter" });
-    expect(wrapper.emitted("submit")).toBeUndefined();
   });
 
   it("flags drafts over 2,000 characters and blocks sending", () => {

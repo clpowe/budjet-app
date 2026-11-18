@@ -49,6 +49,7 @@ async function handleSubmit() {
 
   try {
     const result = await updateExpense({
+      apiVersion: 2,
       expenseId: props.expense._id,
       name,
       notes,
@@ -57,7 +58,7 @@ async function handleSubmit() {
     });
 
     if (!result.success) {
-      submitError.value = "The reserve is still syncing. Try again in a moment.";
+      submitError.value = "Savings are still syncing. Try again in a moment.";
       return;
     }
   } catch (error) {
