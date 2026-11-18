@@ -26,7 +26,7 @@ import {
  * write does nothing, schedules the rest, and returns `savings_syncing`.
  */
 
-type SavingsState = Doc<"goalSavingsStates"> | Doc<"goalReserveStates">;
+type SavingsState = Doc<"goalSavingsStates">;
 
 type DatabaseCtx = MutationCtx | QueryCtx;
 
@@ -171,21 +171,8 @@ async function loadState(
   ctx: DatabaseCtx,
   householdId: Id<"households">,
 ): Promise<SavingsState | null> {
-  const migrated = await ctx.db.query("savingsMigration").unique();
-  const primary = migrated ? "goalSavingsStates" : "goalReserveStates";
-  const fallback = migrated ? "goalReserveStates" : "goalSavingsStates";
-  return (
-    (await findState(ctx, primary, householdId)) ?? (await findState(ctx, fallback, householdId))
-  );
-}
-
-function findState(
-  ctx: DatabaseCtx,
-  table: "goalSavingsStates" | "goalReserveStates",
-  householdId: Id<"households">,
-) {
-  return ctx.db
-    .query(table)
+  return await ctx.db
+    .query("goalSavingsStates")
     .withIndex("by_household", (q) => q.eq("householdId", householdId))
     .unique();
 }
@@ -370,16 +357,6 @@ async function applyEvent(
   };
 
   await ctx.db.patch(state._id, statePatch);
-  const mirrorTable = ctx.db.normalizeId("goalSavingsStates", state._id)
-    ? "goalReserveStates"
-    : "goalSavingsStates";
-  const mirror = await findState(ctx, mirrorTable, state.householdId);
-  if (mirror) {
-    await ctx.db.patch(mirror._id, statePatch);
-  } else {
-    const { _id, _creationTime, ...fields } = state;
-    await ctx.db.insert(mirrorTable, { ...fields, ...statePatch });
-  }
   account.state = { ...state, ...statePatch };
 }
 
@@ -434,7 +411,6 @@ export async function activateSavings(
     updatedAt: now,
   };
   await ctx.db.insert("goalSavingsStates", initialState);
-  await ctx.db.insert("goalReserveStates", initialState);
 }
 
 export type CloseDaysResult = { complete: boolean; lastClosedLocalDate?: string };

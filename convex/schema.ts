@@ -95,8 +95,6 @@ export default defineSchema({
     .index("by_household_and_status_and_order", ["householdId", "status", "order"]),
 
   goalSavingsStates: defineTable(savingsState).index("by_household", ["householdId"]),
-  goalReserveStates: defineTable(savingsState).index("by_household", ["householdId"]),
-  savingsMigration: defineTable({ verifiedAt: v.number() }),
 
   dailyBudgetRollups: defineTable({
     householdId: v.id("households"),

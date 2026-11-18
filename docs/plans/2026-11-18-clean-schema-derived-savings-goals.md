@@ -139,7 +139,7 @@ Update `GLOSSARY.md` and accessible names in the same change.
 
 ## Progress
 
-- [ ] P0 triage
+- [x] P0 triage (checkpoint 4d48396; removed rename migration, reserve shims, goalReserveStates/savingsMigration, table mirroring; Home 5 subscriptions -> 1; dual fields/apiVersion/syncing left for P2)
 - [ ] P1 shared math
 - [ ] P2 Convex cutover
 - [ ] P3 frontend wiring
@@ -149,3 +149,4 @@ Update `GLOSSARY.md` and accessible names in the same change.
 - [ ] P7 prod reset
 
 _2026-11-18: plan written; awaiting D1–D4._
+_2026-11-18: D1-D4 accepted at defaults. P0 done, 236/236 tests, vp check clean._

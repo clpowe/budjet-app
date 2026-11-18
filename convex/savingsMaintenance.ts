@@ -36,17 +36,11 @@ export const closeThrough = internalMutation({
 export const closeEligibleDays = internalMutation({
   args: {
     cursor: cursorValidator,
-    table: v.optional(v.union(v.literal("goalSavingsStates"), v.literal("goalReserveStates"))),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const serverNow = Date.now();
-    const table =
-      args.table ??
-      ((await ctx.db.query("savingsMigration").unique())
-        ? "goalSavingsStates"
-        : "goalReserveStates");
-    const page = await ctx.db.query(table).paginate({
+    const page = await ctx.db.query("goalSavingsStates").paginate({
       cursor: args.cursor,
       numItems: HOUSEHOLDS_PER_BATCH,
     });
@@ -68,7 +62,6 @@ export const closeEligibleDays = internalMutation({
     if (!page.isDone || hasIncompleteHousehold) {
       await ctx.scheduler.runAfter(0, internal.savingsMaintenance.closeEligibleDays, {
         cursor: page.isDone ? null : page.continueCursor,
-        table,
       });
     }
 

@@ -5,11 +5,14 @@ import { nextTick, shallowRef } from "vue";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
 import HomePage from "../../app/pages/home.vue";
 
-const { useExpensesMock } = vi.hoisted(() => ({ useExpensesMock: vi.fn() }));
-mockNuxtImport("useExpenses", () => useExpensesMock);
-mockNuxtImport("useDate", () => () => ({ setDate: () => {} }));
-mockNuxtImport("useWindfall", () => () => ({}));
-mockNuxtImport("useConvexQuery", () => () => ({}));
+const { useConvexQueryMock } = vi.hoisted(() => ({ useConvexQueryMock: vi.fn() }));
+mockNuxtImport("useConvexQuery", () => useConvexQueryMock);
+mockNuxtImport("useDate", () => () => ({
+  setDate: () => {},
+  displayDate: "",
+  currentMonth: "",
+  currentDate: shallowRef(new Date(0)),
+}));
 
 it.each(["savings", "reserve"])(
   "renders Home while loading and then shows the %s summary",
@@ -20,7 +23,7 @@ it.each(["savings", "reserve"])(
       [field]: { projectedEndOfDayContributionCents: 4199n },
     };
     const summary = shallowRef<typeof loaded>();
-    useExpensesMock.mockReturnValue({ summary });
+    useConvexQueryMock.mockReturnValue({ data: summary });
     const wrapper = mount(HomePage, { global: { stubs: { NuxtPage: true, HouseholdChat: true } } });
     expect(wrapper.text()).toContain("Loading budget");
     expect(wrapper.text()).not.toContain("$0.00");
@@ -33,3 +36,11 @@ it.each(["savings", "reserve"])(
     wrapper.unmount();
   },
 );
+
+it("subscribes only to the Home summary", () => {
+  useConvexQueryMock.mockReset();
+  useConvexQueryMock.mockReturnValue({ data: shallowRef() });
+  const wrapper = mount(HomePage, { global: { stubs: { NuxtPage: true, HouseholdChat: true } } });
+  expect(useConvexQueryMock).toHaveBeenCalledTimes(1);
+  wrapper.unmount();
+});

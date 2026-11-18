@@ -111,7 +111,6 @@ async function seedPurchaseHouseholds(
       updatedAt: 3,
     });
 
-    await ctx.db.insert("savingsMigration", { verifiedAt: 0 });
     await ctx.db.insert("goalSavingsStates", {
       householdId,
       positionCents,

@@ -2,23 +2,14 @@
 import { api } from "../../convex/_generated/api";
 import { formatCents } from "../../shared/utils/money-cents";
 
-const { displayDate, formatDateInput, currentMonth, currentDate, setDate } = useDate();
-
-const { summary, safeToSpendCents, totalToday, variance, remainingTodayDollars } = useExpenses();
-
-const { windfallTotal } = useWindfall();
+const { displayDate, currentMonth, currentDate, setDate } = useDate();
 
 setDate(new Date());
 
-const { data: totalPayment } = useConvexQuery(api.depts.getTotalPayment, {});
-
-const transactionDialog = shallowRef<HTMLDialogElement | null>(null);
-const windfallDialog = shallowRef<HTMLDialogElement | null>(null);
-const debtDialog = shallowRef<HTMLDialogElement | null>(null);
-
-function openDialog(dialog: HTMLDialogElement | null) {
-  dialog?.showModal();
-}
+const { data: summary } = useConvexQuery(
+  api.budget.getHomeSummary,
+  computed(() => ({ asOfTimestamp: currentDate.value.getTime() })),
+);
 
 const isDesktop = useMediaQuery("(width >= 1000px)");
 const chatPopover = shallowRef<HTMLElement | null>(null);
@@ -59,26 +50,6 @@ definePageMeta({
       return navigateTo("/home/today", { replace: true });
     }
   },
-});
-
-const safeToSpendState = computed(() => {
-  if (safeToSpendCents.value < 0n) {
-    return {
-      label: "Over plan",
-      helper: "Pull back on spending until this returns above zero.",
-    };
-  }
-
-  return {
-    label: "Safe to spend",
-    helper: "Your 30-day plan after budget-impact spending and finalized Want set-asides.",
-  };
-});
-
-const nextPlannedWantTargetLocalDate = computed(() => {
-  const targetDate = summary.value?.nextPlannedWant?.targetDate;
-
-  return targetDate === undefined ? undefined : formatDateInput(new Date(targetDate));
 });
 </script>
 
