@@ -113,7 +113,7 @@ Deploy C1–C4 → run C5 on each deployment → deploy C6. Never deploy C6 befo
 - [x] C3 — Stop writing reserve days
 - [x] C4 — Stop writing the ledger
 - [ ] C5 — Delete existing rows (migration written + tested; not yet run on any deployment)
-- [ ] C6 — Drop the tables
+- [ ] C6 — Drop the tables (code on `refactor/drop-reserve-history-tables`; deploy only after C0 + C5 ran everywhere)
 
 ### Log
 
@@ -123,3 +123,4 @@ Deploy C1–C4 → run C5 on each deployment → deploy C6. Never deploy C6 befo
 - 2026-11-17: C2 applied. `sumClosedPositiveContributions` derives "saved this month" from rollups + cursor; `listReserveActivity` returns rollups only.
 - 2026-11-17: C3 + C4 applied together. Daily close and corrections only move `positionCents`; no reserve-day or ledger writes. `ReserveEvent` slimmed to money fields; `actorId` removed from the Reserve account interface. Tests assert position + cursor.
 - 2026-11-17: C5 written: `migrations/clearReserveHistory:run({ table })`, 2 tests. GLOSSARY updated. 41 files / 242 tests pass, vp check clean. C6 waits: it must ship after C5 has run on every deployment.
+- 2026-11-17: C1–C5 committed on `refactor/remove-reserve-days-and-ledger`. C6 written on stacked branch `refactor/drop-reserve-history-tables`: both tables removed from schema; `backfillExpenseLocalDates` and `clearReserveHistory` (+ tests) deleted. 40 files / 237 tests pass, vp check clean. Not deployed.
