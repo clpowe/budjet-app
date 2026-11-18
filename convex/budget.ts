@@ -2,7 +2,11 @@ import { v } from "convex/values";
 import { getEffectiveTimeZone } from "./households";
 import { loadActiveWantQueue, projectActiveWantAllocations } from "./lib/active_want_queue";
 import { requireHouseholdMember } from "./lib/household_access";
-import { getReserveSnapshot, listReserveActivity } from "./lib/reserve_account";
+import {
+  getReserveSnapshot,
+  listReserveActivity,
+  sumClosedPositiveContributions,
+} from "./lib/reserve_account";
 import { getLocalMonthPeriod } from "./lib/want_reserve";
 import { query } from "./_generated/server";
 
@@ -76,7 +80,7 @@ export const getHomeSummary = query({
 
     const timeZone = getEffectiveTimeZone(household, args.asOfTimestamp);
     const period = getLocalMonthPeriod(args.asOfTimestamp, timeZone);
-    const [{ rollups, reserveDays }, currentReserve, activeItems] = await Promise.all([
+    const [{ rollups }, currentReserve, activeItems] = await Promise.all([
       listReserveActivity(ctx, household._id, {
         startLocalDate: period.startLocalDate,
         endExclusiveLocalDate: period.toDateEndExclusiveLocalDate,
@@ -99,10 +103,14 @@ export const getHomeSummary = query({
     );
     // Only positive closes move plan allowance into reserve. Negative closes are
     // already represented by the month's budget-impact spending.
-    const closedPositiveReserveContributionCents = reserveDays.reduce(
-      (sum, day) => sum + (day.contributionCents > 0n ? day.contributionCents : 0n),
-      0n,
-    );
+    const closedPositiveReserveContributionCents = sumClosedPositiveContributions({
+      rollups,
+      allowanceCents: currentReserve.dailyAllowanceCents,
+      state: currentReserve.state,
+      startLocalDate: period.startLocalDate,
+      endExclusiveLocalDate: period.toDateEndExclusiveLocalDate,
+      timeZone,
+    });
     const currentDayRollup = rollups.find((rollup) => rollup.localDate === period.currentLocalDate);
     const todayExpenseCents = currentDayRollup?.expenseCents ?? 0n;
     // Safe-to-spend uses the product's fixed 30-day plan even though pace is

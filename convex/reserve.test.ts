@@ -78,12 +78,7 @@ async function readReserve(
       .query("goalReserveStates")
       .withIndex("by_household", (q) => q.eq("householdId", householdId))
       .unique();
-    const entries = await ctx.db
-      .query("goalReserveLedgerEntries")
-      .withIndex("by_household_and_local_date", (q) => q.eq("householdId", householdId))
-      .collect();
-
-    return { state, entries };
+    return { state };
   });
 }
 
@@ -100,7 +95,6 @@ test("requires completed money migration before activating the reserve", async (
   expect(result).toEqual({ kind: "money_migration_pending" });
   expect(await readReserve(t, seeded.householdId)).toEqual({
     state: null,
-    entries: [],
   });
 });
 
@@ -132,16 +126,6 @@ test("activates exactly once at zero and preserves the state after the queue emp
     activatedAt: march10AtNoonNewYork,
     firstEligibleLocalDate: "2026-03-11",
   });
-  expect(activated.entries).toEqual([
-    expect.objectContaining({
-      householdId: seeded.householdId,
-      kind: "activation",
-      amountCents: 0n,
-      localDate: "2026-03-10",
-      actorId: seeded.ownerId,
-      createdAt: march10AtNoonNewYork,
-    }),
-  ]);
 
   await asOwner.mutation(api.wants.changeStatus, {
     itemId: seeded.cameraId,
@@ -154,14 +138,13 @@ test("activates exactly once at zero and preserves the state after the queue emp
 
   expect(await readReserve(t, seeded.householdId)).toMatchObject({
     state: activated.state,
-    entries: activated.entries,
   });
 });
 
 test("reserve transitions reject invalid amounts and stale daily closes", async () => {
   const t = convexTest(schema, modules);
   const seeded = await seedHousehold(t);
-  const { state, expenseId } = await t.run(async (ctx) => {
+  const state = await t.run(async (ctx) => {
     const stateId = await ctx.db.insert("goalReserveStates", {
       householdId: seeded.householdId,
       positionCents: 3_000n,
@@ -170,19 +153,7 @@ test("reserve transitions reject invalid amounts and stale daily closes", async 
       lastClosedLocalDate: "2026-03-11",
       updatedAt: 0,
     });
-    const expenseId = await ctx.db.insert("expenses", {
-      householdId: seeded.householdId,
-      name: "Camera",
-      notes: "",
-      amount: 10,
-      amountCents: 1_000n,
-      date: 0,
-    });
-
-    return {
-      state: await ctx.db.get("goalReserveStates", stateId),
-      expenseId,
-    };
+    return await ctx.db.get("goalReserveStates", stateId);
   });
 
   if (!state) {
@@ -198,16 +169,9 @@ test("reserve transitions reject invalid amounts and stale daily closes", async 
     }),
   ).toThrow("Reserve days must close after the recorded close cursor");
 
-  expect(() =>
-    reduceReserveEvent(state, {
-      kind: "purchase",
-      localDate: "2026-03-12",
-      reserveUsedCents: -1n,
-      expenseId,
-      wantItemId: seeded.cameraId,
-      actorId: seeded.ownerId,
-    }),
-  ).toThrow("Reserve used cannot be negative");
+  expect(() => reduceReserveEvent(state, { kind: "purchase", reserveUsedCents: -1n })).toThrow(
+    "Reserve used cannot be negative",
+  );
 });
 
 test("reports open-day underspending as potential instead of funded reserve", async () => {

@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
 
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import { convexTest } from "convex-test";
-import { getReserveSnapshot } from "./reserve_account";
+import { getReserveSnapshot, sumClosedPositiveContributions } from "./reserve_account";
 import schema from "../schema";
 
 const modules = import.meta.glob("../**/*.ts");
@@ -105,5 +105,72 @@ test("defaults missing reserve state and current rollup to zero", async () => {
     recoveryCents: 0n,
     todayOverageAdjustmentCents: 0n,
     projectedEndOfDayContributionCents: 5_500n,
+  });
+});
+
+describe("sumClosedPositiveContributions", () => {
+  const base = {
+    allowanceCents: 5_000n,
+    startLocalDate: "2026-03-01",
+    endExclusiveLocalDate: "2026-03-11",
+    timeZone: "America/New_York",
+  };
+
+  test("adds the full allowance for a closed day without a rollup", () => {
+    expect(
+      sumClosedPositiveContributions({
+        ...base,
+        rollups: [],
+        state: { firstEligibleLocalDate: "2026-03-01", lastClosedLocalDate: "2026-03-02" },
+      }),
+    ).toBe(10_000n);
+  });
+
+  test("clamps an overspent day to zero instead of subtracting it", () => {
+    expect(
+      sumClosedPositiveContributions({
+        ...base,
+        rollups: [
+          { localDate: "2026-03-01", budgetImpactExpenseCents: 7_000n },
+          { localDate: "2026-03-02", budgetImpactExpenseCents: 1_000n },
+        ],
+        state: { firstEligibleLocalDate: "2026-03-01", lastClosedLocalDate: "2026-03-02" },
+      }),
+    ).toBe(4_000n);
+  });
+
+  test("skips days before the first eligible day", () => {
+    expect(
+      sumClosedPositiveContributions({
+        ...base,
+        rollups: [],
+        state: { firstEligibleLocalDate: "2026-03-09", lastClosedLocalDate: "2026-03-10" },
+      }),
+    ).toBe(10_000n);
+  });
+
+  test("stops at the close cursor and at the range end", () => {
+    const state = { firstEligibleLocalDate: "2026-02-20", lastClosedLocalDate: "2026-03-03" };
+
+    expect(sumClosedPositiveContributions({ ...base, rollups: [], state })).toBe(15_000n);
+    expect(
+      sumClosedPositiveContributions({
+        ...base,
+        endExclusiveLocalDate: "2026-03-02",
+        rollups: [],
+        state,
+      }),
+    ).toBe(5_000n);
+  });
+
+  test("returns zero before the first close or without a reserve", () => {
+    expect(
+      sumClosedPositiveContributions({
+        ...base,
+        rollups: [],
+        state: { firstEligibleLocalDate: "2026-03-01" },
+      }),
+    ).toBe(0n);
+    expect(sumClosedPositiveContributions({ ...base, rollups: [], state: null })).toBe(0n);
   });
 });

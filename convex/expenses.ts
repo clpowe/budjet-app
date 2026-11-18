@@ -112,10 +112,9 @@ export const createExpense = mutation({
   },
   returns: expenseWriteResultValidator,
   handler: async (ctx, args) => {
-    const { household, user } = await requireHouseholdMember(ctx);
+    const { household } = await requireHouseholdMember(ctx);
     const result = await addExpense(ctx, {
       household,
-      actorId: user._id,
       fields: args,
       now: Date.now(),
     });
@@ -135,10 +134,9 @@ export const updateExpense = mutation({
   returns: expenseWriteResultValidator,
   handler: async (ctx, args) => {
     const { expenseId, ...fields } = args;
-    const { expense, household, user } = await getAuthorizedExpense(ctx, expenseId);
+    const { expense, household } = await getAuthorizedExpense(ctx, expenseId);
     const result = await editExpense(ctx, {
       household,
-      actorId: user._id,
       expense,
       fields,
       now: Date.now(),
@@ -154,10 +152,9 @@ export const deleteExpense = mutation({
   },
   returns: expenseWriteResultValidator,
   handler: async (ctx, args) => {
-    const { expense, household, user } = await getAuthorizedExpense(ctx, args.expenseId);
+    const { expense, household } = await getAuthorizedExpense(ctx, args.expenseId);
     const result = await removeExpense(ctx, {
       household,
-      actorId: user._id,
       expense,
       now: Date.now(),
     });

@@ -90,16 +90,7 @@ async function readReserve(
       .query("goalReserveStates")
       .withIndex("by_household", (q) => q.eq("householdId", householdId))
       .unique();
-    const days = await ctx.db
-      .query("goalReserveDays")
-      .withIndex("by_household_and_local_date", (q) => q.eq("householdId", householdId))
-      .collect();
-    const entries = await ctx.db
-      .query("goalReserveLedgerEntries")
-      .withIndex("by_household_and_local_date", (q) => q.eq("householdId", householdId))
-      .collect();
-
-    return { household, state, days, entries };
+    return { household, state };
   });
 }
 
@@ -125,47 +116,12 @@ test("closes eligible days exactly across a month boundary and is idempotent", a
 
   const closed = await readReserve(t, seeded.householdId);
 
+  // 2_000 + (−500) + 3_000; January 30 is before the first eligible day.
   expect(closed.state).toMatchObject({
     positionCents: 4_500n,
     firstEligibleLocalDate: "2026-01-31",
     lastClosedLocalDate: "2026-02-02",
   });
-  expect(closed.days).toEqual([
-    expect.objectContaining({
-      localDate: "2026-01-31",
-      timeZone: "America/New_York",
-      allowanceSnapshotCents: 5_000n,
-      spendingSnapshotCents: 3_000n,
-      contributionCents: 2_000n,
-    }),
-    expect.objectContaining({
-      localDate: "2026-02-01",
-      timeZone: "America/New_York",
-      allowanceSnapshotCents: 5_000n,
-      spendingSnapshotCents: 5_500n,
-      contributionCents: -500n,
-    }),
-    expect.objectContaining({
-      localDate: "2026-02-02",
-      timeZone: "America/New_York",
-      allowanceSnapshotCents: 5_000n,
-      spendingSnapshotCents: 2_000n,
-      contributionCents: 3_000n,
-    }),
-  ]);
-  expect(closed.days.some((day) => day.localDate === "2026-01-30")).toBe(false);
-  expect(
-    closed.entries
-      .filter((entry) => entry.kind === "daily_close")
-      .map((entry) => [entry.localDate, entry.amountCents]),
-  ).toEqual([
-    ["2026-01-31", 2_000n],
-    ["2026-02-01", -500n],
-    ["2026-02-02", 3_000n],
-  ]);
-  expect(closed.entries.reduce((sum, entry) => sum + entry.amountCents, 0n)).toBe(
-    closed.state?.positionCents,
-  );
 
   await t.mutation(internal.reserveMaintenance.closeThrough, {
     householdId: seeded.householdId,
@@ -201,10 +157,9 @@ test("stops at the caller's bounded day count", async () => {
     positionCents: 4_000n,
     lastClosedLocalDate: "2026-02-01",
   });
-  expect(closed.days.map((day) => day.localDate)).toEqual(["2026-01-31", "2026-02-01"]);
 });
 
-test("two closers produce one finalized day, one ledger entry, and one position update", async () => {
+test("two closers credit the day once", async () => {
   const t = convexTest(schema, modules);
   const seeded = await seedReserve(t);
 
@@ -225,13 +180,10 @@ test("two closers produce one finalized day, one ledger entry, and one position 
 
   const closed = await readReserve(t, seeded.householdId);
 
-  expect(closed.state?.positionCents).toBe(2_000n);
-  expect(closed.days).toHaveLength(1);
-  expect(closed.days[0]).toMatchObject({
-    localDate: "2026-01-31",
-    contributionCents: 2_000n,
+  expect(closed.state).toMatchObject({
+    positionCents: 2_000n,
+    lastClosedLocalDate: "2026-01-31",
   });
-  expect(closed.entries.filter((entry) => entry.kind === "daily_close")).toHaveLength(1);
 });
 
 test("closes the final old-timezone day before promoting a pending timezone", async () => {
@@ -260,15 +212,10 @@ test("closes the final old-timezone day before promoting a pending timezone", as
 
   const closed = await readReserve(t, seeded.householdId);
 
-  expect(closed.days).toEqual([
-    expect.objectContaining({
-      localDate: "2026-03-01",
-      timeZone: "America/New_York",
-      allowanceSnapshotCents: 5_000n,
-      spendingSnapshotCents: 3_000n,
-      contributionCents: 2_000n,
-    }),
-  ]);
+  expect(closed.state).toMatchObject({
+    positionCents: 2_000n,
+    lastClosedLocalDate: "2026-03-01",
+  });
   expect(closed.household).toMatchObject({
     timeZone: "Asia/Tokyo",
   });

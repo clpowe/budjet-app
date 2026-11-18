@@ -116,41 +116,13 @@ test("derives one nested month-to-date summary and excludes future local-date ro
       budgetImpactExpenseCents: 100_000n,
       updatedAt: 0,
     });
-    await ctx.db.insert("goalReserveDays", {
-      householdId: seeded.householdId,
-      localDate: "2026-03-05",
-      timeZone: "America/New_York",
-      allowanceSnapshotCents: 5_000n,
-      spendingSnapshotCents: 3_000n,
-      contributionCents: 2_000n,
-      closedAt: 0,
-      updatedAt: 0,
-    });
-    await ctx.db.insert("goalReserveDays", {
-      householdId: seeded.householdId,
-      localDate: "2026-03-06",
-      timeZone: "America/New_York",
-      allowanceSnapshotCents: 5_000n,
-      spendingSnapshotCents: 5_500n,
-      contributionCents: -500n,
-      closedAt: 0,
-      updatedAt: 0,
-    });
-    await ctx.db.insert("goalReserveDays", {
-      householdId: seeded.householdId,
-      localDate: "2026-03-11",
-      timeZone: "America/New_York",
-      allowanceSnapshotCents: 5_000n,
-      spendingSnapshotCents: 0n,
-      contributionCents: 5_000n,
-      closedAt: 0,
-      updatedAt: 0,
-    });
     await ctx.db.insert("goalReserveStates", {
       householdId: seeded.householdId,
       positionCents: 6_000n,
       activatedAt: 0,
-      firstEligibleLocalDate: "2026-03-01",
+      // Only March 5 is closed: it contributes 5_000 − 3_000 = 2_000.
+      firstEligibleLocalDate: "2026-03-05",
+      lastClosedLocalDate: "2026-03-05",
       updatedAt: 0,
     });
     const cameraId = await ctx.db.insert("wantItems", {
@@ -264,32 +236,6 @@ test("rejects duplicate monthly rollup local dates below the row cap", async () 
       asOfTimestamp: march10AtNoonNewYork,
     }),
   ).rejects.toThrow("Daily budget rollups contain duplicate local dates");
-});
-
-test("rejects duplicate reserve-day local dates below the row cap", async () => {
-  const t = convexTest(schema, modules);
-  const seeded = await seedHousehold(t);
-
-  await t.run(async (ctx) => {
-    for (let index = 0; index < 2; index += 1) {
-      await ctx.db.insert("goalReserveDays", {
-        householdId: seeded.householdId,
-        localDate: "2026-03-05",
-        timeZone: "America/New_York",
-        allowanceSnapshotCents: 5_000n,
-        spendingSnapshotCents: 4_000n,
-        contributionCents: 1_000n,
-        closedAt: index,
-        updatedAt: index,
-      });
-    }
-  });
-
-  await expect(
-    t.withIdentity({ tokenIdentifier: "test|owner" }).query(api.budget.getHomeSummary, {
-      asOfTimestamp: march10AtNoonNewYork,
-    }),
-  ).rejects.toThrow("Goal reserve days contain duplicate local dates");
 });
 
 test("marks want purchases and returns exact reserve and budget-impact cents", async () => {
