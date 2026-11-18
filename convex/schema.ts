@@ -91,38 +91,6 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_household", ["householdId"]),
 
-  goalReserveLedgerEntries: defineTable({
-    householdId: v.id("households"),
-    kind: v.union(
-      v.literal("activation"),
-      v.literal("daily_close"),
-      v.literal("correction"),
-      v.literal("purchase"),
-      v.literal("purchase_undo"),
-    ),
-    amountCents: v.int64(),
-    localDate: v.string(),
-    allowanceSnapshotCents: v.optional(v.int64()),
-    spendingSnapshotCents: v.optional(v.int64()),
-    sourceExpenseId: v.optional(v.id("expenses")),
-    wantItemId: v.optional(v.id("wantItems")),
-    actorId: v.optional(v.id("users")),
-    createdAt: v.number(),
-  })
-    .index("by_household_and_local_date", ["householdId", "localDate"])
-    .index("by_source_expense", ["sourceExpenseId"]),
-
-  goalReserveDays: defineTable({
-    householdId: v.id("households"),
-    localDate: v.string(),
-    timeZone: v.string(),
-    allowanceSnapshotCents: v.int64(),
-    spendingSnapshotCents: v.int64(),
-    contributionCents: v.int64(),
-    closedAt: v.number(),
-    updatedAt: v.number(),
-  }).index("by_household_and_local_date", ["householdId", "localDate"]),
-
   dailyBudgetRollups: defineTable({
     householdId: v.id("households"),
     localDate: v.string(),

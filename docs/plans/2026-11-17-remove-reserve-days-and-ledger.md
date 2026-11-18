@@ -107,13 +107,13 @@ Deploy C1–C4 → run C5 on each deployment → deploy C6. Never deploy C6 befo
 ## Progress
 
 - [x] Decisions 1–4 confirmed
-- [ ] C0 — `localDate` backfill run on dev and prod
+- [ ] C0 — `localDate` backfill run on dev and prod (dev done; prod pending)
 - [x] C1 — Closed check from the cursor
 - [x] C2 — "Saved this month" from rollups
 - [x] C3 — Stop writing reserve days
 - [x] C4 — Stop writing the ledger
-- [ ] C5 — Delete existing rows (migration written + tested; not yet run on any deployment)
-- [ ] C6 — Drop the tables
+- [ ] C5 — Delete existing rows (dev done; prod pending)
+- [ ] C6 — Drop the tables (merged; deployed to dev; prod pending)
 
 ### Log
 
@@ -123,3 +123,5 @@ Deploy C1–C4 → run C5 on each deployment → deploy C6. Never deploy C6 befo
 - 2026-11-17: C2 applied. `sumClosedPositiveContributions` derives "saved this month" from rollups + cursor; `listReserveActivity` returns rollups only.
 - 2026-11-17: C3 + C4 applied together. Daily close and corrections only move `positionCents`; no reserve-day or ledger writes. `ReserveEvent` slimmed to money fields; `actorId` removed from the Reserve account interface. Tests assert position + cursor.
 - 2026-11-17: C5 written: `migrations/clearReserveHistory:run({ table })`, 2 tests. GLOSSARY updated. 41 files / 242 tests pass, vp check clean. C6 waits: it must ship after C5 has run on every deployment.
+- 2026-11-17: C1–C5 committed on `refactor/remove-reserve-days-and-ledger`. C6 written on stacked branch `refactor/drop-reserve-history-tables`: both tables removed from schema; `backfillExpenseLocalDates` and `clearReserveHistory` (+ tests) deleted. 40 files / 237 tests pass, vp check clean. Not deployed.
+- 2026-11-17: Merged C1–C5 (#2) and C6 (#3) to main. Dev: deployed C1–C5, backfilled 156 expenses, cleared 88 reserve days + 89 ledger entries, deployed C6. Empty tables still listed in dev dashboard until deleted there. Prod not touched: prod is behind dev (no auth/chat tables, different auth env vars), so a prod deploy ships more than this plan.
