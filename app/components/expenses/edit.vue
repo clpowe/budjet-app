@@ -3,36 +3,43 @@ import { api } from "../../../convex/_generated/api";
 import type { Doc } from "../../../convex/_generated/dataModel";
 import { legacyDollarsToCents } from "../../../shared/utils/money-cents";
 
-const props = defineProps<{
-  expense: Doc<"expenses">;
-}>();
+const props = withDefaults(defineProps<{ expense: Doc<"expenses">; submitLabel?: string }>(), {
+  submitLabel: "Update",
+});
 
 const emit = defineEmits<(e: "updated", id: Doc<"expenses">["_id"]) => void>();
 
-const { formatDateInput, toTransactionTimestamp } = useDate();
+const { formatDateInput } = useDate();
+
+function expenseLocalDate(expense: Doc<"expenses">) {
+  return expense.localDate ?? formatDateInput(new Date(expense.date));
+}
 
 const makeFormState = (expense: Doc<"expenses">) => ({
   name: expense.name,
   notes: expense.notes,
   amount: expense.amount,
-  date: formatDateInput(new Date(expense.date)),
+  date: expenseLocalDate(expense),
 });
 
 const formState = ref(makeFormState(props.expense));
+const originalLocalDate = ref(formState.value.date);
 const submitError = ref("");
 
-const { mutate: editSpending, isPending: isSaving } = useConvexMutation(api.expenses.updateExpense);
+const { mutate: updateExpense, isPending: isSaving } = useConvexMutation(
+  api.expenses.updateExpense,
+);
 
 watch(
   () => props.expense,
   (updated) => {
     if (!updated) return;
     formState.value = makeFormState(updated);
+    originalLocalDate.value = formState.value.date;
   },
   { deep: true },
 );
 
-// biome-ignore lint/correctness/noUnusedVariables: used as submit handler in template
 async function handleSubmit() {
   if (isSaving.value) return;
 
@@ -41,12 +48,12 @@ async function handleSubmit() {
   submitError.value = "";
 
   try {
-    const result = await editSpending({
+    const result = await updateExpense({
       expenseId: props.expense._id,
       name,
       notes,
       amountCents: legacyDollarsToCents(amount),
-      date: toTransactionTimestamp(date),
+      ...(date === originalLocalDate.value ? {} : { localDate: date }),
     });
 
     if (!result.success) {
@@ -69,7 +76,7 @@ async function handleSubmit() {
     :show-date="true"
     :is-submitting="isSaving"
     :errors="{ form: submitError || undefined }"
-    submit-label="Update"
+    :submit-label="submitLabel"
     @submit="handleSubmit"
   />
 </template>

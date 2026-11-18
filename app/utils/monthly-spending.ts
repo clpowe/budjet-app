@@ -31,15 +31,11 @@ export function buildMonthlySpendingRows(
   const dailyTotals = new Map<number, number>();
 
   for (const expense of expenses) {
-    const purchaseDayStartTimestamp = new Date(expense.date);
+    const expenseDate = new Date(expense.date);
 
-    if (
-      purchaseDayStartTimestamp.getFullYear() !== year ||
-      purchaseDayStartTimestamp.getMonth() !== month
-    )
-      continue;
+    if (expenseDate.getFullYear() !== year || expenseDate.getMonth() !== month) continue;
 
-    const day = purchaseDayStartTimestamp.getDate();
+    const day = expenseDate.getDate();
     dailyTotals.set(day, (dailyTotals.get(day) ?? 0) + finiteAmount(expense.amount));
   }
 
@@ -62,15 +58,11 @@ function collectDailyTotals(expenses: readonly ExpenseAmount[], monthDate: Date)
   const dailyTotals = new Map<number, number>();
 
   for (const expense of expenses) {
-    const purchaseDayStartTimestamp = new Date(expense.date);
+    const expenseDate = new Date(expense.date);
 
-    if (
-      purchaseDayStartTimestamp.getFullYear() !== year ||
-      purchaseDayStartTimestamp.getMonth() !== month
-    )
-      continue;
+    if (expenseDate.getFullYear() !== year || expenseDate.getMonth() !== month) continue;
 
-    const day = purchaseDayStartTimestamp.getDate();
+    const day = expenseDate.getDate();
     dailyTotals.set(day, (dailyTotals.get(day) ?? 0) + finiteAmount(expense.amount));
   }
 

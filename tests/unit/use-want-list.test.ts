@@ -51,7 +51,7 @@ const summaryRef = ref({
   activeAllocations: [],
 });
 const nowRef = ref(Date.UTC(2026, 7, 20, 16));
-const queryPendingRefs = Array.from({ length: 5 }, () => ref(false));
+const queryPendingRefs = Array.from({ length: 2 }, () => ref(false));
 
 const createMock = vi.fn();
 const updateMock = vi.fn();
@@ -62,6 +62,7 @@ const correctPurchaseMock = vi.fn();
 const undoPurchaseMock = vi.fn();
 const previewQueryMock = vi.fn();
 const useConvexQueryMock = vi.fn();
+const subscribeMock = vi.fn();
 const useConvexMutationMock = vi.fn();
 const useConvexClientMock = vi.fn();
 
@@ -97,7 +98,17 @@ describe("useWantList", () => {
     correctPurchaseMock.mockReset();
     undoPurchaseMock.mockReset();
 
-    const queryResponses = [wantsRef, consideringRef, notNowRef, boughtRef, summaryRef];
+    const queryResponses = [wantsRef, summaryRef];
+    subscribeMock.mockReset();
+    subscribeMock.mockImplementation((_query, args, callback) => {
+      const sections = {
+        considering: consideringRef.value,
+        not_now: notNowRef.value,
+        bought: boughtRef.value,
+      };
+      callback(sections[args.status as keyof typeof sections]);
+      return vi.fn();
+    });
     useConvexQueryMock.mockImplementation(() => {
       const index = useConvexQueryMock.mock.calls.length - 1;
       return {
@@ -119,7 +130,7 @@ describe("useWantList", () => {
       const index = useConvexMutationMock.mock.calls.length - 1;
       return { mutate: mutationMocks[index] };
     });
-    useConvexClientMock.mockReturnValue({ query: previewQueryMock });
+    useConvexClientMock.mockReturnValue({ query: previewQueryMock, onUpdate: subscribeMock });
 
     createMock.mockResolvedValue({ _id: "created" });
     updateMock.mockResolvedValue({ _id: "updated" });
@@ -154,6 +165,7 @@ describe("useWantList", () => {
         "correctPurchase",
         "createItem",
         "isLoading",
+        "history",
         "previewPurchase",
         "purchase",
         "reorder",
@@ -172,27 +184,84 @@ describe("useWantList", () => {
     expect(wants.summary).toBe(summaryRef);
     expect(wants.isLoading.value).toBe(false);
 
-    queryPendingRefs[2]!.value = true;
+    queryPendingRefs[1]!.value = true;
     expect(wants.isLoading.value).toBe(true);
 
     expect(useConvexQueryMock).toHaveBeenNthCalledWith(1, api.wants.list, {});
-    expect(useConvexQueryMock).toHaveBeenNthCalledWith(2, api.wants.listSection, {
-      status: "considering",
-      paginationOpts: { numItems: 25, cursor: null },
-    });
-    expect(useConvexQueryMock).toHaveBeenNthCalledWith(3, api.wants.listSection, {
-      status: "not_now",
-      paginationOpts: { numItems: 25, cursor: null },
-    });
-    expect(useConvexQueryMock).toHaveBeenNthCalledWith(4, api.wants.listSection, {
-      status: "bought",
-      paginationOpts: { numItems: 25, cursor: null },
-    });
+    expect(subscribeMock).toHaveBeenNthCalledWith(
+      1,
+      api.wants.listSection,
+      {
+        status: "considering",
+        paginationOpts: { numItems: 25, cursor: null },
+      },
+      expect.any(Function),
+      expect.any(Function),
+    );
+    expect(subscribeMock).toHaveBeenNthCalledWith(
+      2,
+      api.wants.listSection,
+      {
+        status: "not_now",
+        paginationOpts: { numItems: 25, cursor: null },
+      },
+      expect.any(Function),
+      expect.any(Function),
+    );
+    expect(subscribeMock).toHaveBeenNthCalledWith(
+      3,
+      api.wants.listSection,
+      {
+        status: "bought",
+        paginationOpts: { numItems: 25, cursor: null },
+      },
+      expect.any(Function),
+      expect.any(Function),
+    );
     expect(useConvexQueryMock).toHaveBeenNthCalledWith(
-      5,
+      2,
       api.reserve.getSummary,
       expect.objectContaining({ value: { now: nowRef.value } }),
     );
+  });
+
+  it("pins the loaded Bought page and loads its continuation independently", () => {
+    const firstPage = { page: [boughtItem], isDone: false, continueCursor: "next-bought" };
+    subscribeMock.mockImplementation((_query, args, callback) => {
+      if (args.status === "considering") callback(consideringRef.value);
+      if (args.status === "not_now") callback(notNowRef.value);
+      if (args.status === "bought" && args.paginationOpts.cursor === null) callback(firstPage);
+      return vi.fn();
+    });
+    const wants = useWantList();
+    const older = { ...boughtItem, _id: "older-purchase" as Id<"wantItems"> };
+
+    wants.history.bought.loadMore();
+    wants.history.bought.loadMore();
+    expect(subscribeMock).toHaveBeenCalledTimes(5);
+    expect(subscribeMock).toHaveBeenNthCalledWith(
+      4,
+      api.wants.listSection,
+      {
+        status: "bought",
+        paginationOpts: { numItems: 25, cursor: null, endCursor: "next-bought" },
+      },
+      expect.any(Function),
+      expect.any(Function),
+    );
+    expect(subscribeMock).toHaveBeenNthCalledWith(
+      5,
+      api.wants.listSection,
+      { status: "bought", paginationOpts: { numItems: 25, cursor: "next-bought" } },
+      expect.any(Function),
+      expect.any(Function),
+    );
+    expect(wants.history.bought.isLoadingMore.value).toBe(true);
+    expect(wants.sections.value.bought).toEqual([boughtItem]);
+    subscribeMock.mock.calls[4]![2]({ page: [older], isDone: true, continueCursor: "" });
+    expect(wants.sections.value.bought).toEqual([boughtItem, older]);
+    expect(wants.sections.value.considering).toEqual([consideringItem]);
+    expect(wants.history.bought.canLoadMore.value).toBe(false);
   });
 
   it("runs focused network calls and never sends a client clock to a mutation", async () => {
@@ -217,7 +286,7 @@ describe("useWantList", () => {
       wants.createItem(createArgs),
       wants.updateItem(updateArgs),
       wants.changeStatus({ itemId, status: "not_now" }),
-      wants.reorder({ itemIds: [itemId] }),
+      wants.reorder({ itemIds: [itemId], expectedItemIds: [itemId] }),
       wants.previewPurchase({ itemId, actualAmountCents: 10_000n }),
       wants.purchase({
         itemId,
@@ -234,7 +303,7 @@ describe("useWantList", () => {
     expect(createMock).toHaveBeenCalledWith(createArgs);
     expect(updateMock).toHaveBeenCalledWith(updateArgs);
     expect(changeStatusMock).toHaveBeenCalledWith({ itemId, status: "not_now" });
-    expect(reorderMock).toHaveBeenCalledWith({ itemIds: [itemId] });
+    expect(reorderMock).toHaveBeenCalledWith({ itemIds: [itemId], expectedItemIds: [itemId] });
     expect(previewQueryMock).toHaveBeenCalledWith(api.wants.previewPurchase, {
       itemId,
       actualAmountCents: 10_000n,

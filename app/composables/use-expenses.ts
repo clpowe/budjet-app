@@ -1,44 +1,38 @@
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
 
-type MoneyState = {
+type BudgetMetric = {
   value: number;
-  positive: boolean;
+  isWithinBudget: boolean;
 };
 
 function centsToDollars(value: bigint | undefined): number {
   return Number(value ?? 0n) / 100;
 }
 
-function moneyState(value: number, positive: boolean): MoneyState {
+function createBudgetMetric(value: number, isWithinBudget: boolean): BudgetMetric {
   return {
     value,
-    positive,
+    isWithinBudget,
   };
 }
 
 export function useExpenses() {
-  const { currentDate, queryDayBounds, remainingDaysInMonth } = useDate();
+  const { currentDate, remainingDaysInMonth } = useDate();
 
-  const dayParams = computed(() => ({
-    from: queryDayBounds.value.from,
-    to: queryDayBounds.value.to,
-  }));
+  const dateParams = computed(() => ({ asOfTimestamp: currentDate.value.getTime() }));
 
-  const { data: expenses } = useConvexQuery(api.expenses.listMyExpenses, dayParams);
+  const { data: expenses } = useConvexQuery(api.expenses.listDailyExpenses, dateParams);
   const { mutate: deleteExpense } = useConvexMutation(api.expenses.deleteExpense);
 
-  const { data: summary } = useConvexQuery(
-    api.budget.getHomeSummary,
-    computed(() => ({
-      asOfTimestamp: currentDate.value.getTime(),
-    })),
-  );
+  const { data: summary } = useConvexQuery(api.budget.getHomeSummary, dateParams);
 
   const dailyBudget = computed(() => centsToDollars(summary.value?.plan.dailyAllowanceCents));
-  const total = computed(() => centsToDollars(summary.value?.spending.monthToDate.expenseCents));
+  const monthToDateTotalDollars = computed(() =>
+    centsToDollars(summary.value?.spending.monthToDate.expenseCents),
+  );
   const safeToSpendCents = computed(() => summary.value?.plan.safeToSpendCents ?? 0n);
-  const currentPosition = computed(
+  const remainingTodayDollars = computed(
     () =>
       centsToDollars(summary.value?.plan.dailyAllowanceCents) -
       centsToDollars(summary.value?.spending.today.budgetImpactCents),
@@ -46,43 +40,43 @@ export function useExpenses() {
 
   const totalToday = computed(() => {
     const value = centsToDollars(summary.value?.spending.today.expenseCents);
-    const positive = value <= dailyBudget.value;
-    return moneyState(value, positive);
+    const isWithinBudget = value <= dailyBudget.value;
+    return createBudgetMetric(value, isWithinBudget);
   });
 
-  const burn_rate = computed(() => {
+  const burnRate = computed(() => {
     const value = centsToDollars(summary.value?.spending.monthToDate.averageDailyBudgetImpactCents);
-    const positive = value <= dailyBudget.value;
-    return moneyState(value, positive);
+    const isWithinBudget = value <= dailyBudget.value;
+    return createBudgetMetric(value, isWithinBudget);
   });
 
   const variance = computed(() => {
     const value = centsToDollars(summary.value?.spending.monthToDate.budgetImpactVarianceCents);
-    const positive = value >= 0;
-    return moneyState(value, positive);
+    const isWithinBudget = value >= 0;
+    return createBudgetMetric(value, isWithinBudget);
   });
 
   const rollingBudget = computed(() => {
-    if (remainingDaysInMonth.value <= 0) return moneyState(0, false);
+    if (remainingDaysInMonth.value <= 0) return createBudgetMetric(0, false);
 
     const value = centsToDollars(safeToSpendCents.value) / remainingDaysInMonth.value;
-    const positive = value >= dailyBudget.value;
+    const isWithinBudget = value >= dailyBudget.value;
 
-    return moneyState(value, positive);
+    return createBudgetMetric(value, isWithinBudget);
   });
 
   const remove = (id: Doc<"expenses">["_id"]) => deleteExpense({ expenseId: id });
 
   return {
-    total,
+    monthToDateTotalDollars,
     summary,
     safeToSpendCents,
     expenses,
     totalToday,
-    burn_rate,
+    burnRate,
     variance,
     dailyBudget,
-    currentPosition,
+    remainingTodayDollars,
     rollingBudget,
     remove,
   };

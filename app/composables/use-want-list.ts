@@ -1,8 +1,7 @@
 import type { FunctionArgs } from "convex/server";
 import { computed, onBeforeUnmount, onMounted } from "vue";
 import { api } from "../../convex/_generated/api";
-
-const INACTIVE_PAGE_SIZE = 25;
+import { useWantSection } from "./use-want-section";
 
 type CreateItemArgs = FunctionArgs<typeof api.wants.create>;
 type UpdateItemArgs = FunctionArgs<typeof api.wants.update>;
@@ -46,32 +45,12 @@ export function useWantList() {
 
   const { data: activeResult, isPending: isActivePending } = useConvexQuery(api.wants.list, {});
 
-  const { data: consideringResult, isPending: isConsideringPending } = useConvexQuery(
-    api.wants.listSection,
-    {
-      status: "considering",
-      paginationOpts: {
-        numItems: INACTIVE_PAGE_SIZE,
-        cursor: null,
-      },
-    },
-  );
-
-  const { data: notNowResult, isPending: isNotNowPending } = useConvexQuery(api.wants.listSection, {
-    status: "not_now",
-    paginationOpts: {
-      numItems: INACTIVE_PAGE_SIZE,
-      cursor: null,
-    },
-  });
-
-  const { data: boughtResult, isPending: isBoughtPending } = useConvexQuery(api.wants.listSection, {
-    status: "bought",
-    paginationOpts: {
-      numItems: INACTIVE_PAGE_SIZE,
-      cursor: null,
-    },
-  });
+  const convex = useConvexClient();
+  const history = {
+    considering: useWantSection(convex, "considering"),
+    notNow: useWantSection(convex, "not_now"),
+    bought: useWantSection(convex, "bought"),
+  };
 
   const { data: summary, isPending: isSummaryPending } = useConvexQuery(
     api.reserve.getSummary,
@@ -88,23 +67,14 @@ export function useWantList() {
   const { mutate: correctPurchaseMutation } = useConvexMutation(api.wants.correctPurchase);
   const { mutate: undoPurchaseMutation } = useConvexMutation(api.wants.undoPurchase);
 
-  const convex = useConvexClient();
-
   const sections = computed(() => ({
     active: activeResult.value?.active ?? [],
-    considering: consideringResult.value?.page ?? [],
-    notNow: notNowResult.value?.page ?? [],
-    bought: boughtResult.value?.page ?? [],
+    considering: history.considering.items.value,
+    notNow: history.notNow.items.value,
+    bought: history.bought.items.value,
   }));
 
-  const isLoading = computed(
-    () =>
-      isActivePending.value ||
-      isConsideringPending.value ||
-      isNotNowPending.value ||
-      isBoughtPending.value ||
-      isSummaryPending.value,
-  );
+  const isLoading = computed(() => isActivePending.value || isSummaryPending.value);
 
   let refreshTimer: number | undefined;
 
@@ -190,6 +160,7 @@ export function useWantList() {
 
   return {
     sections,
+    history,
     summary,
     isLoading,
     createItem,

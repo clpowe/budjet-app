@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { api } from "../../convex/_generated/api";
 import { format } from "@formkit/tempo";
+import type { FunctionReturnType } from "convex/server";
 import { formatCents } from "../../shared/utils/money-cents";
 
-const { currentDate, queryMonthBounds, backMonth, forwardMonth, timeZone } = useDate();
+type Transaction = FunctionReturnType<typeof api.expenses.listMonthlyTransactions>[number];
 
-const params = computed(() => ({
-  from: queryMonthBounds.value.from,
-  to: queryMonthBounds.value.to,
-}));
+const { currentDate, goToPreviousMonth, goToNextMonth, timeZone } = useDate();
+
+const params = computed(() => ({ asOfTimestamp: currentDate.value.getTime() }));
 
 const { data: transactions, error } = useConvexQuery(api.expenses.listMonthlyTransactions, params);
 
@@ -17,26 +17,10 @@ watch(error, (newErr) => {
 });
 
 const groupedTransactions = computed(() => {
-  if (!transactions.value) return {};
-
-  const groups: Record<string, any[]> = {};
-
-  transactions.value.forEach((tx) => {
-    if (!tx.date) return;
-
-    // Use YYYY-MM-DD for stable internal keys
-    const dateKey = format({
-      date: new Date(tx.date),
-      format: "YYYY-MM-DD",
-      tz: timeZone.value,
-    });
-
-    if (!groups[dateKey]) {
-      groups[dateKey] = [];
-    }
-    groups[dateKey].push(tx);
-  });
-
+  const groups: Record<string, Transaction[]> = {};
+  for (const tx of transactions.value ?? []) {
+    (groups[tx.localDate] ??= []).push(tx);
+  }
   return groups;
 });
 
@@ -46,9 +30,9 @@ const sortedDateKeys = computed(() => {
 
 const formatDate = (dateKey: string) => {
   return format({
-    date: new Date(dateKey + "T00:00:00"),
+    date: new Date(dateKey + "T00:00:00Z"),
     format: "dddd, MMM D, YYYY",
-    tz: "America/New_York",
+    tz: "UTC",
   });
 };
 
@@ -64,7 +48,7 @@ const currentMonthYear = computed(() => {
   return format({
     date: new Date(currentDate.value),
     format: "MMMM YYYY",
-    tz: "America/New_York",
+    tz: timeZone.value,
   });
 });
 </script>
@@ -73,9 +57,9 @@ const currentMonthYear = computed(() => {
   <main class="l-page l-stack">
     <!-- Header with Navigation -->
     <header class="l-cluster l-split">
-      <button type="button" @click="backMonth">Previous month</button>
+      <button type="button" @click="goToPreviousMonth">Previous month</button>
       <h1>{{ currentMonthYear }}</h1>
-      <button type="button" @click="forwardMonth">Next month</button>
+      <button type="button" @click="goToNextMonth">Next month</button>
     </header>
 
     <!-- Error State -->

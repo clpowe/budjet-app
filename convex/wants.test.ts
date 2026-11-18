@@ -295,23 +295,27 @@ test("requires a complete current queue for reordering and keeps priority data s
 
   await expect(
     asOwner.mutation(api.wants.reorder, {
+      expectedItemIds: [seeded.cameraId, seeded.tripId],
       itemIds: [seeded.cameraId, seeded.cameraId],
     }),
   ).rejects.toThrow();
 
   await expect(
     asOwner.mutation(api.wants.reorder, {
+      expectedItemIds: [seeded.cameraId, seeded.tripId],
       itemIds: [seeded.cameraId],
     }),
   ).rejects.toThrow();
 
   await expect(
     asOwner.mutation(api.wants.reorder, {
+      expectedItemIds: [seeded.cameraId, seeded.tripId],
       itemIds: [seeded.cameraId, seeded.otherWantId],
     }),
   ).rejects.toThrow();
 
   await asOwner.mutation(api.wants.reorder, {
+    expectedItemIds: [seeded.cameraId, seeded.tripId],
     itemIds: [seeded.tripId, seeded.cameraId],
   });
 
@@ -329,6 +333,31 @@ test("requires a complete current queue for reordering and keeps priority data s
   expect(active.active.map((item) => [item._id, item.order])).toEqual([
     [seeded.tripId, 0],
     [seeded.cameraId, 1],
+  ]);
+});
+
+test("rejects a stale reorder even when the active membership is unchanged", async () => {
+  const t = convexTest(schema, modules);
+  const { cameraId, tripId } = await seedHouseholds(t);
+  const owner = t.withIdentity({ tokenIdentifier: "test|owner" });
+  const member = t.withIdentity({ tokenIdentifier: "test|member" });
+  const expectedItemIds = (await member.query(api.wants.list)).active.map((item) => item._id);
+
+  expect(
+    await owner.mutation(api.wants.reorder, {
+      expectedItemIds,
+      itemIds: [tripId, cameraId],
+    }),
+  ).toEqual({ success: true });
+  expect(
+    await member.mutation(api.wants.reorder, {
+      expectedItemIds,
+      itemIds: expectedItemIds,
+    }),
+  ).toEqual({ success: false });
+  expect((await member.query(api.wants.list)).active.map((item) => item._id)).toEqual([
+    tripId,
+    cameraId,
   ]);
 });
 

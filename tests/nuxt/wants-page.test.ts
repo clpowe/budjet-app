@@ -88,6 +88,7 @@ function arrangePage({
   considering = [],
   isLoading = false,
   notNow = [],
+  loadMoreBought,
   summary = makeSummary(),
 }: {
   active?: WantItem[];
@@ -95,10 +96,31 @@ function arrangePage({
   considering?: WantItem[];
   isLoading?: boolean;
   notNow?: WantItem[];
+  loadMoreBought?: () => WantItem;
   summary?: ReturnType<typeof makeSummary>;
 } = {}) {
+  const sections = ref({ active, bought, considering, notNow });
+  function section() {
+    return {
+      isInitialLoading: ref(false),
+      isLoadingMore: ref(false),
+      canLoadMore: ref(false),
+      error: ref(""),
+      loadMore: vi.fn(),
+      retry: vi.fn(),
+    };
+  }
+  const history = { considering: section(), notNow: section(), bought: section() };
+  if (loadMoreBought) {
+    history.bought.canLoadMore.value = true;
+    history.bought.loadMore.mockImplementation(() => {
+      sections.value.bought.push(loadMoreBought());
+      history.bought.canLoadMore.value = false;
+    });
+  }
   mockFns.useWantList.mockReturnValue({
-    sections: ref({ active, bought, considering, notNow }),
+    sections,
+    history,
     summary: ref(summary),
     isLoading: ref(isLoading),
     createItem: mockFns.createItem,
@@ -192,6 +214,24 @@ describe("WantsPage", () => {
     expect(wrapper.text()).toContain("Bike");
     expect(wrapper.text()).toContain("Kayak");
     expect(wrapper.text()).toContain("Headphones");
+  });
+
+  it("offers purchase correction for an older Bought Want after loading the next page", async () => {
+    const wrapper = arrangePage({
+      considering: [makeWant("bike", "Bike", "considering")],
+      bought: Array.from({ length: 25 }, (_, index) =>
+        makeWant(`bought-${index}`, `Bought ${index}`, "bought"),
+      ),
+      loadMoreBought: () => makeWant("older", "Older headphones", "bought"),
+    });
+    expect(wrapper.find('[aria-label="Correct Older headphones purchase"]').exists()).toBe(false);
+    await wrapper
+      .findAll("button")
+      .find((button) => button.text() === "Load more from Bought history")!
+      .trigger("click");
+    expect(wrapper.find('[aria-label="Considering"]').text()).toContain("Bike");
+    await wrapper.get('[aria-label="Correct Older headphones purchase"]').trigger("click");
+    expect(wrapper.text()).toContain("Correct Older headphones purchase");
   });
 
   it("distinguishes money available now from the amount that may arrive tonight", () => {

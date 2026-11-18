@@ -2,9 +2,9 @@
 import { api } from "../../convex/_generated/api";
 import { formatCents } from "../../shared/utils/money-cents";
 
-const { appDay, formatDateInput, currentMonth, currentDate, setDate } = useDate();
+const { displayDate, formatDateInput, currentMonth, currentDate, setDate } = useDate();
 
-const { summary, safeToSpendCents, totalToday, burn_rate, variance, currentPosition } =
+const { summary, safeToSpendCents, totalToday, burnRate, variance, remainingTodayDollars } =
   useExpenses();
 
 const { windfallTotal } = useWindfall();

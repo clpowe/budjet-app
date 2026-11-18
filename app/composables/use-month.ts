@@ -38,7 +38,7 @@ export function useMonthNavigation() {
     selectedMonth.value = `${months[now.getMonth()]} ${now.getFullYear()}`;
   };
 
-  const getPreviousMonth = () => {
+  const goToPreviousMonth = () => {
     // Parse the month string (e.g., "november 2025")
     const [monthName, yearStr] = selectedMonth.value.toLowerCase().split(" ");
 
@@ -82,7 +82,7 @@ export function useMonthNavigation() {
     selectedMonth.value = `${months[prevMonthIndex]} ${prevYear}`;
   };
 
-  const getNextMonth = () => {
+  const goToNextMonth = () => {
     const [monthName, yearStr] = selectedMonth.value.toLowerCase().split(" ");
 
     if (yearStr == undefined) return;
@@ -127,7 +127,7 @@ export function useMonthNavigation() {
   return {
     selectedMonth,
     setCurrentMonth,
-    getPreviousMonth,
-    getNextMonth,
+    goToPreviousMonth,
+    goToNextMonth,
   };
 }

@@ -419,22 +419,22 @@ export const changeStatus = mutation({
 export const reorder = mutation({
   args: {
     itemIds: v.array(v.id("wantItems")),
+    expectedItemIds: v.array(v.id("wantItems")),
   },
-  returns: v.object({
-    success: v.literal(true),
-  }),
+  returns: v.object({ success: v.boolean() }),
   handler: async (ctx, args) => {
     const now = Date.now();
     const { user, household } = await requireHouseholdMember(ctx);
 
-    await reorderActiveWants(ctx, {
+    const success = await reorderActiveWants(ctx, {
       householdId: household._id,
       itemIds: args.itemIds,
+      expectedItemIds: args.expectedItemIds,
       actorId: user._id,
       now,
     });
 
-    return { success: true as const };
+    return { success };
   },
 });
 

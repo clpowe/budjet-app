@@ -128,12 +128,12 @@ describe("useExpenses", () => {
     const composable = useExpenses();
 
     expect(composable.expenses.value).toEqual(expensesRef.value);
-    expect(composable.total.value).toBe(100);
-    expect(composable.totalToday.value).toEqual({ value: 6, positive: true });
-    expect(composable.burn_rate.value).toEqual({ value: 50, positive: true });
-    expect(composable.variance.value).toEqual({ value: 10, positive: true });
+    expect(composable.monthToDateTotalDollars.value).toBe(100);
+    expect(composable.totalToday.value).toEqual({ value: 6, isWithinBudget: true });
+    expect(composable.burnRate.value).toEqual({ value: 50, isWithinBudget: true });
+    expect(composable.variance.value).toEqual({ value: 10, isWithinBudget: true });
     expect(composable.dailyBudget.value).toBe(50);
-    expect(composable.currentPosition.value).toBe(45);
+    expect(composable.remainingTodayDollars.value).toBe(45);
     expect(composable.safeToSpendCents.value).toBe(139_000n);
     expect(composable.summary.value).toBe(summaryRef.value);
     expect(useConvexQueryMock).toHaveBeenNthCalledWith(
@@ -147,10 +147,10 @@ describe("useExpenses", () => {
     summaryRef.value = undefined as never;
     const composable = useExpenses();
 
-    expect(composable.total.value).toBe(0);
-    expect(composable.totalToday.value).toEqual({ value: 0, positive: true });
-    expect(composable.burn_rate.value).toEqual({ value: 0, positive: true });
-    expect(composable.variance.value).toEqual({ value: 0, positive: true });
+    expect(composable.monthToDateTotalDollars.value).toBe(0);
+    expect(composable.totalToday.value).toEqual({ value: 0, isWithinBudget: true });
+    expect(composable.burnRate.value).toEqual({ value: 0, isWithinBudget: true });
+    expect(composable.variance.value).toEqual({ value: 0, isWithinBudget: true });
     expect(composable.safeToSpendCents.value).toBe(0n);
   });
 

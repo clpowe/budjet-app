@@ -116,14 +116,14 @@ test("joining shows prior history; leaving ends access while messages remain", a
 
   await as(t, "test|alpha-member").mutation(api.chat.send, { body: "From member" });
 
-  await as(t, "test|loner").mutation(api.households.updateHouseholdMembers, {
+  await as(t, "test|loner").mutation(api.households.joinHousehold, {
     inviteCode: "ALPHA",
   });
   expect(await as(t, "test|loner").query(api.chat.list, {})).toMatchObject([
     { body: "From member" },
   ]);
 
-  await as(t, "test|alpha-member").mutation(api.households.updateHouseholdMembership, {});
+  await as(t, "test|alpha-member").mutation(api.households.leaveHousehold, {});
   expect(await as(t, "test|alpha-member").query(api.chat.list, {})).toEqual([]);
   expect(await as(t, "test|alpha-owner").query(api.chat.list, {})).toMatchObject([
     { body: "From member" },

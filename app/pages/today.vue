@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { dayStart } from "@formkit/tempo";
 
-const { currentDate, backDay, forwardDay, appDay } = useDate();
+const { currentDate, goToPreviousDay, goToNextDay, displayDate } = useDate();
 
 onMounted(() => {
   currentDate.value = new Date();
@@ -10,9 +10,9 @@ onMounted(() => {
 const {
   expenses,
   totalToday,
-  burn_rate,
+  burnRate,
   variance,
-  currentPosition,
+  remainingTodayDollars,
   rollingBudget,
   dailyBudget,
   remove,
@@ -28,11 +28,11 @@ function openTransactionDialog() {
 <template>
   <main class="l-page l-stack">
     <header class="l-cluster l-split">
-      <button type="button" @click="backDay">Previous day</button>
-      <h1>{{ appDay }}</h1>
+      <button type="button" @click="goToPreviousDay">Previous day</button>
+      <h1>{{ displayDate }}</h1>
       <button
         type="button"
-        @click="forwardDay"
+        @click="goToNextDay"
         :disabled="dayStart(currentDate).getTime() >= dayStart(new Date()).getTime()"
       >
         Next day
@@ -41,11 +41,11 @@ function openTransactionDialog() {
     <app-main-card
       title="Budget Overview"
       subtitle="Your current budget status"
-      :amount="currentPosition!"
+      :amount="remainingTodayDollars!"
     >
       <template #items>
         <mini-card title="Spent today" :amount="totalToday" />
-        <mini-card title="Average daily spending" :amount="burn_rate" />
+        <mini-card title="Average daily spending" :amount="burnRate" />
         <mini-card title="Over/under budget" :amount="variance" />
         <mini-card title="Daily Budget" :amount="dailyBudget" />
         <mini-card title="Rolling Budget" :amount="rollingBudget" />

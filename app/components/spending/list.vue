@@ -90,7 +90,11 @@ function budgetImpactCents(expense: Expense): bigint {
                 <button @click="onDelete(row.original._id)">Delete</button>
                 <button :popovertarget="row.id">Edit</button>
                 <div :id="row.id" popover>
-                  <LazySpendingEdit :expense="row.original" @updated="onExpenseUpdated" />
+                  <LazyExpensesEdit
+                    :expense="row.original"
+                    submit-label="Update Spending"
+                    @updated="onExpenseUpdated"
+                  />
                 </div>
               </template>
             </template>

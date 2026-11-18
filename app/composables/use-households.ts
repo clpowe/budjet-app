@@ -72,7 +72,7 @@ export const useHousehold = () => {
     try {
       await syncUser();
 
-      const householdId = await convex.mutation(api.households.updateHouseholdMembers, {
+      const householdId = await convex.mutation(api.households.joinHousehold, {
         inviteCode,
       });
 
@@ -86,7 +86,7 @@ export const useHousehold = () => {
 
   const leaveHousehold = async () => {
     try {
-      await convex.mutation(api.households.updateHouseholdMembership, {});
+      await convex.mutation(api.households.leaveHousehold, {});
 
       authGate.invalidate();
       return { success: true };

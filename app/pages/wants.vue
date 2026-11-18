@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FunctionReturnType } from "convex/server";
+import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import { computed, nextTick, ref, shallowRef, watch } from "vue";
 import { api } from "@generated/api";
 import type { Doc, Id } from "@generated/dataModel";
@@ -31,6 +31,7 @@ type PurchaseDialogMode = "purchase" | "correct";
 
 const {
   sections,
+  history,
   summary,
   isLoading,
   createItem,
@@ -85,6 +86,26 @@ const hasItems = computed(() => {
     sections.value.bought.length > 0
   );
 });
+
+const inactiveSections = [
+  { key: "considering", title: "Considering" },
+  { key: "notNow", title: "Not now" },
+  { key: "bought", title: "Bought history" },
+] as const;
+
+function hasSectionStatus(key: (typeof inactiveSections)[number]["key"]) {
+  const section = history[key];
+  return (
+    section.isInitialLoading.value ||
+    section.isLoadingMore.value ||
+    section.canLoadMore.value ||
+    Boolean(section.error.value)
+  );
+}
+
+const hasPendingSections = computed(() =>
+  inactiveSections.some(({ key }) => hasSectionStatus(key)),
+);
 
 const activeAllocations = computed(() => {
   return summary.value?.activeAllocations ?? [];
@@ -371,7 +392,7 @@ async function updateStatus(value: { itemId: Id<"wantItems">; status: WantStatus
       : "Want status updated.";
 }
 
-async function saveOrder(itemIds: Id<"wantItems">[]) {
+async function saveOrder(order: FunctionArgs<typeof api.wants.reorder>) {
   if (isReordering.value) return;
 
   isReordering.value = true;
@@ -379,12 +400,16 @@ async function saveOrder(itemIds: Id<"wantItems">[]) {
   pageNotice.value = "";
 
   try {
-    const result = await reorder({ itemIds });
+    const result = await reorder(order);
 
     if (!result.success) {
-      reorderError.value = result.error.includes("changed while reordering")
-        ? "The queue changed. The latest order has been restored."
-        : `${result.error} The latest order has been restored.`;
+      reorderError.value = result.error;
+      return;
+    }
+
+    if (!result.data.success) {
+      reorderError.value =
+        "The queue changed while you were reordering. Review the latest order and try again.";
       return;
     }
 
@@ -426,7 +451,11 @@ async function saveOrder(itemIds: Id<"wantItems">[]) {
         {{ pageNotice }}
       </p>
 
-      <section v-if="!hasItems" class="panel" aria-labelledby="empty-wants-heading">
+      <section
+        v-if="!hasItems && !hasPendingSections"
+        class="panel"
+        aria-labelledby="empty-wants-heading"
+      >
         <h2 id="empty-wants-heading">No Wants yet</h2>
         <p>
           Add an idea to Considering, then move it into the active plan when the household is ready.
@@ -448,30 +477,42 @@ async function saveOrder(itemIds: Id<"wantItems">[]) {
           @change-status="updateStatus"
         />
 
-        <WantsList
-          v-if="sections.considering.length"
-          title="Considering"
-          :items="sections.considering"
-          @edit="openEditForm"
-          @change-status="updateStatus"
-        />
-
-        <WantsList
-          v-if="sections.notNow.length"
-          title="Not now"
-          :items="sections.notNow"
-          @edit="openEditForm"
-          @change-status="updateStatus"
-        />
-
-        <WantsBoughtList
-          v-if="sections.bought.length"
-          :items="sections.bought"
-          :pending-item-id="undoPendingItemId"
-          :error="boughtError"
-          @correct="openPurchase($event, 'correct')"
-          @undo="undoPurchaseFromHistory"
-        />
+        <template v-for="{ key, title } in inactiveSections" :key="key">
+          <div v-if="sections[key].length || hasSectionStatus(key)" class="l-stack">
+            <WantsBoughtList
+              v-if="key === 'bought' && sections[key].length"
+              :items="sections[key]"
+              :pending-item-id="undoPendingItemId"
+              :error="boughtError"
+              @correct="openPurchase($event, 'correct')"
+              @undo="undoPurchaseFromHistory"
+            />
+            <WantsList
+              v-else-if="sections[key].length"
+              :title="title"
+              :items="sections[key]"
+              @edit="openEditForm"
+              @change-status="updateStatus"
+            />
+            <div v-if="history[key].error.value">
+              <p role="alert">Could not load {{ title }}.</p>
+              <button type="button" @click="history[key].retry()">Retry {{ title }}</button>
+            </div>
+            <p v-else-if="history[key].isInitialLoading.value" role="status">
+              Loading {{ title }}…
+            </p>
+            <button
+              v-else-if="history[key].canLoadMore.value || history[key].isLoadingMore.value"
+              type="button"
+              :disabled="history[key].isLoadingMore.value"
+              @click="history[key].loadMore()"
+            >
+              {{
+                history[key].isLoadingMore.value ? `Loading ${title}…` : `Load more from ${title}`
+              }}
+            </button>
+          </div>
+        </template>
       </div>
     </template>
 

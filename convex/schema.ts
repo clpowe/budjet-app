@@ -37,7 +37,9 @@ export default defineSchema({
     localDate: v.optional(v.string()),
     wantItemId: v.optional(v.id("wantItems")),
     reserveUsedCents: v.optional(v.int64()),
-  }).index("by_household", ["householdId", "date"]),
+  })
+    .index("by_household", ["householdId", "date"])
+    .index("by_household_and_local_date_and_date", ["householdId", "localDate", "date"]),
 
   windfall: defineTable({
     source: v.string(),

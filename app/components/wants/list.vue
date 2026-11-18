@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FunctionReturnType } from "convex/server";
+import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import { computed, ref, useId, watch } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
 import { api } from "@generated/api";
@@ -29,7 +29,7 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  (event: "reorder", itemIds: Id<"wantItems">[]): void;
+  (event: "reorder", order: FunctionArgs<typeof api.wants.reorder>): void;
   (event: "edit", item: WantItem): void;
   (event: "purchase", item: WantItem): void;
   (
@@ -78,11 +78,11 @@ function hasSameOrder(first: WantItem[], second: WantItem[]) {
   );
 }
 
-function emitCurrentOrder() {
-  emit(
-    "reorder",
-    localItems.value.map((item) => item._id),
-  );
+function emitCurrentOrder(previousItems: WantItem[]) {
+  emit("reorder", {
+    expectedItemIds: previousItems.map((item) => item._id),
+    itemIds: localItems.value.map((item) => item._id),
+  });
 }
 
 function onDragStart() {
@@ -105,10 +105,11 @@ function onDragEnd() {
   dragSnapshot.value = null;
 
   if (hasSameOrder(previousOrder, localItems.value)) {
+    localItems.value = [...props.items];
     return;
   }
 
-  emitCurrentOrder();
+  emitCurrentOrder(previousOrder);
 }
 
 function moveItem(itemId: Id<"wantItems">, direction: -1 | 1) {
@@ -121,14 +122,15 @@ function moveItem(itemId: Id<"wantItems">, direction: -1 | 1) {
     return;
   }
 
-  const nextItems = [...localItems.value];
+  const previousItems = localItems.value;
+  const nextItems = [...previousItems];
   const [movedItem] = nextItems.splice(currentIndex, 1);
 
   if (!movedItem) return;
 
   nextItems.splice(targetIndex, 0, movedItem);
   localItems.value = nextItems;
-  emitCurrentOrder();
+  emitCurrentOrder(previousItems);
 }
 </script>
 

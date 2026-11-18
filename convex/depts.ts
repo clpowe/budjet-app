@@ -49,7 +49,7 @@ async function requireHouseholdDebt(ctx: MutationCtx, id: Id<"debts">): Promise<
 // QUERIES
 // -------------------------
 
-export const listMyDepts = query({
+export const listMyDebts = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -137,7 +137,7 @@ export const createDebt = mutation({
     });
 
     if (!newDebt) {
-      throw new Error("Failed to create expense");
+      throw new Error("Failed to create debt");
     }
 
     return {
@@ -146,7 +146,7 @@ export const createDebt = mutation({
   },
 });
 
-export const deleteDepts = mutation({
+export const deleteDebt = mutation({
   args: {
     id: v.id("debts"),
   },

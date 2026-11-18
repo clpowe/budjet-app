@@ -16,7 +16,7 @@ const { closePopoverByIdMock, useExpensesMock } = vi.hoisted(() => ({
 mockNuxtImport("useExpenses", () => useExpensesMock);
 mockNuxtImport("usePopoverClose", () => () => ({ closePopoverById: closePopoverByIdMock }));
 
-mockComponent("SpendingEdit", {
+mockComponent("ExpensesEdit", {
   props: {
     expense: {
       type: Object,

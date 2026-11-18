@@ -388,22 +388,68 @@ test("editing an expense after a time-zone change keeps it on its original local
     name: "Late dinner",
     notes: "with tip",
     amountCents: 2_500n,
-    date: expense.date,
   });
 
+  expect(await asOwner.query(api.expenses.listDailyExpenses, { asOfTimestamp: march10 })).toEqual([
+    expect.objectContaining({ date: expense.date, localDate: "2026-03-10", notes: "with tip" }),
+  ]);
+  expect(await asOwner.query(api.expenses.listDailyExpenses, { asOfTimestamp: march11 })).toEqual(
+    [],
+  );
   expect(await getRollup(t, seeded.householdId, "2026-03-10")).toMatchObject({
     expenseCents: 2_500n,
     budgetImpactExpenseCents: 2_500n,
   });
   expect(await getRollup(t, seeded.householdId, "2026-03-11")).toBeNull();
 
-  await asOwner.mutation(api.expenses.deleteExpense, { expenseId: expense._id });
+  await asOwner.mutation(api.expenses.updateExpense, {
+    expenseId: expense._id,
+    name: "Late dinner",
+    notes: "with tip",
+    amountCents: 2_500n,
+    localDate: "2026-03-11",
+  });
 
   expect(await getRollup(t, seeded.householdId, "2026-03-10")).toMatchObject({
     expenseCents: 0n,
     budgetImpactExpenseCents: 0n,
   });
-  expect(await getRollup(t, seeded.householdId, "2026-03-11")).toBeNull();
+  expect(await getRollup(t, seeded.householdId, "2026-03-11")).toMatchObject({
+    expenseCents: 2_500n,
+    budgetImpactExpenseCents: 2_500n,
+  });
+});
+
+test("uses stored dates for monthly expenses and the household zone for legacy rows and windfalls", async () => {
+  const t = convexTest(schema, modules);
+  const { householdId, otherHouseholdId } = await seedHouseholds(t);
+  const date = Date.UTC(2026, 3, 1, 0);
+  await t.run(async (ctx) => {
+    await ctx.db.patch("households", householdId, { timeZone: "UTC" });
+    const fields = { householdId, date, amount: 8, notes: "" };
+    await ctx.db.insert("expenses", { ...fields, name: "Stored March", localDate: "2026-03-31" });
+    await ctx.db.insert("expenses", { ...fields, name: "Legacy April" });
+    await ctx.db.insert("expenses", {
+      ...fields,
+      householdId: otherHouseholdId,
+      name: "Another household",
+      localDate: "2026-03-31",
+    });
+    await ctx.db.insert("windfall", { ...fields, source: "April gift" });
+  });
+
+  const owner = t.withIdentity({ tokenIdentifier: "test|owner" });
+  const march = await owner.query(api.expenses.listMonthlyTransactions, {
+    asOfTimestamp: date - 1,
+  });
+  const april = await owner.query(api.expenses.listMonthlyTransactions, { asOfTimestamp: date });
+  expect(march.map(({ name, localDate }) => [name, localDate])).toEqual([
+    ["Stored March", "2026-03-31"],
+  ]);
+  expect(april.map(({ name, localDate }) => [name, localDate])).toEqual([
+    ["Legacy April", "2026-04-01"],
+    ["April gift", "2026-04-01"],
+  ]);
 });
 
 test("expense writes wait while the reserve catches up on closed days", async () => {

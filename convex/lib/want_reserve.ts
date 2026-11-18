@@ -18,12 +18,6 @@ export interface ProgressLoss<Id extends string = string> {
   allocatedCentsAfter: Cents;
 }
 
-export interface RecentPace {
-  positiveDayCount: number;
-  totalPositiveCents: Cents;
-  averageDailyCents: Cents;
-}
-
 const LOCAL_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 function assertPositiveCents(value: Cents, label: string): void {
@@ -68,17 +62,6 @@ function parseLocalDate(localDate: string): Date {
   return date;
 }
 
-function getLocalDateDistance(fromLocalDate: string, toLocalDate: string): number {
-  const from = parseLocalDate(fromLocalDate).getTime();
-  const to = parseLocalDate(toLocalDate).getTime();
-
-  return Math.round((to - from) / (24 * 60 * 60 * 1_000));
-}
-
-function ceilDivide(dividend: Cents, divisor: Cents): Cents {
-  return (dividend + divisor - 1n) / divisor;
-}
-
 export function allocateReserve<Id extends string>(
   positionCents: Cents,
   items: readonly ReserveItem<Id>[],
@@ -106,26 +89,6 @@ export function allocateReserve<Id extends string>(
       remainingCents: item.estimatedCostCents - allocatedCents,
     };
   });
-}
-
-export function getReorderUpdates<Id extends string>(
-  currentIds: readonly Id[],
-  requestedIds: readonly Id[],
-): Array<{ id: Id; order: number }> {
-  assertUniqueIds(currentIds, "Current active item IDs");
-  assertUniqueIds(requestedIds, "Requested active item IDs");
-
-  if (currentIds.length !== requestedIds.length) {
-    throw new Error("Reorder must include every active item exactly once");
-  }
-
-  const currentIdSet = new Set(currentIds);
-
-  if (requestedIds.some((id) => !currentIdSet.has(id))) {
-    throw new Error("Reorder contains an item that is not active");
-  }
-
-  return requestedIds.map((id, order) => ({ id, order }));
 }
 
 export function calculatePurchaseFunding(
@@ -208,6 +171,12 @@ export function getNextLocalDate(localDate: string, timeZone: string): string {
   return date.toISOString().slice(0, 10);
 }
 
+export function getNextMonthStart(localDate: string): string {
+  const date = parseLocalDate(localDate);
+  date.setUTCMonth(date.getUTCMonth() + 1, 1);
+  return date.toISOString().slice(0, 10);
+}
+
 export interface LocalMonthPeriod {
   localMonth: string;
   startLocalDate: string;
@@ -241,45 +210,5 @@ export function getLocalDayBounds(
   return {
     startTimestamp: tzDate(`${startLocalDate}T00:00:00`, timeZone).getTime(),
     endExclusiveTimestamp: tzDate(`${endLocalDate}T00:00:00`, timeZone).getTime(),
-  };
-}
-
-export function calculateTargetDailyAmount(
-  remainingCents: Cents,
-  targetDate: number,
-  today: number,
-  timeZone: string,
-): Cents {
-  if (remainingCents <= 0n) {
-    return 0n;
-  }
-
-  const todayLocalDate = getLocalDateKey(today, timeZone);
-  const targetLocalDate = getLocalDateKey(targetDate, timeZone);
-  const daysUntilTarget = getLocalDateDistance(todayLocalDate, targetLocalDate);
-
-  if (daysUntilTarget <= 0) {
-    return remainingCents;
-  }
-
-  return ceilDivide(remainingCents, BigInt(daysUntilTarget));
-}
-
-export function calculateRecentPace(contributions: readonly Cents[]): RecentPace | null {
-  const positiveContributions = contributions.filter((contribution) => contribution > 0n);
-
-  if (positiveContributions.length === 0) {
-    return null;
-  }
-
-  const totalPositiveCents = positiveContributions.reduce(
-    (sum, contribution) => sum + contribution,
-    0n,
-  );
-
-  return {
-    positiveDayCount: positiveContributions.length,
-    totalPositiveCents,
-    averageDailyCents: totalPositiveCents / BigInt(positiveContributions.length),
   };
 }

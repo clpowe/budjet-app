@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { totalPayment } = useDepts();
+const { totalPayment } = useDebts();
 </script>
 <template>
   <main class="l-page l-stack">

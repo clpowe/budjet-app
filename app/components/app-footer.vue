@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { selectedMonth, getPreviousMonth, getNextMonth } = useMonthNavigation();
+const { selectedMonth, goToPreviousMonth, goToNextMonth } = useMonthNavigation();
 </script>
 
 <template>

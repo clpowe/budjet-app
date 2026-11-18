@@ -9,14 +9,14 @@ import DeptsList from "../../app/components/depts/list.vue";
 type Debt = Doc<"debts">;
 
 const mocks = vi.hoisted(() => ({
-  useDepts: vi.fn(),
+  useDebts: vi.fn(),
   update: vi.fn(),
   remove: vi.fn(),
   reorder: vi.fn(),
 }));
 
 vi.mock("../../app/composables/use-depts", () => ({
-  useDepts: mocks.useDepts,
+  useDebts: mocks.useDebts,
 }));
 
 const VueDraggableStub = defineComponent({
@@ -93,16 +93,16 @@ function makeDebt(id: string, creditor: string, payment: number, isPriority = fa
 }
 
 function mountList(items: Debt[]) {
-  const depts = ref(items);
-  mocks.useDepts.mockReturnValue({
-    depts,
+  const debts = ref(items);
+  mocks.useDebts.mockReturnValue({
+    debts,
     update: mocks.update,
     remove: mocks.remove,
     reorder: mocks.reorder,
   });
 
   return {
-    depts,
+    debts,
     wrapper: mount(DeptsList, {
       global: {
         stubs: {
@@ -116,7 +116,7 @@ function mountList(items: Debt[]) {
 }
 
 beforeEach(() => {
-  mocks.useDepts.mockReset();
+  mocks.useDebts.mockReset();
   mocks.update.mockReset();
   mocks.remove.mockReset();
   mocks.reorder.mockReset();
@@ -127,7 +127,7 @@ describe("DeptsList", () => {
   it("renders TanStack columns and reactive debt rows in source order", async () => {
     const first = makeDebt("debt-1", "Visa", 125.5, true);
     const second = makeDebt("debt-2", "Student loan", 300);
-    const { depts, wrapper } = mountList([first, second]);
+    const { debts, wrapper } = mountList([first, second]);
 
     expect(wrapper.findAll("thead th").map((header) => header.text())).toEqual([
       "Order",
@@ -144,7 +144,7 @@ describe("DeptsList", () => {
     expect(wrapper.get(".drag-handle").attributes("aria-label")).toBe("Move Visa, position 1 of 2");
     expect(wrapper.get(".drag-handle").attributes("aria-keyshortcuts")).toBe("ArrowUp ArrowDown");
 
-    depts.value = [makeDebt("debt-3", "Car loan", 450)];
+    debts.value = [makeDebt("debt-3", "Car loan", 450)];
     await nextTick();
 
     expect(wrapper.findAll("tbody tr")).toHaveLength(1);
@@ -257,11 +257,11 @@ describe("DeptsList", () => {
   it("defers reactive server changes until an active drag ends", async () => {
     const first = makeDebt("debt-1", "Visa", 125.5);
     const second = makeDebt("debt-2", "Student loan", 300);
-    const { depts, wrapper } = mountList([first, second]);
+    const { debts, wrapper } = mountList([first, second]);
     const draggable = wrapper.findComponent(VueDraggableStub);
 
     draggable.vm.$emit("start", { oldIndex: 0 });
-    depts.value = [makeDebt("debt-3", "Car loan", 450)];
+    debts.value = [makeDebt("debt-3", "Car loan", 450)];
     await nextTick();
 
     expect(wrapper.text()).toContain("Visa");

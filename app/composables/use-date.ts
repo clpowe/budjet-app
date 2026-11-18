@@ -4,18 +4,11 @@ import {
   getLocalDateKey,
   getLocalDayBounds,
   getNextLocalDate,
+  getNextMonthStart,
 } from "../../convex/lib/want_reserve";
 import { DEFAULT_HOUSEHOLD_TIME_ZONE } from "./use-households";
 
 type TimeZoneInput = MaybeRefOrGetter<string | null | undefined>;
-
-function getNextMonthStart(localDate: string): string {
-  const year = Number(localDate.slice(0, 4));
-  const month = Number(localDate.slice(5, 7));
-  const nextMonth = new Date(Date.UTC(year, month, 1));
-
-  return nextMonth.toISOString().slice(0, 10);
-}
 
 export function useDate(timeZoneInput?: TimeZoneInput) {
   const { effectiveTimeZone } = useHousehold();
@@ -48,7 +41,7 @@ export function useDate(timeZoneInput?: TimeZoneInput) {
     };
   });
 
-  const appDay = computed(() => {
+  const displayDate = computed(() => {
     return format({
       date: currentDate.value,
       format: "MMM D, YYYY",
@@ -60,7 +53,7 @@ export function useDate(timeZoneInput?: TimeZoneInput) {
     return format({
       date: new Date(currentDate.value),
       format: "MMMM",
-      tz: "America/New_York",
+      tz: timeZone.value,
     });
   });
 
@@ -93,7 +86,7 @@ export function useDate(timeZoneInput?: TimeZoneInput) {
     currentDate.value = date;
   }
 
-  function backDay() {
+  function goToPreviousDay() {
     const currentDayStart = getLocalDayBounds(localDate.value, timeZone.value).startTimestamp;
     const previousLocalDate = getLocalDateKey(currentDayStart - 1, timeZone.value);
 
@@ -102,7 +95,7 @@ export function useDate(timeZoneInput?: TimeZoneInput) {
     );
   }
 
-  function forwardDay() {
+  function goToNextDay() {
     const todayLocalDate = getLocalDateKey(Date.now(), timeZone.value);
 
     if (localDate.value >= todayLocalDate) return;
@@ -112,11 +105,11 @@ export function useDate(timeZoneInput?: TimeZoneInput) {
     currentDate.value = new Date(getLocalDayBounds(nextLocalDate, timeZone.value).startTimestamp);
   }
 
-  function backMonth() {
+  function goToPreviousMonth() {
     currentDate.value = addMonth(currentDate.value, -1);
   }
 
-  function forwardMonth() {
+  function goToNextMonth() {
     currentDate.value = addMonth(currentDate.value, 1);
   }
 
@@ -127,11 +120,11 @@ export function useDate(timeZoneInput?: TimeZoneInput) {
     localDate,
     queryDayBounds,
     queryMonthBounds,
-    appDay,
-    backDay,
-    forwardDay,
-    backMonth,
-    forwardMonth,
+    displayDate,
+    goToPreviousDay,
+    goToNextDay,
+    goToPreviousMonth,
+    goToNextMonth,
     setDate,
     elapsedDays,
     totalDaysInMonth,

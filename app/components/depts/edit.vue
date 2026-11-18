@@ -7,14 +7,14 @@ const props = defineProps<{
 
 const emit = defineEmits<(e: "updated", id: Doc<"debts">["_id"]) => void>();
 
-const makeFormState = (dept: Doc<"debts">) => ({
-  name: dept.creditor,
-  amount: dept.payment,
+const makeFormState = (debt: Doc<"debts">) => ({
+  name: debt.creditor,
+  amount: debt.payment,
 });
 
 const formState = ref(makeFormState(props.depts));
 const isSaving = ref(false);
-const { update } = useDepts();
+const { update } = useDebts();
 
 // biome-ignore lint/correctness/noUnusedVariables: used as submit handler in template
 async function handleSubmit() {

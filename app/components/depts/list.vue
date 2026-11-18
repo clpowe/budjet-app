@@ -11,11 +11,11 @@ type DragEvent = {
 };
 
 // biome-ignore lint/correctness/noUnusedVariables: used by template click handler
-const { depts, update, remove, reorder } = useDepts();
+const { debts, update, remove, reorder } = useDebts();
 
 const editDialogs = ref<HTMLDialogElement[]>([]);
-const localDepts = ref<Debt[]>([]);
-const latestServerDepts = ref<Debt[]>([]);
+const localDebts = ref<Debt[]>([]);
+const latestServerDebts = ref<Debt[]>([]);
 const hasServerSnapshot = ref(false);
 const dragSnapshot = ref<Debt[] | null>(null);
 const isDragging = ref(false);
@@ -32,15 +32,15 @@ onMounted(() => {
 });
 
 watch(
-  depts,
+  debts,
   (newVal) => {
     if (!newVal) return;
 
-    latestServerDepts.value = [...newVal];
+    latestServerDebts.value = [...newVal];
     hasServerSnapshot.value = true;
 
     if (!isDragging.value && !isSavingOrder.value) {
-      localDepts.value = [...newVal];
+      localDebts.value = [...newVal];
     }
   },
   { immediate: true },
@@ -73,7 +73,7 @@ const columns = columnHelper.columns([
 const table = useTable({
   features,
   columns,
-  data: localDepts,
+  data: localDebts,
   getRowId: (row) => row._id,
 });
 
@@ -84,11 +84,11 @@ function hasSameOrder(first: Debt[], second: Debt[]) {
 }
 
 function getDebtPosition(id: Id<"debts">) {
-  return localDepts.value.findIndex((debt) => debt._id === id) + 1;
+  return localDebts.value.findIndex((debt) => debt._id === id) + 1;
 }
 
 function getReorderLabel(debt: Debt) {
-  return `Move ${debt.creditor}, position ${getDebtPosition(debt._id)} of ${localDepts.value.length}`;
+  return `Move ${debt.creditor}, position ${getDebtPosition(debt._id)} of ${localDebts.value.length}`;
 }
 
 function suppressNativeDragPreview(dataTransfer: DataTransfer) {
@@ -108,17 +108,17 @@ async function saveOrder(previousOrder: Debt[], movedDebt?: Debt) {
 
   try {
     await reorder({
-      orderedIds: localDepts.value.map((debt) => debt._id),
+      orderedIds: localDebts.value.map((debt) => debt._id),
     });
 
-    latestServerDepts.value = [...localDepts.value];
+    latestServerDebts.value = [...localDebts.value];
     hasServerSnapshot.value = true;
     orderStatus.value = movedDebt
       ? `${movedDebt.creditor} moved to position ${getDebtPosition(movedDebt._id)}. Order saved.`
       : "Debt order saved.";
   } catch {
-    const fallbackOrder = hasServerSnapshot.value ? latestServerDepts.value : previousOrder;
-    localDepts.value = [...fallbackOrder];
+    const fallbackOrder = hasServerSnapshot.value ? latestServerDebts.value : previousOrder;
+    localDebts.value = [...fallbackOrder];
     orderStatus.value = "";
     reorderError.value = "Order couldn’t be saved. The last saved order has been restored.";
   } finally {
@@ -127,52 +127,52 @@ async function saveOrder(previousOrder: Debt[], movedDebt?: Debt) {
 }
 
 function onDragStart(event: DragEvent) {
-  dragSnapshot.value = [...localDepts.value];
+  dragSnapshot.value = [...localDebts.value];
   isDragging.value = true;
   reorderError.value = "";
 
-  const debt = typeof event.oldIndex === "number" ? localDepts.value[event.oldIndex] : undefined;
+  const debt = typeof event.oldIndex === "number" ? localDebts.value[event.oldIndex] : undefined;
   orderStatus.value = debt ? `Moving ${debt.creditor}.` : "Moving debt.";
 }
 
 async function onDragEnd(event: DragEvent) {
-  const previousOrder = dragSnapshot.value ?? [...latestServerDepts.value];
+  const previousOrder = dragSnapshot.value ?? [...latestServerDebts.value];
   dragSnapshot.value = null;
   isDragging.value = false;
 
-  if (hasSameOrder(previousOrder, localDepts.value)) {
-    localDepts.value = [...latestServerDepts.value];
+  if (hasSameOrder(previousOrder, localDebts.value)) {
+    localDebts.value = [...latestServerDebts.value];
     orderStatus.value = "Order unchanged.";
     return;
   }
 
   const movedDebt =
-    typeof event.newIndex === "number" ? localDepts.value[event.newIndex] : undefined;
+    typeof event.newIndex === "number" ? localDebts.value[event.newIndex] : undefined;
   await saveOrder(previousOrder, movedDebt);
 }
 
 async function moveDebt(id: Id<"debts">, direction: -1 | 1) {
   if (isDragging.value || isSavingOrder.value) return;
 
-  const currentIndex = localDepts.value.findIndex((debt) => debt._id === id);
+  const currentIndex = localDebts.value.findIndex((debt) => debt._id === id);
   const targetIndex = currentIndex + direction;
-  const debt = localDepts.value[currentIndex];
+  const debt = localDebts.value[currentIndex];
 
   if (!debt) return;
 
-  if (targetIndex < 0 || targetIndex >= localDepts.value.length) {
+  if (targetIndex < 0 || targetIndex >= localDebts.value.length) {
     orderStatus.value = `${debt.creditor} is already ${direction < 0 ? "first" : "last"}.`;
     return;
   }
 
-  const previousOrder = [...localDepts.value];
-  const nextOrder = [...localDepts.value];
+  const previousOrder = [...localDebts.value];
+  const nextOrder = [...localDebts.value];
   const [movedDebt] = nextOrder.splice(currentIndex, 1);
 
   if (!movedDebt) return;
 
   nextOrder.splice(targetIndex, 0, movedDebt);
-  localDepts.value = nextOrder;
+  localDebts.value = nextOrder;
   await nextTick();
   await saveOrder(previousOrder, movedDebt);
 }
@@ -235,14 +235,14 @@ function onDelete(id: Id<"debts">) {
             </th>
           </tr>
         </thead>
-        <tbody v-if="localDepts.length === 0">
+        <tbody v-if="localDebts.length === 0">
           <tr>
             <td colspan="5">Add a debt to start building your payoff order.</td>
           </tr>
         </tbody>
         <VueDraggable
           v-else
-          v-model="localDepts"
+          v-model="localDebts"
           tag="tbody"
           handle=".drag-handle"
           :animation="dragAnimation"

@@ -112,7 +112,10 @@ describe("WantsList reordering", () => {
 
     await simulatePointerReorder(wrapper, [bike, trip, camera], 0, 2);
 
-    expect(lastReorder(wrapper)).toEqual([bike._id, trip._id, camera._id]);
+    expect(lastReorder(wrapper)).toEqual({
+      expectedItemIds: [camera._id, bike._id, trip._id],
+      itemIds: [bike._id, trip._id, camera._id],
+    });
     expect(renderedNames(wrapper)).toEqual([
       expect.stringContaining("Bike"),
       expect.stringContaining("Trip"),
@@ -126,7 +129,10 @@ describe("WantsList reordering", () => {
     await wrapper.get('button[aria-label="Move Bike up"]').trigger("click");
     await flushPromises();
 
-    expect(lastReorder(wrapper)).toEqual([bike._id, camera._id, trip._id]);
+    expect(lastReorder(wrapper)).toEqual({
+      expectedItemIds: [camera._id, bike._id, trip._id],
+      itemIds: [bike._id, camera._id, trip._id],
+    });
     expect(renderedNames(wrapper)).toEqual([
       expect.stringContaining("Bike"),
       expect.stringContaining("Camera"),

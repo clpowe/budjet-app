@@ -2,13 +2,10 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   allocateReserve,
   calculatePurchaseFunding,
-  calculateRecentPace,
-  calculateTargetDailyAmount,
   getBudgetImpact,
   getLocalDateKey,
   getLocalDayBounds,
   getNextLocalDate,
-  getReorderUpdates,
 } from "../../convex/lib/want_reserve";
 
 describe("allocateReserve", () => {
@@ -58,24 +55,6 @@ describe("allocateReserve", () => {
   });
 });
 
-describe("queue reordering", () => {
-  it("returns consecutive order updates for a complete reorder", () => {
-    expect(getReorderUpdates(["camera", "trip", "speaker"], ["speaker", "camera", "trip"])).toEqual(
-      [
-        { id: "speaker", order: 0 },
-        { id: "camera", order: 1 },
-        { id: "trip", order: 2 },
-      ],
-    );
-  });
-
-  it("rejects duplicate, missing, and unexpected IDs", () => {
-    expect(() => getReorderUpdates(["camera", "trip"], ["camera", "camera"])).toThrow();
-    expect(() => getReorderUpdates(["camera", "trip"], ["camera"])).toThrow();
-    expect(() => getReorderUpdates(["camera", "trip"], ["camera", "speaker"])).toThrow();
-  });
-});
-
 describe("purchase funding", () => {
   it("uses available reserve before impacting the ordinary budget", () => {
     expect(calculatePurchaseFunding(12_000n, 10_000n)).toEqual({
@@ -120,24 +99,5 @@ describe("household-local dates and forecasting", () => {
   it("selects the first full local day after activation", () => {
     expect(getNextLocalDate("2026-03-08", timeZone)).toBe("2026-03-09");
     expect(getNextLocalDate("2026-11-01", timeZone)).toBe("2026-11-02");
-  });
-
-  it("calculates a conservative daily amount for a target date", () => {
-    const today = Date.UTC(2026, 0, 1, 17);
-    const targetDate = Date.UTC(2026, 0, 11, 5);
-
-    expect(calculateTargetDailyAmount(10_000n, targetDate, today, timeZone)).toBe(1_000n);
-    expect(calculateTargetDailyAmount(10_000n, today, today, timeZone)).toBe(10_000n);
-    expect(calculateTargetDailyAmount(0n, targetDate, today, timeZone)).toBe(0n);
-  });
-
-  it("calculates pace from recent positive contributions only", () => {
-    expect(calculateRecentPace([200n, -50n, 100n, 0n])).toEqual({
-      positiveDayCount: 2,
-      totalPositiveCents: 300n,
-      averageDailyCents: 150n,
-    });
-
-    expect(calculateRecentPace([0n, -50n])).toBeNull();
   });
 });

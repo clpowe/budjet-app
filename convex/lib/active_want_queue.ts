@@ -24,6 +24,7 @@ interface RemoveActiveWantOptions extends QueueMutationMetadata {
 
 interface ReorderActiveWantsOptions extends QueueMutationMetadata {
   householdId: Id<"households">;
+  expectedItemIds: readonly Id<"wantItems">[];
   itemIds: readonly Id<"wantItems">[];
 }
 
@@ -153,9 +154,16 @@ export async function removeActiveWant(
 
 export async function reorderActiveWants(
   ctx: MutationCtx,
-  { householdId, itemIds, actorId, now }: ReorderActiveWantsOptions,
-): Promise<void> {
+  { householdId, expectedItemIds, itemIds, actorId, now }: ReorderActiveWantsOptions,
+): Promise<boolean> {
   const activeItems = await loadActiveWantQueue(ctx, householdId);
+
+  if (
+    expectedItemIds.length !== activeItems.length ||
+    activeItems.some((item, index) => item._id !== expectedItemIds[index])
+  ) {
+    return false;
+  }
 
   if (new Set(itemIds).size !== itemIds.length) {
     throw new Error("Requested active item IDs must not contain duplicates");
@@ -186,6 +194,7 @@ export async function reorderActiveWants(
       });
     }
   }
+  return true;
 }
 
 function assertValidActiveQueue(items: Doc<"wantItems">[]): void {

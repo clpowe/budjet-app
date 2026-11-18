@@ -1,11 +1,11 @@
 <script setup lang="ts">
-type MoneyState = {
+type BudgetMetric = {
   value: number;
-  positive: boolean;
+  isWithinBudget: boolean;
 };
 
 const props = defineProps<{
-  amount: MoneyState | number;
+  amount: BudgetMetric | number;
   title: string;
 }>();
 

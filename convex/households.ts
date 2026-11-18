@@ -140,7 +140,7 @@ export const updateTimeZone = mutation({
   },
 });
 
-export const updateHouseholdMembers = mutation({
+export const joinHousehold = mutation({
   args: {
     inviteCode: v.string(),
   },
@@ -198,7 +198,7 @@ export const listHouseholdMembers = query({
   },
 });
 
-export const updateHouseholdMembership = mutation({
+export const leaveHousehold = mutation({
   args: {},
   handler: async (ctx) => {
     const user = await getAuthenticatedUser(ctx);

@@ -786,17 +786,22 @@ export type ExpenseFields = {
 };
 
 function assertExpenseFields(fields: ExpenseFields, now: number, timeZone: string): string {
-  if (fields.amountCents <= 0n) {
+  assertPositiveExpenseAmount(fields.amountCents);
+  const localDate = getLocalDateKey(fields.date, timeZone);
+  assertExpenseDayIsNotFuture(localDate, now, timeZone);
+  return localDate;
+}
+
+function assertPositiveExpenseAmount(amountCents: bigint): void {
+  if (amountCents <= 0n) {
     throw new Error("Expense amount must be greater than zero");
   }
+}
 
-  const localDate = getLocalDateKey(fields.date, timeZone);
-
+function assertExpenseDayIsNotFuture(localDate: string, now: number, timeZone: string): void {
   if (localDate > getLocalDateKey(now, timeZone)) {
     throw new Error("Expense date cannot be in the future");
   }
-
-  return localDate;
 }
 
 function assertEverydayExpense(expense: Doc<"expenses">): void {
@@ -846,12 +851,30 @@ export async function editExpense(
   }: {
     household: Doc<"households">;
     expense: Doc<"expenses">;
-    fields: ExpenseFields;
+    fields: Omit<ExpenseFields, "date"> & { date?: number; localDate?: string };
     now: number;
   },
 ): Promise<ReserveResult> {
   assertEverydayExpense(expense);
-  assertExpenseFields(fields, now, getEffectiveTimeZone(household, now));
+  assertPositiveExpenseAmount(fields.amountCents);
+  const timeZone = getEffectiveTimeZone(household, now);
+  const before = toExpenseFacts(expense, timeZone);
+
+  // The local date identifies an intentional move even if its midnight
+  // happens to equal the original timestamp. Older clients send a timestamp.
+  let date = fields.date ?? expense.date;
+  let localDate = before.localDate;
+  if (fields.localDate !== undefined && fields.localDate !== before.localDate) {
+    localDate = fields.localDate;
+    date = getLocalDayBounds(localDate, timeZone).startTimestamp;
+    if (getLocalDateKey(date, timeZone) !== localDate) {
+      throw new Error("Expense date does not exist in the household time zone");
+    }
+    assertExpenseDayIsNotFuture(localDate, now, timeZone);
+  } else if (date !== expense.date) {
+    localDate = getLocalDateKey(date, timeZone);
+    assertExpenseDayIsNotFuture(localDate, now, timeZone);
+  }
 
   const account = await openCurrentAccount(ctx, household, now);
 
@@ -859,19 +882,12 @@ export async function editExpense(
     return SYNCING;
   }
 
-  const timeZone = getEffectiveTimeZone(account.household, now);
-  const movedLocalDate = assertExpenseFields(fields, now, timeZone);
-  const before = toExpenseFacts(expense, timeZone);
-  // Keeping the timestamp keeps the day it was recorded against; moving it
-  // re-keys it in today's effective zone.
-  const localDate = fields.date === expense.date ? before.localDate : movedLocalDate;
-
   await ctx.db.patch("expenses", expense._id, {
     name: fields.name,
     notes: fields.notes,
     amount: centsToLegacyDollars(fields.amountCents),
     amountCents: fields.amountCents,
-    date: fields.date,
+    date,
     localDate,
   });
 

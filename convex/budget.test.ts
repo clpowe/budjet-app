@@ -8,8 +8,6 @@ import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 const march10AtNoonNewYork = Date.UTC(2026, 2, 10, 16);
-const marchStartNewYork = Date.UTC(2026, 2, 1, 5);
-const aprilStartNewYork = Date.UTC(2026, 3, 1, 4);
 
 describe("calculateSafeToSpendCents", () => {
   test.each([
@@ -270,8 +268,7 @@ test("marks want purchases and returns exact reserve and budget-impact cents", a
   const transactions = await t
     .withIdentity({ tokenIdentifier: "test|owner" })
     .query(api.expenses.listMonthlyTransactions, {
-      from: marchStartNewYork,
-      to: aprilStartNewYork,
+      asOfTimestamp: march10AtNoonNewYork,
     });
 
   expect(transactions).toEqual([
