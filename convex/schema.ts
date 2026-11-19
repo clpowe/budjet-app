@@ -79,13 +79,11 @@ export default defineSchema({
     .index("by_household_and_status", ["householdId", "status"])
     .index("by_household_and_status_and_order", ["householdId", "status", "order"]),
 
-  dailyBudgetRollups: defineTable({
+  dailyBudgetTotals: defineTable({
     householdId: v.id("households"),
     localDate: v.string(),
-    expenseCents: v.int64(),
-    savingsFundedExpenseCents: v.optional(v.int64()),
-    reserveFundedExpenseCents: v.int64(),
-    budgetImpactExpenseCents: v.int64(),
+    totalSpentCents: v.int64(),
+    spentFromSavingsCents: v.int64(),
     updatedAt: v.number(),
   }).index("by_household_and_local_date", ["householdId", "localDate"]),
 

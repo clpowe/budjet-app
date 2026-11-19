@@ -48,13 +48,11 @@ async function seedSavingsPosition(
   await ctx.db.patch(householdId, { savingsStartLocalDate: startLocalDate });
 
   if (spentCents > 0n) {
-    await ctx.db.insert("dailyBudgetRollups", {
+    await ctx.db.insert("dailyBudgetTotals", {
       householdId,
       localDate: startLocalDate,
-      expenseCents: spentCents,
-      savingsFundedExpenseCents: 0n,
-      reserveFundedExpenseCents: 0n,
-      budgetImpactExpenseCents: spentCents,
+      totalSpentCents: spentCents,
+      spentFromSavingsCents: 0n,
       updatedAt: 0,
     });
   }
@@ -180,7 +178,7 @@ async function readSnapshot(
       .withIndex("by_household_and_local_date", (q) => q.eq("householdId", householdId))
       .collect();
     const rollups = await ctx.db
-      .query("dailyBudgetRollups")
+      .query("dailyBudgetTotals")
       .withIndex("by_household_and_local_date", (q) => q.eq("householdId", householdId))
       .collect();
     const wants = await ctx.db
@@ -278,10 +276,10 @@ test.each([
       order: 0,
     });
     expect(rollup).toMatchObject({
-      expenseCents: actualAmountCents,
-      savingsFundedExpenseCents: savingsUsedCents,
-      budgetImpactExpenseCents: budgetImpactCents,
+      totalSpentCents: actualAmountCents,
+      spentFromSavingsCents: savingsUsedCents,
     });
+    expect(rollup!.totalSpentCents - rollup!.spentFromSavingsCents).toBe(budgetImpactCents);
   },
 );
 
@@ -597,9 +595,8 @@ test("corrects the linked purchase in place and recalculates exact funding", asy
     wantItemId: seeded.cameraId,
   });
   expect(rollup).toMatchObject({
-    expenseCents: 8_000n,
-    savingsFundedExpenseCents: 8_000n,
-    budgetImpactExpenseCents: 0n,
+    totalSpentCents: 8_000n,
+    spentFromSavingsCents: 8_000n,
   });
   expect(corrected.savings.positionCents).toBe(2_000n);
   expect(corrected.wants.find((item) => item._id === seeded.cameraId)).toMatchObject({
@@ -642,9 +639,8 @@ test("undoes a purchase, reverses its rollup, and restores the item at the queue
 
   expect(undone.expenses).toEqual([]);
   expect(rollup).toMatchObject({
-    expenseCents: 0n,
-    savingsFundedExpenseCents: 0n,
-    budgetImpactExpenseCents: 0n,
+    totalSpentCents: 0n,
+    spentFromSavingsCents: 0n,
   });
   expect(undone.savings.positionCents).toBe(10_000n);
   expect(trip).toMatchObject({
@@ -702,9 +698,8 @@ test("correcting a past purchase recomputes funding without it and corrects the 
   const corrected = await readSnapshot(t, seeded.householdId);
 
   expect(corrected.rollups.find((rollup) => rollup.localDate === purchaseLocalDate)).toMatchObject({
-    expenseCents: 8_000n,
-    savingsFundedExpenseCents: 8_000n,
-    budgetImpactExpenseCents: 0n,
+    totalSpentCents: 8_000n,
+    spentFromSavingsCents: 8_000n,
   });
   expect(corrected.savings.positionCents).toBe(12_000n);
 });
@@ -729,8 +724,8 @@ test("undoing a closed-day purchase after a time-zone change reverses its origin
   expect(undone.expenses).toEqual([]);
   expect(undone.rollups.find((rollup) => rollup.localDate === "2026-03-09")).toBeUndefined();
   expect(undone.rollups.find((rollup) => rollup.localDate === purchaseLocalDate)).toMatchObject({
-    expenseCents: 0n,
-    budgetImpactExpenseCents: 0n,
+    totalSpentCents: 0n,
+    spentFromSavingsCents: 0n,
   });
   // $100 start + $50 (Mar 10, corrected) + $50 (Mar 11), as if never bought.
   expect(undone.savings.positionCents).toBe(20_000n);

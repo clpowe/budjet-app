@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import { getEffectiveTimeZone } from "./households";
-import { toExpenseFacts } from "./lib/daily_budget_rollups";
+import { toExpenseFacts } from "./lib/daily_budget_totals";
 import { getHouseholdId } from "./lib/helpers";
 import { requireHouseholdDoc, requireHouseholdMember } from "./lib/household_access";
 import { addExpense, editExpense, removeExpense } from "./lib/savings_account";

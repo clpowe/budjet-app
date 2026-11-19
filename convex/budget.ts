@@ -96,11 +96,10 @@ export const getHomeSummary = query({
 
     const monthToDateSpending = rollups.reduce(
       (sum, rollup) => ({
-        expenseCents: sum.expenseCents + rollup.expenseCents,
-        savingsFundedCents:
-          sum.savingsFundedCents +
-          (rollup.savingsFundedExpenseCents ?? rollup.reserveFundedExpenseCents),
-        budgetImpactCents: sum.budgetImpactCents + rollup.budgetImpactExpenseCents,
+        expenseCents: sum.expenseCents + rollup.totalSpentCents,
+        savingsFundedCents: sum.savingsFundedCents + rollup.spentFromSavingsCents,
+        budgetImpactCents:
+          sum.budgetImpactCents + (rollup.totalSpentCents - rollup.spentFromSavingsCents),
       }),
       {
         expenseCents: 0n,
@@ -120,7 +119,7 @@ export const getHomeSummary = query({
       timeZone,
     });
     const currentDayRollup = rollups.find((rollup) => rollup.localDate === period.currentLocalDate);
-    const todayExpenseCents = currentDayRollup?.expenseCents ?? 0n;
+    const todayExpenseCents = currentDayRollup?.totalSpentCents ?? 0n;
     // Safe-to-spend uses the product's fixed 30-day plan even though pace is
     // reported for the household's calendar month to date.
     const planAllowanceCents = currentSavings.dailyAllowanceCents * DAYS_IN_PLAN;

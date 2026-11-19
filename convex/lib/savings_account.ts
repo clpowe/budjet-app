@@ -8,7 +8,7 @@ import { calculateSavings, type Savings } from "../../shared/utils/savings";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { getEffectiveTimeZone } from "../households";
-import { applyExpenseDelta, toExpenseFacts } from "./daily_budget_rollups";
+import { applyExpenseDelta, toExpenseFacts } from "./daily_budget_totals";
 import { calculatePurchaseFunding } from "./want_savings";
 
 /*
@@ -42,9 +42,9 @@ export type SavingsSnapshot = Savings & {
   budgetImpactExpenseCents: bigint;
 };
 
-async function loadRollup(ctx: DatabaseCtx, householdId: Id<"households">, localDate: string) {
+async function loadTotals(ctx: DatabaseCtx, householdId: Id<"households">, localDate: string) {
   return await ctx.db
-    .query("dailyBudgetRollups")
+    .query("dailyBudgetTotals")
     .withIndex("by_household_and_local_date", (q) =>
       q.eq("householdId", householdId).eq("localDate", localDate),
     )
@@ -60,14 +60,14 @@ async function sumSpentCents(
   let totalCents = 0n;
 
   for await (const rollup of ctx.db
-    .query("dailyBudgetRollups")
+    .query("dailyBudgetTotals")
     .withIndex("by_household_and_local_date", (q) =>
       q
         .eq("householdId", householdId)
         .gte("localDate", startInclusive)
         .lt("localDate", endExclusive),
     )) {
-    totalCents += rollup.expenseCents;
+    totalCents += rollup.totalSpentCents;
   }
 
   return totalCents;
@@ -95,13 +95,12 @@ export async function getSavingsSnapshot(
     hasClosedDays
       ? sumSpentCents(ctx, household._id, firstEligibleLocalDate, localDate)
       : Promise.resolve(0n),
-    loadRollup(ctx, household._id, localDate),
+    loadTotals(ctx, household._id, localDate),
   ]);
 
   let closedSpent = closedSpentCents;
-  let todaySpent = todayRollup?.expenseCents ?? 0n;
-  let todayFromSavings =
-    todayRollup?.savingsFundedExpenseCents ?? todayRollup?.reserveFundedExpenseCents ?? 0n;
+  let todaySpent = todayRollup?.totalSpentCents ?? 0n;
+  let todayFromSavings = todayRollup?.spentFromSavingsCents ?? 0n;
 
   if (excluding) {
     if (excluding.localDate === localDate) {
@@ -166,9 +165,9 @@ export async function listSavingsActivity(
     startLocalDate,
     endExclusiveLocalDate,
   }: { startLocalDate: string; endExclusiveLocalDate: string },
-): Promise<{ rollups: Doc<"dailyBudgetRollups">[] }> {
+): Promise<{ rollups: Doc<"dailyBudgetTotals">[] }> {
   const rollups = await ctx.db
-    .query("dailyBudgetRollups")
+    .query("dailyBudgetTotals")
     .withIndex("by_household_and_local_date", (q) =>
       q
         .eq("householdId", householdId)
@@ -196,7 +195,10 @@ export function sumClosedPositiveContributions({
   endExclusiveLocalDate,
   timeZone,
 }: {
-  rollups: readonly Pick<Doc<"dailyBudgetRollups">, "localDate" | "budgetImpactExpenseCents">[];
+  rollups: readonly Pick<
+    Doc<"dailyBudgetTotals">,
+    "localDate" | "totalSpentCents" | "spentFromSavingsCents"
+  >[];
   allowanceCents: bigint;
   firstEligibleLocalDate: string | undefined;
   todayLocalDate: string;
@@ -209,7 +211,10 @@ export function sumClosedPositiveContributions({
   }
 
   const budgetImpactByDate = new Map(
-    rollups.map((rollup) => [rollup.localDate, rollup.budgetImpactExpenseCents]),
+    rollups.map((rollup) => [
+      rollup.localDate,
+      rollup.totalSpentCents - rollup.spentFromSavingsCents,
+    ]),
   );
   const endLocalDate =
     endExclusiveLocalDate < todayLocalDate ? endExclusiveLocalDate : todayLocalDate;

@@ -28,23 +28,19 @@ test("assembles the live savings snapshot from the household and its rollups", a
     });
     // March 9 is the one closed eligible day: $55 earned, $45 spent -> $10 of savings.
     await ctx.db.patch(householdId, { savingsStartLocalDate: "2026-03-09" });
-    await ctx.db.insert("dailyBudgetRollups", {
+    await ctx.db.insert("dailyBudgetTotals", {
       householdId,
       localDate: "2026-03-09",
-      expenseCents: 4_500n,
-      savingsFundedExpenseCents: 0n,
-      reserveFundedExpenseCents: 0n,
-      budgetImpactExpenseCents: 4_500n,
+      totalSpentCents: 4_500n,
+      spentFromSavingsCents: 0n,
       updatedAt: 0,
     });
 
-    await ctx.db.insert("dailyBudgetRollups", {
+    await ctx.db.insert("dailyBudgetTotals", {
       householdId,
       localDate: "2026-03-10",
-      expenseCents: 7_000n,
-      savingsFundedExpenseCents: 0n,
-      reserveFundedExpenseCents: 0n,
-      budgetImpactExpenseCents: 7_000n,
+      totalSpentCents: 7_000n,
+      spentFromSavingsCents: 0n,
       updatedAt: 0,
     });
 
@@ -136,8 +132,8 @@ describe("sumClosedPositiveContributions", () => {
       sumClosedPositiveContributions({
         ...base,
         rollups: [
-          { localDate: "2026-03-01", budgetImpactExpenseCents: 7_000n },
-          { localDate: "2026-03-02", budgetImpactExpenseCents: 1_000n },
+          { localDate: "2026-03-01", totalSpentCents: 7_000n, spentFromSavingsCents: 0n },
+          { localDate: "2026-03-02", totalSpentCents: 1_000n, spentFromSavingsCents: 0n },
         ],
         firstEligibleLocalDate: "2026-03-01",
         todayLocalDate: "2026-03-03",

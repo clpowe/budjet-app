@@ -122,22 +122,18 @@ test("reports open-day underspending as potential instead of funded savings", as
     });
     // One closed day (Mar 9): $55 earned, $25 spent -> $30 of savings.
     await ctx.db.patch(seeded.householdId, { savingsStartLocalDate: "2026-03-09" });
-    await ctx.db.insert("dailyBudgetRollups", {
+    await ctx.db.insert("dailyBudgetTotals", {
       householdId: seeded.householdId,
       localDate: "2026-03-09",
-      expenseCents: 2_500n,
-      savingsFundedExpenseCents: 0n,
-      reserveFundedExpenseCents: 0n,
-      budgetImpactExpenseCents: 2_500n,
+      totalSpentCents: 2_500n,
+      spentFromSavingsCents: 0n,
       updatedAt: 0,
     });
-    await ctx.db.insert("dailyBudgetRollups", {
+    await ctx.db.insert("dailyBudgetTotals", {
       householdId: seeded.householdId,
       localDate: "2026-03-10",
-      expenseCents: 3_000n,
-      savingsFundedExpenseCents: 0n,
-      reserveFundedExpenseCents: 0n,
-      budgetImpactExpenseCents: 3_000n,
+      totalSpentCents: 3_000n,
+      spentFromSavingsCents: 0n,
       updatedAt: 0,
     });
   });
@@ -183,22 +179,18 @@ test("immediately reduces visible progress when open-day spending exceeds allowa
     });
     // One closed day (Mar 9): $55 earned, $45 spent -> $10 of savings.
     await ctx.db.patch(seeded.householdId, { savingsStartLocalDate: "2026-03-09" });
-    await ctx.db.insert("dailyBudgetRollups", {
+    await ctx.db.insert("dailyBudgetTotals", {
       householdId: seeded.householdId,
       localDate: "2026-03-09",
-      expenseCents: 4_500n,
-      savingsFundedExpenseCents: 0n,
-      reserveFundedExpenseCents: 0n,
-      budgetImpactExpenseCents: 4_500n,
+      totalSpentCents: 4_500n,
+      spentFromSavingsCents: 0n,
       updatedAt: 0,
     });
-    await ctx.db.insert("dailyBudgetRollups", {
+    await ctx.db.insert("dailyBudgetTotals", {
       householdId: seeded.householdId,
       localDate: "2026-03-10",
-      expenseCents: 7_000n,
-      savingsFundedExpenseCents: 0n,
-      reserveFundedExpenseCents: 0n,
-      budgetImpactExpenseCents: 7_000n,
+      totalSpentCents: 7_000n,
+      spentFromSavingsCents: 0n,
       updatedAt: 0,
     });
   });

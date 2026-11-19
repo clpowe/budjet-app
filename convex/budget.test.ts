@@ -81,31 +81,25 @@ test("derives one nested month-to-date summary and excludes future local-date ro
   const seeded = await seedHousehold(t);
 
   const cameraId = await t.run(async (ctx) => {
-    await ctx.db.insert("dailyBudgetRollups", {
+    await ctx.db.insert("dailyBudgetTotals", {
       householdId: seeded.householdId,
       localDate: "2026-03-05",
-      expenseCents: 4_000n,
-      savingsFundedExpenseCents: 1_000n,
-      reserveFundedExpenseCents: 1_000n,
-      budgetImpactExpenseCents: 3_000n,
+      totalSpentCents: 4_000n,
+      spentFromSavingsCents: 1_000n,
       updatedAt: 0,
     });
-    await ctx.db.insert("dailyBudgetRollups", {
+    await ctx.db.insert("dailyBudgetTotals", {
       householdId: seeded.householdId,
       localDate: "2026-03-10",
-      expenseCents: 7_000n,
-      savingsFundedExpenseCents: 0n,
-      reserveFundedExpenseCents: 0n,
-      budgetImpactExpenseCents: 7_000n,
+      totalSpentCents: 7_000n,
+      spentFromSavingsCents: 0n,
       updatedAt: 0,
     });
-    await ctx.db.insert("dailyBudgetRollups", {
+    await ctx.db.insert("dailyBudgetTotals", {
       householdId: seeded.householdId,
       localDate: "2026-03-11",
-      expenseCents: 100_000n,
-      savingsFundedExpenseCents: 0n,
-      reserveFundedExpenseCents: 0n,
-      budgetImpactExpenseCents: 100_000n,
+      totalSpentCents: 100_000n,
+      spentFromSavingsCents: 0n,
       updatedAt: 0,
     });
     // Only March 9 is a closed eligible day, with no spending: it earns the full $50.
@@ -182,13 +176,11 @@ test("rejects a 32nd monthly rollup as a corrupted month invariant", async () =>
 
   await t.run(async (ctx) => {
     for (let index = 0; index < 32; index += 1) {
-      await ctx.db.insert("dailyBudgetRollups", {
+      await ctx.db.insert("dailyBudgetTotals", {
         householdId: seeded.householdId,
         localDate: "2026-03-05",
-        expenseCents: 1n,
-        savingsFundedExpenseCents: 0n,
-        reserveFundedExpenseCents: 0n,
-        budgetImpactExpenseCents: 1n,
+        totalSpentCents: 1n,
+        spentFromSavingsCents: 0n,
         updatedAt: index,
       });
     }
@@ -207,13 +199,11 @@ test("rejects duplicate monthly rollup local dates below the row cap", async () 
 
   await t.run(async (ctx) => {
     for (let index = 0; index < 2; index += 1) {
-      await ctx.db.insert("dailyBudgetRollups", {
+      await ctx.db.insert("dailyBudgetTotals", {
         householdId: seeded.householdId,
         localDate: "2026-03-05",
-        expenseCents: 1n,
-        savingsFundedExpenseCents: 0n,
-        reserveFundedExpenseCents: 0n,
-        budgetImpactExpenseCents: 1n,
+        totalSpentCents: 1n,
+        spentFromSavingsCents: 0n,
         updatedAt: index,
       });
     }

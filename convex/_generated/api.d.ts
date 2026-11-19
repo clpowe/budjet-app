@@ -17,7 +17,7 @@ import type * as households from "../households.js";
 import type * as http from "../http.js";
 import type * as lib_active_want_queue from "../lib/active_want_queue.js";
 import type * as lib_auth_origin from "../lib/auth_origin.js";
-import type * as lib_daily_budget_rollups from "../lib/daily_budget_rollups.js";
+import type * as lib_daily_budget_totals from "../lib/daily_budget_totals.js";
 import type * as lib_helpers from "../lib/helpers.js";
 import type * as lib_household_access from "../lib/household_access.js";
 import type * as lib_savings_account from "../lib/savings_account.js";
@@ -44,7 +44,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "lib/active_want_queue": typeof lib_active_want_queue;
   "lib/auth_origin": typeof lib_auth_origin;
-  "lib/daily_budget_rollups": typeof lib_daily_budget_rollups;
+  "lib/daily_budget_totals": typeof lib_daily_budget_totals;
   "lib/helpers": typeof lib_helpers;
   "lib/household_access": typeof lib_household_access;
   "lib/savings_account": typeof lib_savings_account;
