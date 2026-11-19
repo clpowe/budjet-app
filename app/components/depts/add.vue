@@ -2,7 +2,7 @@
 import { api } from "../../../convex/_generated/api";
 
 const { data: user, isPending: userLoading } = useConvexQuery(api.users.getCurrentUser, {});
-const { currentDate, timeZone, formatDateInput, toTransactionTimestamp } = useDate();
+const { currentDate, timeZone, formatDateInput } = useDate();
 
 const makeFormState = (date: string) => ({
   name: "",
@@ -56,7 +56,7 @@ async function handleSubmit() {
       name,
       notes,
       amountCents: legacyDollarsToCents(amount),
-      date: toTransactionTimestamp(date),
+      localDate: date,
     });
 
     formState.value = makeFormState(date);

@@ -2,12 +2,12 @@ import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
 
 export function useWindfall() {
-  const { data: windfall } = useConvexQuery(api.windfall.listWindfall);
-  const { mutate: deleteWindfall } = useConvexMutation(api.windfall.deleteWindfall);
+  const { data: windfall } = useConvexQuery(api.income.listIncome);
+  const { mutate: deleteIncome } = useConvexMutation(api.income.deleteIncome);
 
-  const { data: windfallTotal } = useConvexQuery(api.windfall.getMyWindfallTotal, {});
+  const { data: windfallTotal } = useConvexQuery(api.income.getMyIncomeTotal, {});
 
-  const remove = (id: Doc<"windfall">["_id"]) => deleteWindfall({ windfallId: id });
+  const remove = (id: Doc<"income">["_id"]) => deleteIncome({ incomeId: id });
 
   return { windfall, windfallTotal, remove };
 }

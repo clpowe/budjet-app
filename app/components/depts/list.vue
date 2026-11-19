@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { FlexRender, createColumnHelper, tableFeatures, useTable } from "@tanstack/vue-table";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { formatMoney } from "../../../shared/utils/format-money";
+import { formatCents } from "../../../shared/utils/money-cents";
 import { VueDraggable } from "vue-draggable-plus";
 
 type Debt = Doc<"debts">;
@@ -60,9 +60,10 @@ const columns = columnHelper.columns([
     header: "Creditor",
     cell: (context) => context.getValue(),
   }),
-  columnHelper.accessor("payment", {
+  columnHelper.accessor("paymentCents", {
+    id: "payment",
     header: "Payment",
-    cell: (context) => formatMoney(context.getValue()),
+    cell: (context) => formatCents(context.getValue()),
   }),
   columnHelper.display({
     id: "actions",

@@ -10,11 +10,11 @@ describe("sumDebtPayments", () => {
   it("sums every household debt payment, including debts outside the priority list", () => {
     expect(
       sumDebtPayments([
-        { isPriority: false, payment: 350 },
-        { isPriority: false, payment: 500 },
-        { isPriority: true, payment: 200 },
+        { isPriority: false, paymentCents: 35_000n },
+        { isPriority: false, paymentCents: 50_000n },
+        { isPriority: true, paymentCents: 20_000n },
       ]),
-    ).toBe(1050);
+    ).toBe(105_000n);
   });
 });
 

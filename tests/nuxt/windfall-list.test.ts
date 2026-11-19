@@ -6,7 +6,7 @@ import type { Doc } from "../../convex/_generated/dataModel";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
 import WindfallList from "../../app/components/windfall/list.vue";
 
-type Windfall = Doc<"windfall">;
+type Windfall = Doc<"income">;
 
 const mockState = vi.hoisted(() => ({
   remove: vi.fn(),
@@ -51,13 +51,13 @@ mockComponent("WindfallEdit", async () => {
 const income = {
   _id: "income-id",
   source: "Paycheck",
-  amount: 1250.5,
+  amountCents: 125_050n,
 } as Windfall;
 
 const outflow = {
   _id: "outflow-id",
   source: "Car repair",
-  amount: -375,
+  amountCents: -37_500n,
 } as Windfall;
 
 function mountList() {

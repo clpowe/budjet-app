@@ -18,20 +18,22 @@ async function seed(t: TestConvex<typeof schema>) {
     const { householdId: otherHouseholdId } = await insertHousehold(ctx, { owner: "other" });
     await insertUser(ctx, "homeless");
 
-    const ownWindfallId = await ctx.db.insert("windfall", {
+    const ownIncomeId = await ctx.db.insert("income", {
       source: "Bonus",
       notes: "",
       householdId,
-      amount: 100,
+      amountCents: 10_000n,
+      localDate: "2026-03-01",
     });
-    const otherWindfallId = await ctx.db.insert("windfall", {
+    const otherIncomeId = await ctx.db.insert("income", {
       source: "Gift",
       notes: "",
       householdId: otherHouseholdId,
-      amount: 50,
+      amountCents: 5_000n,
+      localDate: "2026-03-01",
     });
 
-    return { memberId, householdId, otherHouseholdId, ownWindfallId, otherWindfallId };
+    return { memberId, householdId, otherHouseholdId, ownIncomeId, otherIncomeId };
   });
 }
 
@@ -102,34 +104,34 @@ test("findHouseholdMember returns null instead of throwing", async () => {
 
 test("requireHouseholdDoc returns a document from the caller's household", async () => {
   const t = convexTest(schema, modules);
-  const { householdId, ownWindfallId } = await seed(t);
+  const { householdId, ownIncomeId } = await seed(t);
 
   const doc = await t.run((ctx) =>
-    requireHouseholdDoc(ctx, "windfall", ownWindfallId, householdId, "Windfall not found"),
+    requireHouseholdDoc(ctx, "income", ownIncomeId, householdId, "Income not found"),
   );
 
-  expect(doc._id).toBe(ownWindfallId);
+  expect(doc._id).toBe(ownIncomeId);
 });
 
 test("requireHouseholdDoc hides another household's document", async () => {
   const t = convexTest(schema, modules);
-  const { householdId, otherWindfallId } = await seed(t);
+  const { householdId, otherIncomeId } = await seed(t);
 
   await expect(
     t.run((ctx) =>
-      requireHouseholdDoc(ctx, "windfall", otherWindfallId, householdId, "Windfall not found"),
+      requireHouseholdDoc(ctx, "income", otherIncomeId, householdId, "Income not found"),
     ),
-  ).rejects.toThrow("Windfall not found");
+  ).rejects.toThrow("Income not found");
 });
 
 test("requireHouseholdDoc treats a deleted document as not found", async () => {
   const t = convexTest(schema, modules);
-  const { householdId, ownWindfallId } = await seed(t);
-  await t.run((ctx) => ctx.db.delete("windfall", ownWindfallId));
+  const { householdId, ownIncomeId } = await seed(t);
+  await t.run((ctx) => ctx.db.delete("income", ownIncomeId));
 
   await expect(
     t.run((ctx) =>
-      requireHouseholdDoc(ctx, "windfall", ownWindfallId, householdId, "Windfall not found"),
+      requireHouseholdDoc(ctx, "income", ownIncomeId, householdId, "Income not found"),
     ),
-  ).rejects.toThrow("Windfall not found");
+  ).rejects.toThrow("Income not found");
 });

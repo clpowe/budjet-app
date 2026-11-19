@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Doc } from "../../../convex/_generated/dataModel";
+import { legacyDollarsToCents } from "../../../shared/utils/money-cents";
 
 const props = defineProps<{
   depts: Doc<"debts">;
@@ -9,7 +10,7 @@ const emit = defineEmits<(e: "updated", id: Doc<"debts">["_id"]) => void>();
 
 const makeFormState = (debt: Doc<"debts">) => ({
   name: debt.creditor,
-  amount: debt.payment,
+  amount: Number(debt.paymentCents) / 100,
 });
 
 const formState = ref(makeFormState(props.depts));
@@ -27,7 +28,7 @@ async function handleSubmit() {
     await update({
       id: props.depts._id,
       creditor: name,
-      payment: amount,
+      paymentCents: legacyDollarsToCents(amount),
     });
 
     emit("updated", props.depts._id);

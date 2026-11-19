@@ -36,19 +36,21 @@ export default defineSchema({
     savingsUsedCents: v.optional(v.int64()),
   }).index("by_household_and_local_date", ["householdId", "localDate"]),
 
-  windfall: defineTable({
+  income: defineTable({
+    householdId: v.id("households"),
     source: v.string(),
     notes: v.string(),
-    householdId: v.id("households"),
-    amount: v.number(),
-    date: v.optional(v.number()),
-  }).index("by_household_date", ["householdId", "date"]),
+    /** Signed: a negative amount is a one-off outflow. */
+    amountCents: v.int64(),
+    /** Household-local YYYY-MM-DD. */
+    localDate: v.string(),
+  }).index("by_household_and_local_date", ["householdId", "localDate"]),
 
   debts: defineTable({
     creditor: v.string(),
     isPriority: v.boolean(),
     householdId: v.id("households"),
-    payment: v.number(),
+    paymentCents: v.int64(),
     order: v.optional(v.number()),
   })
     .index("by_household", ["householdId"])

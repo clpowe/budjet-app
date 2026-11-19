@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { api } from "../../../convex/_generated/api";
+import { legacyDollarsToCents } from "../../../shared/utils/money-cents";
 
 const props = defineProps<{
   drawerId?: string;
 }>();
 
 const { data: user, isPending: userLoading } = useConvexQuery(api.users.getCurrentUser, {});
-const { currentDate, timeZone, formatDateInput, toTransactionTimestamp } = useDate();
+const { currentDate, timeZone, formatDateInput } = useDate();
 
 const makeFormState = (date = formatDateInput(currentDate.value)) => ({
   name: "",
@@ -17,7 +18,7 @@ const makeFormState = (date = formatDateInput(currentDate.value)) => ({
 
 const formState = ref(makeFormState());
 const submitError = ref("");
-const { mutate: add, isPending: isSaving } = useConvexMutation(api.windfall.addWindfallTransaction);
+const { mutate: add, isPending: isSaving } = useConvexMutation(api.income.addIncome);
 
 watch([currentDate, timeZone], ([nextDate]) => {
   formState.value = {
@@ -43,8 +44,8 @@ async function handleSubmit() {
     await add({
       source: name,
       notes,
-      amount,
-      date: toTransactionTimestamp(date),
+      amountCents: legacyDollarsToCents(amount),
+      localDate: date,
     });
 
     formState.value = makeFormState();

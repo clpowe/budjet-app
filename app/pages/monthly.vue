@@ -40,7 +40,9 @@ const calculateDayTotal = (dateKey: string) => {
   const group = groupedTransactions.value[dateKey];
   if (!group) return 0;
   return group.reduce((acc, tx) => {
-    return acc + (tx.type === "expense" ? -Number(tx.amountCents) / 100 : tx.amount);
+    const dollars = Number(tx.amountCents) / 100;
+
+    return acc + (tx.type === "expense" ? -dollars : dollars);
   }, 0);
 };
 
@@ -82,10 +84,7 @@ const currentMonthYear = computed(() => {
                 </td>
                 <td>
                   <span>
-                    {{ tx.type === "expense" ? "-" : "+"
-                    }}{{
-                      tx.type === "expense" ? formatCents(tx.amountCents) : formatMoney(tx.amount)
-                    }}
+                    {{ tx.type === "expense" ? "-" : "+" }}{{ formatCents(tx.amountCents) }}
                   </span>
                   <p v-if="tx.type === 'expense' && tx.savingsUsedCents > 0n">
                     {{ formatCents(tx.amountCents) }} total ·
@@ -94,7 +93,7 @@ const currentMonthYear = computed(() => {
                   </p>
                 </td>
                 <td>
-                  <span v-if="tx.type === 'windfall'">Windfall</span>
+                  <span v-if="tx.type === 'income'">Windfall</span>
                 </td>
               </tr>
             </tbody>

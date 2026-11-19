@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { createColumnHelper, FlexRender, tableFeatures, useTable } from "@tanstack/vue-table";
 import type { Doc } from "../../../convex/_generated/dataModel";
+import { formatCents } from "../../../shared/utils/money-cents";
 
 const { windfall, remove } = useWindfall();
 const editDialogs = ref<HTMLDialogElement[]>([]);
 
-function onDelete(id: Doc<"windfall">["_id"]) {
+function onDelete(id: Doc<"income">["_id"]) {
   remove(id);
 }
 
@@ -18,14 +19,15 @@ function openWindfallDialog(id: string) {
 }
 
 const features = tableFeatures({});
-const columnHelper = createColumnHelper<typeof features, Doc<"windfall">>();
+const columnHelper = createColumnHelper<typeof features, Doc<"income">>();
 const columns = columnHelper.columns([
   columnHelper.accessor("source", {
     header: "Name",
   }),
-  columnHelper.accessor("amount", {
+  columnHelper.accessor("amountCents", {
+    id: "amount",
     header: "Value",
-    cell: ({ getValue }) => formatMoney(getValue()),
+    cell: ({ getValue }) => formatCents(getValue()),
   }),
   columnHelper.display({
     id: "actions",
@@ -34,11 +36,11 @@ const columns = columnHelper.columns([
 ]);
 
 const income = computed(() => {
-  return windfall.value?.filter(({ amount }) => amount > 0) ?? [];
+  return windfall.value?.filter(({ amountCents }) => amountCents > 0n) ?? [];
 });
 
 const expense = computed(() => {
-  return windfall.value?.filter(({ amount }) => amount <= 0) ?? [];
+  return windfall.value?.filter(({ amountCents }) => amountCents <= 0n) ?? [];
 });
 
 const incomeTable = useTable({

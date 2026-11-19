@@ -15,6 +15,7 @@ import type * as depts from "../depts.js";
 import type * as expenses from "../expenses.js";
 import type * as households from "../households.js";
 import type * as http from "../http.js";
+import type * as income from "../income.js";
 import type * as lib_active_want_queue from "../lib/active_want_queue.js";
 import type * as lib_auth_origin from "../lib/auth_origin.js";
 import type * as lib_daily_budget_totals from "../lib/daily_budget_totals.js";
@@ -26,7 +27,6 @@ import type * as savings from "../savings.js";
 import type * as test_utils_seed from "../test_utils/seed.js";
 import type * as users from "../users.js";
 import type * as wants from "../wants.js";
-import type * as windfall from "../windfall.js";
 
 import type {
   ApiFromModules,
@@ -42,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   expenses: typeof expenses;
   households: typeof households;
   http: typeof http;
+  income: typeof income;
   "lib/active_want_queue": typeof lib_active_want_queue;
   "lib/auth_origin": typeof lib_auth_origin;
   "lib/daily_budget_totals": typeof lib_daily_budget_totals;
@@ -53,7 +54,6 @@ declare const fullApi: ApiFromModules<{
   "test_utils/seed": typeof test_utils_seed;
   users: typeof users;
   wants: typeof wants;
-  windfall: typeof windfall;
 }>;
 
 /**

@@ -88,7 +88,7 @@ function makeDebt(id: string, creditor: string, payment: number, isPriority = fa
     creditor,
     isPriority,
     householdId: "household-1" as Debt["householdId"],
-    payment,
+    paymentCents: BigInt(Math.round(payment * 100)),
   };
 }
 

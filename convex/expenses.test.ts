@@ -409,7 +409,7 @@ test("editing an expense after a time-zone change keeps it on its original local
   });
 });
 
-test("lists monthly expenses by stored local date alongside windfalls", async () => {
+test("lists monthly expenses by stored local date alongside income", async () => {
   const t = convexTest(schema, modules);
   const { householdId, otherHouseholdId } = await seedHouseholds(t);
   const date = Date.UTC(2026, 3, 1, 0);
@@ -424,10 +424,10 @@ test("lists monthly expenses by stored local date alongside windfalls", async ()
       name: "Another household",
       localDate: "2026-03-31",
     });
-    await ctx.db.insert("windfall", {
+    await ctx.db.insert("income", {
       householdId,
-      date,
-      amount: 8,
+      localDate: "2026-04-01",
+      amountCents: 800n,
       notes: "",
       source: "April gift",
     });

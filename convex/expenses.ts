@@ -8,7 +8,6 @@ import { addExpense, editExpense, removeExpense } from "./lib/savings_account";
 import { getBudgetImpact } from "./lib/want_savings";
 import {
   getLocalDateKey,
-  getLocalDayBounds,
   getLocalMonthPeriod,
   getNextLocalDate,
   getNextMonthStart,
@@ -35,12 +34,11 @@ const monthlyTransaction = v.union(
     budgetImpactCents: v.int64(),
     isWantPurchase: v.boolean(),
   }),
-  schema.tables.windfall.validator.extend({
-    _id: v.id("windfall"),
+  schema.tables.income.validator.extend({
+    _id: v.id("income"),
     _creationTime: v.number(),
-    type: v.literal("windfall"),
+    type: v.literal("income"),
     name: v.string(),
-    localDate: v.string(),
   }),
 );
 
@@ -187,12 +185,13 @@ export const listMonthlyTransactions = query({
       startLocalDate,
       endExclusiveLocalDate,
     );
-    const from = getLocalDayBounds(startLocalDate, timeZone).startTimestamp;
-    const to = getLocalDayBounds(endExclusiveLocalDate, timeZone).startTimestamp;
-    const windfalls = await ctx.db
-      .query("windfall")
-      .withIndex("by_household_date", (q) =>
-        q.eq("householdId", household._id).gte("date", from).lt("date", to),
+    const incomes = await ctx.db
+      .query("income")
+      .withIndex("by_household_and_local_date", (q) =>
+        q
+          .eq("householdId", household._id)
+          .gte("localDate", startLocalDate)
+          .lt("localDate", endExclusiveLocalDate),
       )
       .collect();
 
@@ -208,18 +207,11 @@ export const listMonthlyTransactions = query({
           type: "expense" as const,
         };
       }),
-      ...windfalls.flatMap((windfall) =>
-        windfall.date === undefined
-          ? []
-          : [
-              {
-                ...windfall,
-                localDate: getLocalDateKey(windfall.date, timeZone),
-                name: windfall.source,
-                type: "windfall" as const,
-              },
-            ],
-      ),
+      ...incomes.map((income) => ({
+        ...income,
+        name: income.source,
+        type: "income" as const,
+      })),
     ].sort((left, right) => right.localDate.localeCompare(left.localDate));
   },
 });

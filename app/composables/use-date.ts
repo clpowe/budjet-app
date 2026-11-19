@@ -5,7 +5,6 @@ import {
   getLocalDateKey,
   getLocalDayBounds,
   getNextLocalDate,
-  getNextMonthStart,
 } from "../../shared/utils/local-date.ts";
 
 type TimeZoneInput = MaybeRefOrGetter<string | null | undefined>;
@@ -28,16 +27,6 @@ export function useDate(timeZoneInput?: TimeZoneInput) {
     return {
       from: bounds.startTimestamp,
       to: bounds.endExclusiveTimestamp,
-    };
-  });
-
-  const queryMonthBounds = computed(() => {
-    const monthStart = `${localDate.value.slice(0, 7)}-01`;
-    const nextMonthStart = getNextMonthStart(monthStart);
-
-    return {
-      from: getLocalDayBounds(monthStart, timeZone.value).startTimestamp,
-      to: getLocalDayBounds(nextMonthStart, timeZone.value).startTimestamp,
     };
   });
 
@@ -119,7 +108,6 @@ export function useDate(timeZoneInput?: TimeZoneInput) {
     timeZone,
     localDate,
     queryDayBounds,
-    queryMonthBounds,
     displayDate,
     goToPreviousDay,
     goToNextDay,

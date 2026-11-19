@@ -8,11 +8,11 @@ const MAX_REORDERABLE_DEBTS = 500;
 
 type DebtPayment = {
   isPriority: boolean;
-  payment: number;
+  paymentCents: bigint;
 };
 
-export function sumDebtPayments(debts: DebtPayment[]) {
-  return debts.reduce((total, debt) => total + debt.payment, 0);
+export function sumDebtPayments(debts: DebtPayment[]): bigint {
+  return debts.reduce((total, debt) => total + debt.paymentCents, 0n);
 }
 
 export function getDebtOrderUpdates(currentIds: Id<"debts">[], orderedIds: Id<"debts">[]) {
@@ -66,6 +66,7 @@ export const listMyDebts = query({
 
 export const getTotalPayment = query({
   args: {},
+  returns: v.int64(),
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
@@ -89,7 +90,7 @@ export const updateDebt = mutation({
     id: v.id("debts"),
     isPriority: v.optional(v.boolean()),
     creditor: v.optional(v.string()),
-    payment: v.optional(v.number()),
+    paymentCents: v.optional(v.int64()),
   },
   handler: async (ctx, args) => {
     const { id, ...fields } = args;
@@ -99,11 +100,11 @@ export const updateDebt = mutation({
     const update: {
       isPriority?: boolean;
       creditor?: string;
-      payment?: number;
+      paymentCents?: bigint;
     } = {};
     if (fields.isPriority !== undefined) update.isPriority = fields.isPriority;
     if (fields.creditor !== undefined) update.creditor = fields.creditor;
-    if (fields.payment !== undefined) update.payment = fields.payment;
+    if (fields.paymentCents !== undefined) update.paymentCents = fields.paymentCents;
 
     await ctx.db.patch(id, update);
   },
@@ -112,7 +113,7 @@ export const updateDebt = mutation({
 export const createDebt = mutation({
   args: {
     creditor: v.string(),
-    payment: v.number(),
+    paymentCents: v.int64(),
     isPriority: v.boolean(),
   },
   handler: async (ctx, args) => {
@@ -130,7 +131,7 @@ export const createDebt = mutation({
 
     const newDebt = await ctx.db.insert("debts", {
       creditor: args.creditor,
-      payment: args.payment,
+      paymentCents: args.paymentCents,
       isPriority: args.isPriority,
       householdId: householdId,
       order: maxOrder + 1,
