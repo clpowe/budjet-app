@@ -369,10 +369,7 @@ async function updateStatus(value: { itemId: Id<"wantItems">; status: WantStatus
     return;
   }
 
-  pageNotice.value =
-    result.data.kind === "money_migration_pending"
-      ? "Preparing household money data. Try planning this Want again shortly."
-      : "Want status updated.";
+  pageNotice.value = "Want status updated.";
 }
 
 async function saveOrder(order: FunctionArgs<typeof api.wants.reorder>) {

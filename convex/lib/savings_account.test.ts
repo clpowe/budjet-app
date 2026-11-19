@@ -24,7 +24,6 @@ test("assembles the live savings snapshot from the household and its rollups", a
       ownerId,
       allowanceCents: 5_500n,
       timeZone: "America/New_York",
-      moneyMigrationCompletedAt: 0,
       createdAt: 0,
     });
     // March 9 is the one closed eligible day: $55 earned, $45 spent -> $10 of savings.
@@ -90,7 +89,6 @@ test("defaults inactive savings and a missing current rollup to zero", async () 
       ownerId,
       allowanceCents: 5_500n,
       timeZone: "America/New_York",
-      moneyMigrationCompletedAt: 0,
       createdAt: 0,
     });
     const household = await ctx.db.get(householdId);

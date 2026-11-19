@@ -22,7 +22,6 @@ export default defineSchema({
     timeZone: v.optional(v.string()),
     pendingTimeZone: v.optional(v.string()),
     pendingTimeZoneEffectiveAt: v.optional(v.number()),
-    moneyMigrationCompletedAt: v.optional(v.number()),
     savingsStartLocalDate: v.optional(v.string()),
     createdAt: v.number(),
   }).index("by_invite_code", ["inviteCode"]),

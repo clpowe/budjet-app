@@ -1,7 +1,6 @@
 import { assertPositiveCents } from "../shared/utils/money-cents";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
@@ -63,15 +62,10 @@ const wantItemValidator = v.object({
   expenseId: v.optional(v.id("expenses")),
 });
 
-const changeStatusResultValidator = v.union(
-  v.object({
-    kind: v.literal("updated"),
-    item: wantItemValidator,
-  }),
-  v.object({
-    kind: v.literal("money_migration_pending"),
-  }),
-);
+const changeStatusResultValidator = v.object({
+  kind: v.literal("updated"),
+  item: wantItemValidator,
+});
 
 const progressLossValidator = v.object({
   itemId: v.id("wantItems"),
@@ -328,18 +322,6 @@ export const changeStatus = mutation({
     }
 
     const isActivating = args.status === "plan_for_it" && wantItem.status !== "plan_for_it";
-
-    if (isActivating && household.moneyMigrationCompletedAt === undefined) {
-      await ctx.scheduler.runAfter(0, internal.migrations.backfillMoney.processHousehold, {
-        householdId: household._id,
-        expenseCursor: null,
-        timeZone: null,
-      });
-
-      return {
-        kind: "money_migration_pending" as const,
-      };
-    }
 
     if (isActivating) {
       await appendActiveWant(ctx, {

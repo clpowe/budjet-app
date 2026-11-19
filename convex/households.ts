@@ -89,7 +89,6 @@ export const createHousehold = mutation({
       allowance: 55,
       allowanceCents: 5_500n,
       timeZone,
-      moneyMigrationCompletedAt: now,
     });
 
     await ctx.db.patch(user._id, {

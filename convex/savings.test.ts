@@ -13,12 +13,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-async function seedHousehold(
-  t: TestConvex<typeof schema>,
-  options: { moneyMigrationComplete?: boolean } = {},
-) {
-  const moneyMigrationComplete = options.moneyMigrationComplete ?? true;
-
+async function seedHousehold(t: TestConvex<typeof schema>) {
   return await t.run(async (ctx) => {
     const ownerId = await ctx.db.insert("users", {
       identityKey: "test|owner",
@@ -33,7 +28,6 @@ async function seedHousehold(
       allowance: 55,
       allowanceCents: 5_500n,
       timeZone: "America/New_York",
-      ...(moneyMigrationComplete ? { moneyMigrationCompletedAt: 0 } : {}),
       createdAt: 0,
     });
 
@@ -77,22 +71,6 @@ async function readSavings(
     return { savingsStartLocalDate: household?.savingsStartLocalDate };
   });
 }
-
-test("requires completed money migration before activating the savings", async () => {
-  const t = convexTest(schema, modules);
-  const seeded = await seedHousehold(t, { moneyMigrationComplete: false });
-  const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
-
-  const result = await asOwner.mutation(api.wants.changeStatus, {
-    itemId: seeded.cameraId,
-    status: "plan_for_it",
-  });
-
-  expect(result).toEqual({ kind: "money_migration_pending" });
-  expect(await readSavings(t, seeded.householdId)).toEqual({
-    savingsStartLocalDate: undefined,
-  });
-});
 
 test("activates exactly once at zero and preserves the state after the queue empties", async () => {
   vi.useFakeTimers();

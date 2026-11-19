@@ -27,7 +27,6 @@ export const DEFAULT_TEST_HOUSEHOLD: HouseholdFields = {
   allowance: 55,
   allowanceCents: 5_500n,
   timeZone: "America/New_York",
-  moneyMigrationCompletedAt: 0,
   createdAt: 0,
 };
 

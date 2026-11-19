@@ -69,7 +69,6 @@ async function seedHousehold(t: TestConvex<typeof schema>) {
       allowance: 50,
       allowanceCents: 5_000n,
       timeZone: "America/New_York",
-      moneyMigrationCompletedAt: 0,
       createdAt: 0,
     });
     await ctx.db.patch(ownerId, { householdId });

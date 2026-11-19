@@ -90,7 +90,6 @@ async function seedPurchaseHouseholds(
       allowance: Number(allowanceCents) / 100,
       allowanceCents,
       timeZone: "America/New_York",
-      moneyMigrationCompletedAt: 0,
       createdAt: 0,
     });
     const otherHouseholdId = await ctx.db.insert("households", {
@@ -100,7 +99,6 @@ async function seedPurchaseHouseholds(
       allowance: Number(allowanceCents) / 100,
       allowanceCents,
       timeZone: "America/New_York",
-      moneyMigrationCompletedAt: 0,
       createdAt: 0,
     });
 

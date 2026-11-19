@@ -36,7 +36,6 @@ async function seedHouseholds(t: TestConvex<typeof schema>) {
       allowance: 55,
       allowanceCents: 5_500n,
       timeZone: "America/New_York",
-      moneyMigrationCompletedAt: 0,
       createdAt: 0,
     });
 
@@ -47,7 +46,6 @@ async function seedHouseholds(t: TestConvex<typeof schema>) {
       allowance: 55,
       allowanceCents: 5_500n,
       timeZone: "America/New_York",
-      moneyMigrationCompletedAt: 0,
       createdAt: 0,
     });
 

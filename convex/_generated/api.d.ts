@@ -22,7 +22,6 @@ import type * as lib_helpers from "../lib/helpers.js";
 import type * as lib_household_access from "../lib/household_access.js";
 import type * as lib_savings_account from "../lib/savings_account.js";
 import type * as lib_want_savings from "../lib/want_savings.js";
-import type * as migrations_backfillMoney from "../migrations/backfillMoney.js";
 import type * as savings from "../savings.js";
 import type * as test_utils_seed from "../test_utils/seed.js";
 import type * as users from "../users.js";
@@ -50,7 +49,6 @@ declare const fullApi: ApiFromModules<{
   "lib/household_access": typeof lib_household_access;
   "lib/savings_account": typeof lib_savings_account;
   "lib/want_savings": typeof lib_want_savings;
-  "migrations/backfillMoney": typeof migrations_backfillMoney;
   savings: typeof savings;
   "test_utils/seed": typeof test_utils_seed;
   users: typeof users;
