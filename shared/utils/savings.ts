@@ -18,6 +18,17 @@ export interface Savings {
   availableCents: Cents;
   shortfallCents: Cents;
 }
+/** Spending charged to the daily budget: everything not paid from savings. */
+export function budgetImpact(totalSpentCents: Cents, fromSavingsCents: Cents): Cents {
+  assertNonNegativeCents(totalSpentCents, "Amount spent");
+  assertNonNegativeCents(fromSavingsCents, "Paid from savings");
+
+  if (fromSavingsCents > totalSpentCents) {
+    throw new RangeError("Paid from savings cannot exceed the amount spent");
+  }
+
+  return totalSpentCents - fromSavingsCents;
+}
 
 export function calculateSavings({
   allowanceCents,
@@ -31,10 +42,6 @@ export function calculateSavings({
   assertNonNegativeCents(today.totalSpentCents, "Spending today");
   assertNonNegativeCents(today.spentFromSavingsCents, "Paid from savings today");
 
-  if (today.spentFromSavingsCents > today.totalSpentCents) {
-    throw new RangeError("Paid from savings cannot exceed the amount spent");
-  }
-
   const eligibleClosedDays =
     firstEligibleLocalDate === undefined
       ? 0
@@ -44,7 +51,8 @@ export function calculateSavings({
     (eligibleClosedDays === 0 ? 0n : closedSpentCents);
 
   const positionCents = closedPositionCents - today.spentFromSavingsCents;
-  const budgetImpactTodayCents = today.totalSpentCents - today.spentFromSavingsCents;
+
+  const budgetImpactTodayCents = budgetImpact(today.totalSpentCents, today.spentFromSavingsCents);
 
   const todayOverageAdjustmentCents =
     budgetImpactTodayCents > allowanceCents ? allowanceCents - budgetImpactTodayCents : 0n;

@@ -140,7 +140,7 @@ Update `GLOSSARY.md` and accessible names in the same change.
 ## Progress
 
 - [x] P0 triage (checkpoint 4d48396; removed rename migration, reserve shims, goalReserveStates/savingsMigration, table mirroring; Home 5 subscriptions -> 1; dual fields/apiVersion/syncing left for P2)
-- [ ] P1 shared math
+- [x] P1 shared math (local-date, money-cents asserts, calculateSavings, goal-allocation + previewPurchase, budgetImpact; old want_savings.ts and getBudgetImpactCents die in P2)
 - [ ] P2 Convex cutover
 - [ ] P3 frontend wiring
 - [ ] P4 naming pass
@@ -153,3 +153,4 @@ _2026-11-18: D1-D4 accepted at defaults. P0 done, 236/236 tests, vp check clean.
 _P1.1 local-date.ts done (shared/utils/local-date.ts, countLocalDays added; 243/243 green)._
 _P1.2 shared assertPositiveCents/assertNonNegativeCents; 5 local copies removed; 245/245 green._
 _P1.3 shared/utils/savings.ts calculateSavings (worked example $25/$17 passes); 253/253 green. Note for P2: reject savings-funded purchases dated before firstEligibleLocalDate._
+_P1.4 done; P1 complete. 266/266 green._
