@@ -152,3 +152,4 @@ _2026-11-18: plan written; awaiting D1–D4._
 _2026-11-18: D1-D4 accepted at defaults. P0 done, 236/236 tests, vp check clean._
 _P1.1 local-date.ts done (shared/utils/local-date.ts, countLocalDays added; 243/243 green)._
 _P1.2 shared assertPositiveCents/assertNonNegativeCents; 5 local copies removed; 245/245 green._
+_P1.3 shared/utils/savings.ts calculateSavings (worked example $25/$17 passes); 253/253 green. Note for P2: reject savings-funded purchases dated before firstEligibleLocalDate._
