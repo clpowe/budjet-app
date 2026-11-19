@@ -67,8 +67,7 @@ export function useExpenses() {
     return createBudgetMetric(value, isWithinBudget);
   });
 
-  const removeExpense = (expenseId: Doc<"expenses">["_id"]) =>
-    deleteExpense({ expenseId, apiVersion: 2 });
+  const removeExpense = (expenseId: Doc<"expenses">["_id"]) => deleteExpense({ expenseId });
 
   return {
     monthToDateTotalDollars,

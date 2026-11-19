@@ -1,40 +1,27 @@
-import { assertNonNegativeCents, assertPositiveCents } from "../../shared/utils/money-cents";
-import { internal } from "../_generated/api";
-import type { Doc, Id } from "../_generated/dataModel";
-import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { getEffectiveTimeZone, getStoredHouseholdTimeZone } from "../households";
-import {
-  applyExpenseDelta,
-  getBudgetImpactCents,
-  toExpenseFacts,
-  type ExpenseFacts,
-} from "./daily_budget_rollups";
-import { calculatePurchaseFunding } from "./want_savings";
 import {
   getLocalDateKey,
   getLocalDayBounds,
   getNextLocalDate,
 } from "../../shared/utils/local-date.ts";
+import { assertPositiveCents } from "../../shared/utils/money-cents";
+import { calculateSavings, type Savings } from "../../shared/utils/savings";
+import type { Doc, Id } from "../_generated/dataModel";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
+import { getEffectiveTimeZone } from "../households";
+import { applyExpenseDelta, toExpenseFacts } from "./daily_budget_rollups";
+import { calculatePurchaseFunding } from "./want_savings";
 
 /*
- * Savings account: the one module that moves household money.
+ * Savings are never stored. They are calculated on read from the household's
+ * allowance, the day savings started, and the daily spending totals:
  *
- * Owns every write to goalSavingsStates and dailyBudgetRollups, plus the
- * money fields of expenses. Savings use one balance (`positionCents`) and a
- * close cursor; daily rollups hold each day's spending.
- * Every write first closes pending savings days, so it always acts on a
- * current position. When the catch-up cannot finish in one transaction the
- * write does nothing, schedules the rest, and returns `savings_syncing`.
+ *   closed days  = savingsStartLocalDate .. yesterday (empty days earn the allowance)
+ *   position     = closed days x allowance - spending on those days - savings used today
+ *
+ * Writes only record expenses and keep the daily totals in step.
  */
 
-type SavingsState = Doc<"goalSavingsStates">;
-
 type DatabaseCtx = MutationCtx | QueryCtx;
-
-export const CLOSE_DAYS_PER_TRANSACTION = 31;
-
-export type SavingsSyncing = { status: "savings_syncing" };
-export type SavingsResult<T extends object = object> = SavingsSyncing | ({ status: "ok" } & T);
 
 export type PurchaseFunding = {
   savingsUsedCents: bigint;
@@ -42,128 +29,25 @@ export type PurchaseFunding = {
 };
 
 // ---------------------------------------------------------------------------
-// Pure core (internal seam, unit-tested directly)
-// ---------------------------------------------------------------------------
-
-export type SavingsEvent =
-  | {
-      kind: "daily_close";
-      localDate: string;
-      allowanceCents: bigint;
-      spendingCents: bigint;
-    }
-  | { kind: "purchase"; savingsUsedCents: bigint }
-  | { kind: "purchase_undo"; savingsUsedCents: bigint }
-  | {
-      kind: "purchase_correction";
-      previousSavingsUsedCents: bigint;
-      nextSavingsUsedCents: bigint;
-    }
-  | { kind: "closed_day_correction"; budgetImpactDeltaCents: bigint };
-
-type SavingsTransition = {
-  amountCents: bigint;
-  positionCents: bigint;
-  lastClosedLocalDate?: string;
-};
-
-export function reduceSavingsEvent(state: SavingsState, event: SavingsEvent): SavingsTransition {
-  let amountCents: bigint;
-
-  switch (event.kind) {
-    case "daily_close": {
-      assertNonNegativeCents(event.allowanceCents, "Allowance");
-      assertNonNegativeCents(event.spendingCents, "Spending");
-
-      if (event.localDate < state.firstEligibleLocalDate) {
-        throw new Error("Cannot close a savings day before the first eligible date");
-      }
-
-      if (state.lastClosedLocalDate !== undefined && event.localDate <= state.lastClosedLocalDate) {
-        throw new Error("Savings days must close after the recorded close cursor");
-      }
-
-      amountCents = event.allowanceCents - event.spendingCents;
-      break;
-    }
-    case "purchase": {
-      assertNonNegativeCents(event.savingsUsedCents, "Paid from savings");
-      amountCents = -event.savingsUsedCents;
-      break;
-    }
-    case "purchase_undo": {
-      assertNonNegativeCents(event.savingsUsedCents, "Paid from savings");
-      amountCents = event.savingsUsedCents;
-      break;
-    }
-    case "purchase_correction": {
-      assertNonNegativeCents(event.previousSavingsUsedCents, "Previous savings used");
-      assertNonNegativeCents(event.nextSavingsUsedCents, "Next savings used");
-      amountCents = event.previousSavingsUsedCents - event.nextSavingsUsedCents;
-      break;
-    }
-    case "closed_day_correction": {
-      amountCents = -event.budgetImpactDeltaCents;
-      break;
-    }
-  }
-
-  return {
-    amountCents,
-    positionCents: state.positionCents + amountCents,
-    ...(event.kind === "daily_close" ? { lastClosedLocalDate: event.localDate } : {}),
-  };
-}
-
-export type CurrentSavingsProjection = {
-  availableCents: bigint;
-  recoveryCents: bigint;
-  todayOverageAdjustmentCents: bigint;
-  projectedEndOfDayContributionCents: bigint;
-};
-
-export function projectCurrentSavings(
-  positionCents: bigint,
-  allowanceCents: bigint,
-  budgetImpactExpenseCents: bigint,
-): CurrentSavingsProjection {
-  // Today's overspending consumes accumulated savings immediately, but unused
-  // allowance is not added until the day closes.
-  const todayOverageAdjustmentCents =
-    budgetImpactExpenseCents > allowanceCents ? allowanceCents - budgetImpactExpenseCents : 0n;
-  const projectedEndOfDayContributionCents =
-    budgetImpactExpenseCents <= allowanceCents ? allowanceCents - budgetImpactExpenseCents : 0n;
-  const currentAdjustedBalanceCents = positionCents + todayOverageAdjustmentCents;
-
-  return {
-    availableCents: currentAdjustedBalanceCents > 0n ? currentAdjustedBalanceCents : 0n,
-    recoveryCents: currentAdjustedBalanceCents < 0n ? -currentAdjustedBalanceCents : 0n,
-    todayOverageAdjustmentCents,
-    projectedEndOfDayContributionCents,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
 
-export type SavingsSnapshot = CurrentSavingsProjection & {
-  state: SavingsState | null;
+export type SavingsSnapshot = Savings & {
   timeZone: string;
+  /** Household-local today. */
   localDate: string;
   dailyAllowanceCents: bigint;
-  positionCents: bigint;
+  firstEligibleLocalDate: string | undefined;
+  /** Spending charged to today's daily budget (not paid from savings). */
   budgetImpactExpenseCents: bigint;
 };
 
-async function loadState(
-  ctx: DatabaseCtx,
-  householdId: Id<"households">,
-): Promise<SavingsState | null> {
-  return await ctx.db
-    .query("goalSavingsStates")
-    .withIndex("by_household", (q) => q.eq("householdId", householdId))
-    .unique();
+function requireAllowanceCents(household: Doc<"households">): bigint {
+  if (household.allowanceCents === undefined) {
+    throw new Error("Household money migration is still in progress");
+  }
+
+  return household.allowanceCents;
 }
 
 async function loadRollup(ctx: DatabaseCtx, householdId: Id<"households">, localDate: string) {
@@ -175,47 +59,93 @@ async function loadRollup(ctx: DatabaseCtx, householdId: Id<"households">, local
     .unique();
 }
 
-function requireAllowanceCents(household: Doc<"households">): bigint {
-  if (household.allowanceCents === undefined) {
-    throw new Error("Household money migration is still in progress");
+async function sumSpentCents(
+  ctx: DatabaseCtx,
+  householdId: Id<"households">,
+  startInclusive: string,
+  endExclusive: string,
+): Promise<bigint> {
+  let totalCents = 0n;
+
+  for await (const rollup of ctx.db
+    .query("dailyBudgetRollups")
+    .withIndex("by_household_and_local_date", (q) =>
+      q
+        .eq("householdId", householdId)
+        .gte("localDate", startInclusive)
+        .lt("localDate", endExclusive),
+    )) {
+    totalCents += rollup.expenseCents;
   }
 
-  return household.allowanceCents;
+  return totalCents;
 }
 
-async function projectSnapshot(
-  ctx: DatabaseCtx,
-  household: Doc<"households">,
-  state: SavingsState | null,
-  now: number,
-): Promise<SavingsSnapshot> {
-  const dailyAllowanceCents = requireAllowanceCents(household);
-  const timeZone = getEffectiveTimeZone(household, now);
-  const localDate = getLocalDateKey(now, timeZone);
-  const currentDayRollup = await loadRollup(ctx, household._id, localDate);
-  const positionCents = state?.positionCents ?? 0n;
-  const budgetImpactExpenseCents = currentDayRollup?.budgetImpactExpenseCents ?? 0n;
-
-  return {
-    state,
-    timeZone,
-    localDate,
-    dailyAllowanceCents,
-    positionCents,
-    budgetImpactExpenseCents,
-    ...projectCurrentSavings(positionCents, dailyAllowanceCents, budgetImpactExpenseCents),
-  };
-}
-
-/** Live view of the savings at `now`. Read-only; never closes days. */
+/**
+ * Live view of the savings at `now`. Read-only. Pass `excluding` to see the
+ * savings as if that expense had never been recorded.
+ */
 export async function getSavingsSnapshot(
   ctx: DatabaseCtx,
   household: Doc<"households">,
   now: number,
+  {
+    excluding,
+  }: { excluding?: { localDate: string; amountCents: bigint; savingsUsedCents: bigint } } = {},
 ): Promise<SavingsSnapshot> {
-  requireAllowanceCents(household);
+  const dailyAllowanceCents = requireAllowanceCents(household);
+  const timeZone = getEffectiveTimeZone(household, now);
+  const localDate = getLocalDateKey(now, timeZone);
+  const firstEligibleLocalDate = household.savingsStartLocalDate;
+  const hasClosedDays = firstEligibleLocalDate !== undefined && firstEligibleLocalDate < localDate;
 
-  return await projectSnapshot(ctx, household, await loadState(ctx, household._id), now);
+  const [closedSpentCents, todayRollup] = await Promise.all([
+    hasClosedDays
+      ? sumSpentCents(ctx, household._id, firstEligibleLocalDate, localDate)
+      : Promise.resolve(0n),
+    loadRollup(ctx, household._id, localDate),
+  ]);
+
+  let closedSpent = closedSpentCents;
+  let todaySpent = todayRollup?.expenseCents ?? 0n;
+  let todayFromSavings =
+    todayRollup?.savingsFundedExpenseCents ?? todayRollup?.reserveFundedExpenseCents ?? 0n;
+
+  if (excluding) {
+    if (excluding.localDate === localDate) {
+      todaySpent -= excluding.amountCents;
+      todayFromSavings -= excluding.savingsUsedCents;
+    } else if (
+      hasClosedDays &&
+      excluding.localDate >= firstEligibleLocalDate &&
+      excluding.localDate < localDate
+    ) {
+      closedSpent -= excluding.amountCents;
+    }
+  }
+
+  return {
+    ...calculateSavings({
+      allowanceCents: dailyAllowanceCents,
+      firstEligibleLocalDate,
+      todayLocalDate: localDate,
+      closedSpentCents: closedSpent,
+      today: { totalSpentCents: todaySpent, spentFromSavingsCents: todayFromSavings },
+    }),
+    timeZone,
+    localDate,
+    dailyAllowanceCents,
+    firstEligibleLocalDate,
+    budgetImpactExpenseCents: todaySpent - todayFromSavings,
+  };
+}
+
+/** Savings can only pay for a purchase dated on or after the day savings started. */
+function fundableSavingsCents(snapshot: SavingsSnapshot, purchaseLocalDate: string): bigint {
+  return snapshot.firstEligibleLocalDate !== undefined &&
+    purchaseLocalDate >= snapshot.firstEligibleLocalDate
+    ? snapshot.availableCents
+    : 0n;
 }
 
 const MAX_RANGE_DAYS = 31;
@@ -261,41 +191,41 @@ export async function listSavingsActivity(
 }
 
 /**
- * Sum of the positive daily-close contributions for the closed days in a
- * local-date range: each closed day adds `max(0, allowance − budget impact)`.
- * A closed day without a rollup had no spending and adds the full allowance.
- * Uses the current allowance for every day (the allowance cannot change yet).
+ * Sum of the positive daily contributions for the closed eligible days in a
+ * local-date range: each adds `max(0, allowance - budget impact)`. A closed
+ * day without a rollup had no spending and adds the full allowance.
  */
 export function sumClosedPositiveContributions({
   rollups,
   allowanceCents,
-  state,
+  firstEligibleLocalDate,
+  todayLocalDate,
   startLocalDate,
   endExclusiveLocalDate,
   timeZone,
 }: {
   rollups: readonly Pick<Doc<"dailyBudgetRollups">, "localDate" | "budgetImpactExpenseCents">[];
   allowanceCents: bigint;
-  state: Pick<SavingsState, "firstEligibleLocalDate" | "lastClosedLocalDate"> | null;
+  firstEligibleLocalDate: string | undefined;
+  todayLocalDate: string;
   startLocalDate: string;
   endExclusiveLocalDate: string;
   timeZone: string;
 }): bigint {
-  const lastClosedLocalDate = state?.lastClosedLocalDate;
-
-  if (!state || lastClosedLocalDate === undefined) {
+  if (firstEligibleLocalDate === undefined) {
     return 0n;
   }
 
   const budgetImpactByDate = new Map(
     rollups.map((rollup) => [rollup.localDate, rollup.budgetImpactExpenseCents]),
   );
-  let localDate =
-    startLocalDate > state.firstEligibleLocalDate ? startLocalDate : state.firstEligibleLocalDate;
+  const endLocalDate =
+    endExclusiveLocalDate < todayLocalDate ? endExclusiveLocalDate : todayLocalDate;
+  let localDate = startLocalDate > firstEligibleLocalDate ? startLocalDate : firstEligibleLocalDate;
   let totalCents = 0n;
   let dayCount = 0;
 
-  while (localDate < endExclusiveLocalDate && localDate <= lastClosedLocalDate) {
+  while (localDate < endLocalDate) {
     if (dayCount >= MAX_RANGE_DAYS) {
       throw new Error("Closed contribution range exceeds the monthly invariant");
     }
@@ -314,249 +244,28 @@ export function sumClosedPositiveContributions({
 }
 
 // ---------------------------------------------------------------------------
-// Position writes (internal)
+// Activation
 // ---------------------------------------------------------------------------
 
-/** The household plus its savings state, kept current in memory across writes. */
-type LoadedAccount = {
-  household: Doc<"households">;
-  state: SavingsState | null;
-};
-
-/** Moves the savings position by one event and keeps `account.state` current. */
-async function applyEvent(
-  ctx: MutationCtx,
-  account: LoadedAccount,
-  event: SavingsEvent,
-  now: number,
-): Promise<void> {
-  const state = account.state;
-
-  if (!state) {
-    throw new Error("Household savings are not active");
-  }
-
-  const transition = reduceSavingsEvent(state, event);
-  const statePatch = {
-    positionCents: transition.positionCents,
-    ...(transition.lastClosedLocalDate !== undefined
-      ? { lastClosedLocalDate: transition.lastClosedLocalDate }
-      : {}),
-    updatedAt: now,
-  };
-
-  await ctx.db.patch(state._id, statePatch);
-  account.state = { ...state, ...statePatch };
-}
-
-/** Updates rollups for an expense change and corrects any closed day it touched. */
-async function moveExpenseMoney(
-  ctx: MutationCtx,
-  account: LoadedAccount,
-  { before, after, now }: { before?: ExpenseFacts; after?: ExpenseFacts; now: number },
-): Promise<void> {
-  const changes = await applyExpenseDelta(ctx, {
-    householdId: account.household._id,
-    before,
-    after,
-    now,
-  });
-
-  for (const change of changes) {
-    if (!isClosedDay(account.state, change.localDate)) {
-      continue;
-    }
-
-    await applyEvent(
-      ctx,
-      account,
-      { kind: "closed_day_correction", budgetImpactDeltaCents: change.budgetImpactDeltaCents },
-      now,
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Activation and daily close
-// ---------------------------------------------------------------------------
-
-/** Starts the household's savings. Idempotent. */
+/** Starts the household's savings the day after the first goal is planned. Idempotent. */
 export async function activateSavings(
   ctx: MutationCtx,
   { household, now }: { household: Doc<"households">; now: number },
 ): Promise<void> {
-  if (await loadState(ctx, household._id)) {
+  if (household.savingsStartLocalDate !== undefined) {
     return;
   }
 
   const timeZone = getEffectiveTimeZone(household, now);
-  const activationLocalDate = getLocalDateKey(now, timeZone);
 
-  const initialState = {
-    householdId: household._id,
-    positionCents: 0n,
-    activatedAt: now,
-    firstEligibleLocalDate: getNextLocalDate(activationLocalDate, timeZone),
-    updatedAt: now,
-  };
-  await ctx.db.insert("goalSavingsStates", initialState);
-}
-
-export type CloseDaysResult = { complete: boolean; lastClosedLocalDate?: string };
-
-async function closeLoadedDays(
-  ctx: MutationCtx,
-  account: LoadedAccount,
-  throughExclusiveTimestamp: number,
-  maxDays: number,
-): Promise<CloseDaysResult> {
-  if (!Number.isFinite(throughExclusiveTimestamp)) {
-    throw new Error("Closing timestamp must be finite");
-  }
-
-  if (!Number.isInteger(maxDays) || maxDays < 1) {
-    throw new Error("Maximum closed days must be a positive integer");
-  }
-
-  const { household } = account;
-  const savingsState = account.state;
-
-  if (!savingsState) {
-    return { complete: true };
-  }
-
-  const allowanceCents = requireAllowanceCents(household);
-  // Days close in the stored zone; a pending zone only takes over once the
-  // last day of the old zone has closed (promotion below).
-  const timeZone = getStoredHouseholdTimeZone(household);
-  const throughExclusiveLocalDate = getLocalDateKey(throughExclusiveTimestamp, timeZone);
-  const maximumDays = Math.min(maxDays, CLOSE_DAYS_PER_TRANSACTION);
-
-  let nextLocalDate = savingsState.lastClosedLocalDate
-    ? getNextLocalDate(savingsState.lastClosedLocalDate, timeZone)
-    : savingsState.firstEligibleLocalDate;
-  let lastClosedLocalDate = savingsState.lastClosedLocalDate;
-  let closedDayCount = 0;
-
-  while (nextLocalDate < throughExclusiveLocalDate && closedDayCount < maximumDays) {
-    const rollup = await loadRollup(ctx, household._id, nextLocalDate);
-
-    await applyEvent(
-      ctx,
-      account,
-      {
-        kind: "daily_close",
-        localDate: nextLocalDate,
-        allowanceCents,
-        spendingCents: rollup?.budgetImpactExpenseCents ?? 0n,
-      },
-      throughExclusiveTimestamp,
-    );
-
-    lastClosedLocalDate = nextLocalDate;
-    nextLocalDate = getNextLocalDate(nextLocalDate, timeZone);
-    closedDayCount += 1;
-  }
-
-  if (
-    household.pendingTimeZone !== undefined &&
-    household.pendingTimeZoneEffectiveAt !== undefined &&
-    throughExclusiveTimestamp >= household.pendingTimeZoneEffectiveAt
-  ) {
-    const finalOldTimeZoneDate = getLocalDateKey(
-      household.pendingTimeZoneEffectiveAt - 1,
-      timeZone,
-    );
-
-    if (lastClosedLocalDate !== undefined && lastClosedLocalDate >= finalOldTimeZoneDate) {
-      const promotion = {
-        timeZone: household.pendingTimeZone,
-        pendingTimeZone: undefined,
-        pendingTimeZoneEffectiveAt: undefined,
-      };
-
-      await ctx.db.patch("households", household._id, promotion);
-      account.household = { ...household, ...promotion };
-    }
-  }
-
-  return {
-    complete: nextLocalDate >= throughExclusiveLocalDate,
-    ...(lastClosedLocalDate !== undefined ? { lastClosedLocalDate } : {}),
-  };
-}
-
-/**
- * Closes finished savings days up to (not including) the local day that
- * contains `throughExclusiveTimestamp`, at most `maxDays` per call.
- */
-export async function closeSavingsDays(
-  ctx: MutationCtx,
-  {
-    householdId,
-    throughExclusiveTimestamp,
-    maxDays,
-  }: { householdId: Id<"households">; throughExclusiveTimestamp: number; maxDays: number },
-): Promise<CloseDaysResult> {
-  const household = await ctx.db.get("households", householdId);
-
-  if (!household) {
-    throw new Error("Household not found");
-  }
-
-  const account: LoadedAccount = { household, state: await loadState(ctx, householdId) };
-
-  return await closeLoadedDays(ctx, account, throughExclusiveTimestamp, maxDays);
-}
-
-/**
- * Loads the account and closes pending days. Returns null (after scheduling
- * the rest of the catch-up for this household) when it could not finish.
- */
-async function openCurrentAccount(
-  ctx: MutationCtx,
-  household: Doc<"households">,
-  now: number,
-): Promise<LoadedAccount | null> {
-  const account: LoadedAccount = { household, state: await loadState(ctx, household._id) };
-  const result = await closeLoadedDays(ctx, account, now, CLOSE_DAYS_PER_TRANSACTION);
-
-  if (!result.complete) {
-    await ctx.scheduler.runAfter(0, internal.savingsMaintenance.closeThrough, {
-      householdId: household._id,
-      throughExclusiveTimestamp: now,
-      maxDays: CLOSE_DAYS_PER_TRANSACTION,
-    });
-
-    return null;
-  }
-
-  return account;
-}
-
-const SYNCING: SavingsSyncing = { status: "savings_syncing" };
-
-function requireActiveState(account: LoadedAccount): SavingsState {
-  if (!account.state) {
-    throw new Error("Household savings are not active");
-  }
-
-  return account.state;
+  await ctx.db.patch(household._id, {
+    savingsStartLocalDate: getNextLocalDate(getLocalDateKey(now, timeZone), timeZone),
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Want purchases
 // ---------------------------------------------------------------------------
-
-/** A day is closed once the close cursor has passed it. Days before the first eligible day never close. */
-function isClosedDay(state: SavingsState | null, localDate: string): boolean {
-  return (
-    state !== null &&
-    state.lastClosedLocalDate !== undefined &&
-    localDate >= state.firstEligibleLocalDate &&
-    localDate <= state.lastClosedLocalDate
-  );
-}
 
 /**
  * Records a purchase of a planned Want: inserts the linked expense, funds it
@@ -577,32 +286,19 @@ export async function recordPurchase(
     localDate: string;
     now: number;
   },
-): Promise<SavingsResult<PurchaseFunding & { expenseId: Id<"expenses"> }>> {
+): Promise<PurchaseFunding & { expenseId: Id<"expenses"> }> {
   assertPositiveCents(amountCents, "Actual amount");
 
-  const preCloseTimeZone = getEffectiveTimeZone(household, now);
+  const timeZone = getEffectiveTimeZone(household, now);
   // Validation only: throws on a malformed date or an invalid time zone.
-  getLocalDayBounds(localDate, preCloseTimeZone);
+  const { startTimestamp } = getLocalDayBounds(localDate, timeZone);
 
-  if (localDate > getLocalDateKey(now, preCloseTimeZone)) {
+  if (localDate > getLocalDateKey(now, timeZone)) {
     throw new Error("Purchase date cannot be in the future");
   }
 
-  const account = await openCurrentAccount(ctx, household, now);
-
-  if (!account) {
-    return SYNCING;
-  }
-
-  requireActiveState(account);
-  const snapshot = await projectSnapshot(ctx, account.household, account.state, now);
-
-  if (localDate > snapshot.localDate) {
-    throw new Error("Purchase date cannot be in the future");
-  }
-
-  const { startTimestamp } = getLocalDayBounds(localDate, snapshot.timeZone);
-  const funding = calculatePurchaseFunding(amountCents, snapshot.availableCents);
+  const snapshot = await getSavingsSnapshot(ctx, household, now);
+  const funding = calculatePurchaseFunding(amountCents, fundableSavingsCents(snapshot, localDate));
 
   const expenseId = await ctx.db.insert("expenses", {
     householdId: household._id,
@@ -617,18 +313,13 @@ export async function recordPurchase(
     reserveUsedCents: funding.savingsUsedCents,
   });
 
-  await applyEvent(
-    ctx,
-    account,
-    { kind: "purchase", savingsUsedCents: funding.savingsUsedCents },
-    now,
-  );
-  await moveExpenseMoney(ctx, account, {
+  await applyExpenseDelta(ctx, {
+    householdId: household._id,
     after: { localDate, amountCents, savingsUsedCents: funding.savingsUsedCents },
     now,
   });
 
-  return { status: "ok", expenseId, ...funding };
+  return { expenseId, ...funding };
 }
 
 /**
@@ -648,53 +339,16 @@ export async function correctPurchase(
     amountCents: bigint;
     now: number;
   },
-): Promise<SavingsResult<PurchaseFunding>> {
+): Promise<PurchaseFunding> {
   assertPositiveCents(amountCents, "Actual amount");
   assertLinkedPurchase(expense);
 
-  const account = await openCurrentAccount(ctx, household, now);
-
-  if (!account) {
-    return SYNCING;
-  }
-
-  const state = requireActiveState(account);
-  const allowanceCents = requireAllowanceCents(account.household);
-  const timeZone = getEffectiveTimeZone(account.household, now);
-  const before = toExpenseFacts(expense, timeZone);
-  const previousBudgetImpactCents = getBudgetImpactCents(before);
-  const currentLocalDate = getLocalDateKey(now, timeZone);
-
-  // Reverse the original purchase in memory. Every past day is closed at this
-  // point, so its budget impact is either in a closed day's contribution or
-  // in today's rollup (or neither, before the first eligible savings day).
-  const purchaseDayIsClosed = isClosedDay(state, before.localDate);
-  const positionWithoutPurchaseCents =
-    state.positionCents +
-    before.savingsUsedCents +
-    (purchaseDayIsClosed ? previousBudgetImpactCents : 0n);
-  const todayRollup = await loadRollup(ctx, household._id, currentLocalDate);
-  const todayBudgetWithoutPurchaseCents =
-    (todayRollup?.budgetImpactExpenseCents ?? 0n) -
-    (before.localDate === currentLocalDate ? previousBudgetImpactCents : 0n);
-
-  if (todayBudgetWithoutPurchaseCents < 0n) {
-    throw new Error("Current-day budget rollup is inconsistent");
-  }
-
+  const before = toExpenseFacts(expense, getEffectiveTimeZone(household, now));
+  const withoutPurchase = await getSavingsSnapshot(ctx, household, now, { excluding: before });
   const funding = calculatePurchaseFunding(
     amountCents,
-    projectCurrentSavings(
-      positionWithoutPurchaseCents,
-      allowanceCents,
-      todayBudgetWithoutPurchaseCents,
-    ).availableCents,
+    fundableSavingsCents(withoutPurchase, before.localDate),
   );
-  const after: ExpenseFacts = {
-    localDate: before.localDate,
-    amountCents,
-    savingsUsedCents: funding.savingsUsedCents,
-  };
 
   await ctx.db.patch("expenses", expense._id, {
     amount: centsToLegacyDollars(amountCents),
@@ -703,23 +357,21 @@ export async function correctPurchase(
     reserveUsedCents: funding.savingsUsedCents,
     localDate: before.localDate,
   });
-
-  await applyEvent(
-    ctx,
-    account,
-    {
-      kind: "purchase_correction",
-      previousSavingsUsedCents: before.savingsUsedCents,
-      nextSavingsUsedCents: funding.savingsUsedCents,
+  await applyExpenseDelta(ctx, {
+    householdId: household._id,
+    before,
+    after: {
+      localDate: before.localDate,
+      amountCents,
+      savingsUsedCents: funding.savingsUsedCents,
     },
     now,
-  );
-  await moveExpenseMoney(ctx, account, { before, after, now });
+  });
 
-  return { status: "ok", ...funding };
+  return funding;
 }
 
-/** Removes a purchase's expense and returns its savings funding. */
+/** Removes a purchase's expense; its savings funding returns automatically. */
 export async function undoPurchase(
   ctx: MutationCtx,
   {
@@ -731,28 +383,15 @@ export async function undoPurchase(
     expense: Doc<"expenses">;
     now: number;
   },
-): Promise<SavingsResult> {
+): Promise<void> {
   assertLinkedPurchase(expense);
 
-  const account = await openCurrentAccount(ctx, household, now);
-
-  if (!account) {
-    return SYNCING;
-  }
-
-  requireActiveState(account);
-  const before = toExpenseFacts(expense, getEffectiveTimeZone(account.household, now));
-
-  await moveExpenseMoney(ctx, account, { before, now });
-  await applyEvent(
-    ctx,
-    account,
-    { kind: "purchase_undo", savingsUsedCents: before.savingsUsedCents },
+  await applyExpenseDelta(ctx, {
+    householdId: household._id,
+    before: toExpenseFacts(expense, getEffectiveTimeZone(household, now)),
     now,
-  );
+  });
   await ctx.db.delete("expenses", expense._id);
-
-  return { status: "ok" };
 }
 
 function assertLinkedPurchase(expense: Doc<"expenses">): void {
@@ -776,13 +415,6 @@ export type ExpenseFields = {
   date: number;
 };
 
-function assertExpenseFields(fields: ExpenseFields, now: number, timeZone: string): string {
-  assertPositiveCents(fields.amountCents, "Expense amount");
-  const localDate = getLocalDateKey(fields.date, timeZone);
-  assertExpenseDayIsNotFuture(localDate, now, timeZone);
-  return localDate;
-}
-
 function assertExpenseDayIsNotFuture(localDate: string, now: number, timeZone: string): void {
   if (localDate > getLocalDateKey(now, timeZone)) {
     throw new Error("Expense date cannot be in the future");
@@ -798,16 +430,13 @@ function assertEverydayExpense(expense: Doc<"expenses">): void {
 export async function addExpense(
   ctx: MutationCtx,
   { household, fields, now }: { household: Doc<"households">; fields: ExpenseFields; now: number },
-): Promise<SavingsResult<{ expenseId: Id<"expenses"> }>> {
-  assertExpenseFields(fields, now, getEffectiveTimeZone(household, now));
+): Promise<{ expenseId: Id<"expenses"> }> {
+  assertPositiveCents(fields.amountCents, "Expense amount");
 
-  const account = await openCurrentAccount(ctx, household, now);
+  const timeZone = getEffectiveTimeZone(household, now);
+  const localDate = getLocalDateKey(fields.date, timeZone);
+  assertExpenseDayIsNotFuture(localDate, now, timeZone);
 
-  if (!account) {
-    return SYNCING;
-  }
-
-  const localDate = assertExpenseFields(fields, now, getEffectiveTimeZone(account.household, now));
   const expenseId = await ctx.db.insert("expenses", {
     householdId: household._id,
     name: fields.name,
@@ -818,12 +447,13 @@ export async function addExpense(
     localDate,
   });
 
-  await moveExpenseMoney(ctx, account, {
+  await applyExpenseDelta(ctx, {
+    householdId: household._id,
     after: { localDate, amountCents: fields.amountCents, savingsUsedCents: 0n },
     now,
   });
 
-  return { status: "ok", expenseId };
+  return { expenseId };
 }
 
 export async function editExpense(
@@ -839,7 +469,7 @@ export async function editExpense(
     fields: Omit<ExpenseFields, "date"> & { date?: number; localDate?: string };
     now: number;
   },
-): Promise<SavingsResult> {
+): Promise<void> {
   assertEverydayExpense(expense);
   assertPositiveCents(fields.amountCents, "Expense amount");
   const timeZone = getEffectiveTimeZone(household, now);
@@ -861,12 +491,6 @@ export async function editExpense(
     assertExpenseDayIsNotFuture(localDate, now, timeZone);
   }
 
-  const account = await openCurrentAccount(ctx, household, now);
-
-  if (!account) {
-    return SYNCING;
-  }
-
   await ctx.db.patch("expenses", expense._id, {
     name: fields.name,
     notes: fields.notes,
@@ -875,14 +499,12 @@ export async function editExpense(
     date,
     localDate,
   });
-
-  await moveExpenseMoney(ctx, account, {
+  await applyExpenseDelta(ctx, {
+    householdId: household._id,
     before,
     after: { localDate, amountCents: fields.amountCents, savingsUsedCents: 0n },
     now,
   });
-
-  return { status: "ok" };
 }
 
 export async function removeExpense(
@@ -896,22 +518,15 @@ export async function removeExpense(
     expense: Doc<"expenses">;
     now: number;
   },
-): Promise<SavingsResult> {
+): Promise<void> {
   assertEverydayExpense(expense);
 
-  const account = await openCurrentAccount(ctx, household, now);
-
-  if (!account) {
-    return SYNCING;
-  }
-
-  await moveExpenseMoney(ctx, account, {
-    before: toExpenseFacts(expense, getEffectiveTimeZone(account.household, now)),
+  await applyExpenseDelta(ctx, {
+    householdId: household._id,
+    before: toExpenseFacts(expense, getEffectiveTimeZone(household, now)),
     now,
   });
   await ctx.db.delete("expenses", expense._id);
-
-  return { status: "ok" };
 }
 
 export function centsToLegacyDollars(amountCents: bigint): number {

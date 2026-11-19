@@ -49,7 +49,7 @@ export async function readSavingsSummary(ctx: QueryCtx, now: number) {
   return {
     positionCents: currentSavings.positionCents,
     availableSavingsCents: currentSavings.availableCents,
-    recoveryAmountCents: currentSavings.recoveryCents,
+    recoveryAmountCents: currentSavings.shortfallCents,
     todayOverageAdjustmentCents: currentSavings.todayOverageAdjustmentCents,
     projectedEndOfDayContributionCents: currentSavings.projectedEndOfDayContributionCents,
     activeAllocations,

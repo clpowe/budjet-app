@@ -4,7 +4,7 @@ import { getEffectiveTimeZone } from "./households";
 import { toExpenseFacts } from "./lib/daily_budget_rollups";
 import { getHouseholdId } from "./lib/helpers";
 import { requireHouseholdDoc, requireHouseholdMember } from "./lib/household_access";
-import { addExpense, editExpense, removeExpense, type SavingsResult } from "./lib/savings_account";
+import { addExpense, editExpense, removeExpense } from "./lib/savings_account";
 import { getBudgetImpact } from "./lib/want_savings";
 import {
   getLocalDateKey,
@@ -21,22 +21,7 @@ import type { MutationCtx } from "./_generated/server";
  * `success: false` means savings were still catching up on closed days; the
  * expense was not written and the client should retry shortly.
  */
-const expenseWriteResultValidator = v.union(
-  v.object({ success: v.literal(true) }),
-  v.object({
-    success: v.literal(false),
-    reason: v.union(v.literal("savings_syncing"), v.literal("reserve_syncing")),
-  }),
-);
-
-function toWriteResult(result: SavingsResult, apiVersion?: 2) {
-  return result.status === "ok"
-    ? { success: true as const }
-    : {
-        success: false as const,
-        reason: apiVersion === 2 ? ("savings_syncing" as const) : ("reserve_syncing" as const),
-      };
-}
+const expenseWriteResultValidator = v.object({ success: v.literal(true) });
 
 const expenseDoc = schema.tables.expenses.validator.extend({
   _id: v.id("expenses"),
@@ -203,7 +188,6 @@ export const getMyCurrentPosition = query({
 
 export const createExpense = mutation({
   args: {
-    apiVersion: v.optional(v.literal(2)),
     name: v.string(),
     notes: v.string(),
     amountCents: v.int64(),
@@ -212,19 +196,18 @@ export const createExpense = mutation({
   returns: expenseWriteResultValidator,
   handler: async (ctx, args) => {
     const { household } = await requireHouseholdMember(ctx);
-    const result = await addExpense(ctx, {
+    await addExpense(ctx, {
       household,
       fields: args,
       now: Date.now(),
     });
 
-    return toWriteResult(result, args.apiVersion);
+    return { success: true as const };
   },
 });
 
 export const updateExpense = mutation({
   args: {
-    apiVersion: v.optional(v.literal(2)),
     expenseId: v.id("expenses"),
     name: v.string(),
     notes: v.string(),
@@ -239,32 +222,31 @@ export const updateExpense = mutation({
     }
     const { expenseId, ...fields } = args;
     const { expense, household } = await getAuthorizedExpense(ctx, expenseId);
-    const result = await editExpense(ctx, {
+    await editExpense(ctx, {
       household,
       expense,
       fields,
       now: Date.now(),
     });
 
-    return toWriteResult(result, args.apiVersion);
+    return { success: true as const };
   },
 });
 
 export const deleteExpense = mutation({
   args: {
-    apiVersion: v.optional(v.literal(2)),
     expenseId: v.id("expenses"),
   },
   returns: expenseWriteResultValidator,
   handler: async (ctx, args) => {
     const { expense, household } = await getAuthorizedExpense(ctx, args.expenseId);
-    const result = await removeExpense(ctx, {
+    await removeExpense(ctx, {
       household,
       expense,
       now: Date.now(),
     });
 
-    return toWriteResult(result, args.apiVersion);
+    return { success: true as const };
   },
 });
 

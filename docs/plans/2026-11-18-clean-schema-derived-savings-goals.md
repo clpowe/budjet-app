@@ -102,6 +102,14 @@ Working agreement: read `convex/_generated/ai/guidelines.md` first. You type sou
 - Delete maintenance, cron, migrations, legacy-money helpers.
 - Fixtures: activation, no-spend day, overspend, backdated expense, correction, undo, midnight, tz change both directions.
 
+P2 sub-steps (each ends green; minimal `app/` type fixes ride along so `vp check` passes):
+
+- **P2a Money-shape cleanup:** required `allowanceCents`, `timeZone`, `localDate`, `amountCents`; drop float fields, `date`, `moneyMigrationCompletedAt`, `migrations/`; windfall -> income, debts `paymentCents`; `dailyBudgetRollups` -> `dailyBudgetTotals(totalSpentCents, spentFromSavingsCents)`; seed helpers updated.
+- **P2b Derived savings:** `savings.getSummary({})` via `calculateSavings`; delete `goalSavingsStates`, savings state machine, maintenance, cron, `savings_syncing`, `apiVersion`; purchase/correct/undo compute split in mutation, return `{status:"ok"}`; `savingsStartLocalDate` set when first goal enters saving; reject savings funding before first eligible date.
+- **P2c Goals rename:** `wantItems` -> `goals`, statuses `idea|saving|on_hold|purchased`, `goalId`, `wants.ts` -> `goals.ts`, `active_want_queue` -> `active_goal_queue`; allocation/preview via shared `goal-allocation`; validators from schema.
+- **P2d Home/budget + cleanup:** rework `budget.getHomeSummary`; delete `want_savings.ts`, `getBudgetImpactCents`; time zone: keep pending switch resolved on read (cron promotion gone).
+- Dev deployment: convex-test needs none; wipe/create the fresh dev deployment after P2d.
+
 **P3 Frontend wiring**
 
 - Goals page: `computed()` allocation/progress; purchase dialog preview local (no request per keystroke); show mutation's returned split.
@@ -154,3 +162,6 @@ _P1.1 local-date.ts done (shared/utils/local-date.ts, countLocalDays added; 243/
 _P1.2 shared assertPositiveCents/assertNonNegativeCents; 5 local copies removed; 245/245 green._
 _P1.3 shared/utils/savings.ts calculateSavings (worked example $25/$17 passes); 253/253 green. Note for P2: reject savings-funded purchases dated before firstEligibleLocalDate._
 _P1.4 done; P1 complete. 266/266 green._
+_P2 order changed: P2b (derived savings) runs before P2a (money shape), since P2b deletes the state machine P2a would otherwise rewrite. Field `households.savingsStartLocalDate` = first date that earns savings. P2b tests rewritten (red); source in progress._
+
+_P2b done: savings derived on read (`getSavingsSnapshot` + `calculateSavings`); removed goalSavingsStates, state machine, savingsMaintenance, cron, savings_syncing, apiVersion. Purchase/correct/undo return `{status:"ok"}`, expenses return `{success:true}`. 256/256 green. Next: P2a, P2c, P2d._

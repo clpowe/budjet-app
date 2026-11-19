@@ -82,45 +82,20 @@ const progressLossValidator = v.object({
 
 const previewPurchaseResultValidator = v.object({
   savingsUsedCents: v.int64(),
-  reserveUsedCents: v.int64(),
   budgetImpactCents: v.int64(),
   progressLosses: v.array(progressLossValidator),
 });
 
-const purchaseResultValidator = v.union(
-  v.object({
-    status: v.union(v.literal("savings_syncing"), v.literal("reserve_syncing")),
-  }),
-  v.object({
-    status: v.literal("purchased"),
-    expenseId: v.id("expenses"),
-    savingsUsedCents: v.int64(),
-    reserveUsedCents: v.int64(),
-    budgetImpactCents: v.int64(),
-  }),
-);
-
-const savingsSyncingValidator = v.object({
-  status: v.union(v.literal("savings_syncing"), v.literal("reserve_syncing")),
+const purchaseResultValidator = v.object({
+  status: v.literal("ok"),
+  expenseId: v.id("expenses"),
+  savingsUsedCents: v.int64(),
+  budgetImpactCents: v.int64(),
 });
 
-const correctPurchaseResultValidator = v.union(
-  savingsSyncingValidator,
-  v.object({
-    success: v.literal(true),
-    expenseId: v.id("expenses"),
-    savingsUsedCents: v.int64(),
-    reserveUsedCents: v.int64(),
-    budgetImpactCents: v.int64(),
-  }),
-);
+const correctPurchaseResultValidator = purchaseResultValidator;
 
-const undoPurchaseResultValidator = v.union(
-  savingsSyncingValidator,
-  v.object({
-    success: v.literal(true),
-  }),
-);
+const undoPurchaseResultValidator = v.object({ status: v.literal("ok") });
 
 function normalizeName(name: string): string {
   const normalizedName = name.trim();
@@ -507,7 +482,6 @@ export const previewPurchase = query({
 
     return {
       ...funding,
-      reserveUsedCents: funding.savingsUsedCents,
       progressLosses,
     };
   },
@@ -515,7 +489,6 @@ export const previewPurchase = query({
 
 export const purchase = mutation({
   args: {
-    apiVersion: v.optional(v.literal(2)),
     itemId: v.id("wantItems"),
     actualAmountCents: v.int64(),
     purchaseLocalDate: v.string(),
@@ -546,10 +519,6 @@ export const purchase = mutation({
       now: serverNow,
     });
 
-    if (result.status === "savings_syncing") {
-      return args.apiVersion === 2 ? result : { status: "reserve_syncing" as const };
-    }
-
     await removeActiveWant(ctx, {
       item: wantItem,
       nextStatus: "bought",
@@ -564,10 +533,9 @@ export const purchase = mutation({
     });
 
     return {
-      status: "purchased" as const,
+      status: "ok" as const,
       expenseId: result.expenseId,
       savingsUsedCents: result.savingsUsedCents,
-      reserveUsedCents: result.savingsUsedCents,
       budgetImpactCents: result.budgetImpactCents,
     };
   },
@@ -575,7 +543,6 @@ export const purchase = mutation({
 
 export const correctPurchase = mutation({
   args: {
-    apiVersion: v.optional(v.literal(2)),
     itemId: v.id("wantItems"),
     actualAmountCents: v.int64(),
   },
@@ -598,20 +565,15 @@ export const correctPurchase = mutation({
       now: serverNow,
     });
 
-    if (result.status === "savings_syncing") {
-      return args.apiVersion === 2 ? result : { status: "reserve_syncing" as const };
-    }
-
     await ctx.db.patch("wantItems", wantItem._id, {
       updatedBy: user._id,
       updatedAt: serverNow,
     });
 
     return {
-      success: true as const,
+      status: "ok" as const,
       expenseId: expense._id,
       savingsUsedCents: result.savingsUsedCents,
-      reserveUsedCents: result.savingsUsedCents,
       budgetImpactCents: result.budgetImpactCents,
     };
   },
@@ -619,7 +581,6 @@ export const correctPurchase = mutation({
 
 export const undoPurchase = mutation({
   args: {
-    apiVersion: v.optional(v.literal(2)),
     itemId: v.id("wantItems"),
   },
   returns: undoPurchaseResultValidator,
@@ -632,15 +593,11 @@ export const undoPurchase = mutation({
       household._id,
     );
 
-    const result = await undoSavingsFundedPurchase(ctx, {
+    await undoSavingsFundedPurchase(ctx, {
       household,
       expense,
       now: serverNow,
     });
-
-    if (result.status === "savings_syncing") {
-      return args.apiVersion === 2 ? result : { status: "reserve_syncing" as const };
-    }
 
     // Throws (rolling back the undo) when the active queue is full.
     await appendActiveWant(ctx, {
@@ -656,8 +613,6 @@ export const undoPurchase = mutation({
       expenseId: undefined,
     });
 
-    return {
-      success: true as const,
-    };
+    return { status: "ok" as const };
   },
 });

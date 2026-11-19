@@ -2,8 +2,12 @@
 
 import { convexTest, type TestConvex } from "convex-test";
 import { afterEach, expect, test, vi } from "vitest";
-import { api, internal } from "./_generated/api";
+import { api } from "./_generated/api";
+import { getSavingsSnapshot } from "./lib/savings_account";
+import type { Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 import schema from "./schema";
+import { getLocalDateKey } from "../shared/utils/local-date";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -17,10 +21,44 @@ afterEach(() => {
 type SeedOptions = {
   allowanceCents?: bigint;
   estimatedCostCents?: bigint;
+  /** Savings position at the start of March 10. Ignored when `firstEligibleLocalDate` is given. */
   positionCents?: bigint;
+  /** Start savings on this date with no spending since. */
   firstEligibleLocalDate?: string;
-  lastClosedLocalDate?: string | null;
 };
+
+/**
+ * Starts savings so that, on March 10, `positionCents` is available: enough
+ * whole closed days to earn it, with one rollup holding the shortfall.
+ */
+async function seedSavingsPosition(
+  ctx: MutationCtx,
+  householdId: Id<"households">,
+  allowanceCents: bigint,
+  positionCents: bigint,
+) {
+  const closedDays =
+    positionCents > 0n ? (positionCents + allowanceCents - 1n) / allowanceCents : 1n;
+  const startLocalDate = getLocalDateKey(
+    serverNow - Number(closedDays) * 86_400_000,
+    "America/New_York",
+  );
+  const spentCents = closedDays * allowanceCents - positionCents;
+
+  await ctx.db.patch(householdId, { savingsStartLocalDate: startLocalDate });
+
+  if (spentCents > 0n) {
+    await ctx.db.insert("dailyBudgetRollups", {
+      householdId,
+      localDate: startLocalDate,
+      expenseCents: spentCents,
+      savingsFundedExpenseCents: 0n,
+      reserveFundedExpenseCents: 0n,
+      budgetImpactExpenseCents: spentCents,
+      updatedAt: 0,
+    });
+  }
+}
 
 async function seedPurchaseHouseholds(
   t: TestConvex<typeof schema>,
@@ -28,8 +66,7 @@ async function seedPurchaseHouseholds(
     allowanceCents = 5_000n,
     estimatedCostCents = 10_000n,
     positionCents = 10_000n,
-    firstEligibleLocalDate = "2026-03-09",
-    lastClosedLocalDate = "2026-03-09",
+    firstEligibleLocalDate,
   }: SeedOptions = {},
 ) {
   return await t.run(async (ctx) => {
@@ -111,14 +148,12 @@ async function seedPurchaseHouseholds(
       updatedAt: 3,
     });
 
-    await ctx.db.insert("goalSavingsStates", {
-      householdId,
-      positionCents,
-      activatedAt: 0,
-      firstEligibleLocalDate,
-      ...(lastClosedLocalDate === null ? {} : { lastClosedLocalDate }),
-      updatedAt: 0,
-    });
+    if (firstEligibleLocalDate === undefined) {
+      await seedSavingsPosition(ctx, householdId, allowanceCents, positionCents);
+    } else {
+      await ctx.db.patch(householdId, { savingsStartLocalDate: firstEligibleLocalDate });
+    }
+
     return {
       householdId,
       otherHouseholdId,
@@ -137,10 +172,13 @@ async function readSnapshot(
   householdId: SeededPurchase["householdId"],
 ) {
   return await t.run(async (ctx) => {
-    const state = await ctx.db
-      .query("goalSavingsStates")
-      .withIndex("by_household", (q) => q.eq("householdId", householdId))
-      .unique();
+    const household = await ctx.db.get(householdId);
+
+    if (!household) {
+      throw new Error("Expected household");
+    }
+
+    const savings = await getSavingsSnapshot(ctx, household, Date.now());
     const expenses = await ctx.db
       .query("expenses")
       .withIndex("by_household", (q) => q.eq("householdId", householdId))
@@ -154,7 +192,7 @@ async function readSnapshot(
       .withIndex("by_household_and_status", (q) => q.eq("householdId", householdId))
       .collect();
 
-    return { state, expenses, rollups, wants };
+    return { savings, expenses, rollups, wants };
   });
 }
 
@@ -230,7 +268,7 @@ test.each([
       wantItemId: seeded.cameraId,
       savingsUsedCents,
     });
-    expect(snapshot.state?.positionCents).toBe(availableSavingsCents - savingsUsedCents);
+    expect(snapshot.savings.positionCents).toBe(availableSavingsCents - savingsUsedCents);
     expect(camera).toMatchObject({
       status: "bought",
       purchasedBy: seeded.ownerId,
@@ -317,11 +355,9 @@ test.each([
     const t = convexTest(schema, modules);
     const seeded = await seedPurchaseHouseholds(t, {
       allowanceCents: positionCents === 0n ? 5_000n : positionCents,
-      positionCents: 0n,
+      // One closed day with no spending earns exactly `positionCents`.
       firstEligibleLocalDate: positionCents === 0n ? purchaseLocalDate : "2026-03-09",
-      lastClosedLocalDate: null,
     });
-    await t.mutation(internal.savingsMaintenance.closeEligibleDays, { cursor: null });
 
     if (addThirdWant) {
       await t.run(async (ctx) => {
@@ -359,7 +395,7 @@ test.each([
     const snapshot = await readSnapshot(t, seeded.householdId);
     const expense = snapshot.expenses.find((candidate) => candidate.wantItemId === itemId);
 
-    expect(purchase.status).toBe("purchased");
+    expect(purchase.status).toBe("ok");
     expect(before.availableSavingsCents).toBe(positionCents);
     expect(after.activeAllocations.map(({ allocatedCents }) => allocatedCents)).toEqual(
       remainingAllocations,
@@ -436,7 +472,7 @@ test("recalculates funding from current server state instead of trusting a stale
   expect((purchaseExpense?.amountCents ?? 0n) - (purchaseExpense?.savingsUsedCents ?? 0n)).toBe(
     2_000n,
   );
-  expect(snapshot.state?.positionCents).toBe(5_000n);
+  expect(snapshot.savings.positionCents).toBe(5_000n);
 });
 
 test("serializes competing purchases so the same savings cannot be spent twice", async () => {
@@ -469,7 +505,7 @@ test("serializes competing purchases so the same savings cannot be spent twice",
   expect(
     purchaseExpenses.reduce((sum, expense) => sum + (expense.savingsUsedCents ?? 0n), 0n),
   ).toBe(10_000n);
-  expect(snapshot.state?.positionCents).toBe(0n);
+  expect(snapshot.savings.positionCents).toBe(0n);
   expect(
     snapshot.wants
       .filter((item) => item._id === seeded.cameraId || item._id === seeded.tripId)
@@ -515,103 +551,9 @@ test("blocks cross-household, future-date, and client-timed purchases", async ()
   const snapshot = await readSnapshot(t, seeded.householdId);
 
   expect(snapshot.expenses).toEqual([]);
-  expect(snapshot.state?.positionCents).toBe(10_000n);
+  expect(snapshot.savings.positionCents).toBe(10_000n);
   expect(snapshot.wants.find((item) => item._id === seeded.cameraId)).toMatchObject({
     status: "plan_for_it",
-  });
-});
-
-test.each([
-  { apiVersion: undefined, syncing: "reserve_syncing" },
-  { apiVersion: 2 as const, syncing: "savings_syncing" },
-])(
-  "commits only bounded catch-up work while savings are still syncing ($syncing)",
-  async ({ apiVersion, syncing: expectedStatus }) => {
-    vi.useFakeTimers();
-    vi.setSystemTime(serverNow);
-
-    const t = convexTest(schema, modules);
-    const seeded = await seedPurchaseHouseholds(t, {
-      positionCents: 0n,
-      firstEligibleLocalDate: "2026-01-01",
-      lastClosedLocalDate: null,
-    });
-    const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
-
-    const result = await asOwner.mutation(api.wants.purchase, {
-      apiVersion,
-      itemId: seeded.cameraId,
-      actualAmountCents: 10_000n,
-      purchaseLocalDate,
-    });
-
-    expect(result).toEqual({ status: expectedStatus });
-
-    const syncing = await readSnapshot(t, seeded.householdId);
-
-    expect(syncing.state).toMatchObject({
-      positionCents: 155_000n,
-      lastClosedLocalDate: "2026-01-31",
-    });
-    expect(syncing.expenses).toEqual([]);
-    expect(syncing.wants.find((item) => item._id === seeded.cameraId)).toMatchObject({
-      status: "plan_for_it",
-    });
-
-    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
-
-    await asOwner.mutation(api.wants.purchase, {
-      apiVersion,
-      itemId: seeded.cameraId,
-      actualAmountCents: 10_000n,
-      purchaseLocalDate,
-    });
-
-    const completed = await readSnapshot(t, seeded.householdId);
-
-    expect(completed.expenses).toHaveLength(1);
-    expect(completed.wants.find((item) => item._id === seeded.cameraId)).toMatchObject({
-      status: "bought",
-    });
-  },
-);
-
-test("a purchase racing the hourly closer credits and closes each day once", async () => {
-  vi.useFakeTimers();
-  vi.setSystemTime(serverNow);
-
-  const t = convexTest(schema, modules);
-  const seeded = await seedPurchaseHouseholds(t, {
-    positionCents: 0n,
-    firstEligibleLocalDate: "2026-03-09",
-    lastClosedLocalDate: null,
-  });
-  const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
-
-  await Promise.all([
-    asOwner.mutation(api.wants.purchase, {
-      itemId: seeded.cameraId,
-      actualAmountCents: 5_000n,
-      purchaseLocalDate,
-    }),
-    t.mutation(internal.savingsMaintenance.closeEligibleDays, {
-      cursor: null,
-    }),
-  ]);
-
-  const snapshot = await readSnapshot(t, seeded.householdId);
-
-  expect(snapshot.expenses).toEqual([
-    expect.objectContaining({
-      wantItemId: seeded.cameraId,
-      amountCents: 5_000n,
-      savingsUsedCents: 5_000n,
-    }),
-  ]);
-  // March 9 credited +5_000 once; the purchase spent it.
-  expect(snapshot.state).toMatchObject({
-    positionCents: 0n,
-    lastClosedLocalDate: "2026-03-09",
   });
 });
 
@@ -663,7 +605,7 @@ test("corrects the linked purchase in place and recalculates exact funding", asy
     savingsFundedExpenseCents: 8_000n,
     budgetImpactExpenseCents: 0n,
   });
-  expect(corrected.state?.positionCents).toBe(2_000n);
+  expect(corrected.savings.positionCents).toBe(2_000n);
   expect(corrected.wants.find((item) => item._id === seeded.cameraId)).toMatchObject({
     status: "bought",
     expenseId: originalExpense._id,
@@ -708,7 +650,7 @@ test("undoes a purchase, reverses its rollup, and restores the item at the queue
     savingsFundedExpenseCents: 0n,
     budgetImpactExpenseCents: 0n,
   });
-  expect(undone.state?.positionCents).toBe(10_000n);
+  expect(undone.savings.positionCents).toBe(10_000n);
   expect(trip).toMatchObject({
     status: "plan_for_it",
     order: 0,
@@ -742,7 +684,7 @@ async function purchaseCameraOnMarch10(t: TestConvex<typeof schema>) {
   return { seeded, asOwner };
 }
 
-test("correcting a past purchase closes pending days first and corrects the closed day", async () => {
+test("correcting a past purchase recomputes funding without it and corrects the closed day", async () => {
   const t = convexTest(schema, modules);
   const { seeded, asOwner } = await purchaseCameraOnMarch10(t);
 
@@ -756,7 +698,7 @@ test("correcting a past purchase closes pending days first and corrects the clos
   // Without the purchase the savings would be $100 + $50 + $50 = $200, so the
   // corrected $80 is fully savings-funded.
   expect(result).toMatchObject({
-    success: true,
+    status: "ok",
     savingsUsedCents: 8_000n,
     budgetImpactCents: 0n,
   });
@@ -768,10 +710,7 @@ test("correcting a past purchase closes pending days first and corrects the clos
     savingsFundedExpenseCents: 8_000n,
     budgetImpactExpenseCents: 0n,
   });
-  expect(corrected.state).toMatchObject({
-    positionCents: 12_000n,
-    lastClosedLocalDate: "2026-03-11",
-  });
+  expect(corrected.savings.positionCents).toBe(12_000n);
 });
 
 test("undoing a closed-day purchase after a time-zone change reverses its original day", async () => {
@@ -787,7 +726,7 @@ test("undoing a closed-day purchase after a time-zone change reverses its origin
 
   await expect(
     asOwner.mutation(api.wants.undoPurchase, { itemId: seeded.cameraId }),
-  ).resolves.toEqual({ success: true });
+  ).resolves.toEqual({ status: "ok" });
 
   const undone = await readSnapshot(t, seeded.householdId);
 
@@ -798,45 +737,29 @@ test("undoing a closed-day purchase after a time-zone change reverses its origin
     budgetImpactExpenseCents: 0n,
   });
   // $100 start + $50 (Mar 10, corrected) + $50 (Mar 11), as if never bought.
-  expect(undone.state?.positionCents).toBe(20_000n);
+  expect(undone.savings.positionCents).toBe(20_000n);
 });
 
-test("correcting and undoing wait for the savings to finish syncing", async () => {
+test("pays a purchase dated before savings started entirely from the daily budget", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(serverNow);
+
   const t = convexTest(schema, modules);
-  const { seeded, asOwner } = await purchaseCameraOnMarch10(t);
+  const seeded = await seedPurchaseHouseholds(t, { positionCents: 10_000n });
+  const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
 
-  // 83 days behind: each write can close at most 31 of them.
-  vi.setSystemTime(Date.UTC(2026, 5, 1, 16));
-
+  // Savings started March 8; a March 5 purchase must not borrow from them,
+  // because a day before the start is never part of the savings position.
   await expect(
-    asOwner.mutation(api.wants.correctPurchase, {
-      apiVersion: 2,
+    asOwner.mutation(api.wants.purchase, {
       itemId: seeded.cameraId,
-      actualAmountCents: 8_000n,
+      actualAmountCents: 4_000n,
+      purchaseLocalDate: "2026-03-05",
     }),
-  ).resolves.toEqual({ status: "savings_syncing" });
+  ).resolves.toMatchObject({ status: "ok", savingsUsedCents: 0n, budgetImpactCents: 4_000n });
 
-  const syncing = await readSnapshot(t, seeded.householdId);
+  const snapshot = await readSnapshot(t, seeded.householdId);
 
-  expect(syncing.expenses).toEqual([
-    expect.objectContaining({ amountCents: 12_000n, savingsUsedCents: 10_000n }),
-  ]);
-  expect(syncing.state?.lastClosedLocalDate).toBe("2026-04-09");
-
-  await expect(
-    asOwner.mutation(api.wants.undoPurchase, { apiVersion: 2, itemId: seeded.cameraId }),
-  ).resolves.toEqual({ status: "savings_syncing" });
-  expect(
-    (await readSnapshot(t, seeded.householdId)).wants.find((item) => item._id === seeded.cameraId),
-  ).toMatchObject({ status: "bought" });
-
-  await t.finishAllScheduledFunctions(() => vi.runAllTimers());
-
-  await expect(
-    asOwner.mutation(api.wants.undoPurchase, { apiVersion: 2, itemId: seeded.cameraId }),
-  ).resolves.toEqual({ success: true });
-
-  const caughtUp = await readSnapshot(t, seeded.householdId);
-
-  expect(caughtUp.state?.lastClosedLocalDate).toBe("2026-05-31");
+  expect(snapshot.expenses).toEqual([expect.objectContaining({ savingsUsedCents: 0n })]);
+  expect(snapshot.savings.positionCents).toBe(10_000n);
 });

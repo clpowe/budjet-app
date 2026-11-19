@@ -48,19 +48,13 @@ async function handleSubmit() {
   submitError.value = "";
 
   try {
-    const result = await updateExpense({
-      apiVersion: 2,
+    await updateExpense({
       expenseId: props.expense._id,
       name,
       notes,
       amountCents: legacyDollarsToCents(amount),
       ...(date === originalLocalDate.value ? {} : { localDate: date }),
     });
-
-    if (!result.success) {
-      submitError.value = "Savings are still syncing. Try again in a moment.";
-      return;
-    }
   } catch (error) {
     submitError.value =
       error instanceof Error ? error.message : "Could not update spending. Try again.";

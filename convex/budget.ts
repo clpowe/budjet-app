@@ -113,7 +113,8 @@ export const getHomeSummary = query({
     const closedPositiveSavingsContributionCents = sumClosedPositiveContributions({
       rollups,
       allowanceCents: currentSavings.dailyAllowanceCents,
-      state: currentSavings.state,
+      firstEligibleLocalDate: currentSavings.firstEligibleLocalDate,
+      todayLocalDate: currentSavings.localDate,
       startLocalDate: period.startLocalDate,
       endExclusiveLocalDate: period.toDateEndExclusiveLocalDate,
       timeZone,
@@ -154,7 +155,7 @@ export const getHomeSummary = query({
     const savings = {
       positionCents: currentSavings.positionCents,
       availableCents: currentSavings.availableCents,
-      recoveryCents: currentSavings.recoveryCents,
+      recoveryCents: currentSavings.shortfallCents,
       todayOverageAdjustmentCents: currentSavings.todayOverageAdjustmentCents,
       projectedEndOfDayContributionCents: currentSavings.projectedEndOfDayContributionCents,
     };

@@ -193,8 +193,6 @@ async function requestPurchasePreview(value: {
   }
 }
 
-const SAVINGS_SYNCING_MESSAGE = "Savings are still syncing. Try again in a moment.";
-
 async function submitPurchase(
   value:
     | {
@@ -224,11 +222,6 @@ async function submitPurchase(
         return;
       }
 
-      if ("status" in result.data) {
-        purchaseError.value = SAVINGS_SYNCING_MESSAGE;
-        return;
-      }
-
       pageNotice.value = "Purchase correction saved.";
       closePurchaseDialog(true);
       return;
@@ -240,11 +233,6 @@ async function submitPurchase(
 
     if (!result.success) {
       purchaseError.value = result.error;
-      return;
-    }
-
-    if (result.data.status !== "purchased") {
-      purchaseError.value = SAVINGS_SYNCING_MESSAGE;
       return;
     }
 
@@ -267,11 +255,6 @@ async function undoPurchaseFromHistory(itemId: Id<"wantItems">) {
 
     if (!result.success) {
       boughtError.value = result.error;
-      return;
-    }
-
-    if ("status" in result.data) {
-      boughtError.value = SAVINGS_SYNCING_MESSAGE;
       return;
     }
 

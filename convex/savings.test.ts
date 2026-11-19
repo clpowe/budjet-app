@@ -3,7 +3,6 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { convexTest, type TestConvex } from "convex-test";
 import { api } from "./_generated/api";
-import { reduceSavingsEvent } from "./lib/savings_account";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -74,11 +73,8 @@ async function readSavings(
   householdId: Awaited<ReturnType<typeof seedHousehold>>["householdId"],
 ) {
   return await t.run(async (ctx) => {
-    const state = await ctx.db
-      .query("goalSavingsStates")
-      .withIndex("by_household", (q) => q.eq("householdId", householdId))
-      .unique();
-    return { state };
+    const household = await ctx.db.get(householdId);
+    return { savingsStartLocalDate: household?.savingsStartLocalDate };
   });
 }
 
@@ -94,7 +90,7 @@ test("requires completed money migration before activating the savings", async (
 
   expect(result).toEqual({ kind: "money_migration_pending" });
   expect(await readSavings(t, seeded.householdId)).toEqual({
-    state: null,
+    savingsStartLocalDate: undefined,
   });
 });
 
@@ -120,12 +116,7 @@ test("activates exactly once at zero and preserves the state after the queue emp
 
   const activated = await readSavings(t, seeded.householdId);
 
-  expect(activated.state).toMatchObject({
-    householdId: seeded.householdId,
-    positionCents: 0n,
-    activatedAt: march10AtNoonNewYork,
-    firstEligibleLocalDate: "2026-03-11",
-  });
+  expect(activated).toEqual({ savingsStartLocalDate: "2026-03-11" });
 
   await asOwner.mutation(api.wants.changeStatus, {
     itemId: seeded.cameraId,
@@ -136,42 +127,7 @@ test("activates exactly once at zero and preserves the state after the queue emp
     status: "not_now",
   });
 
-  expect(await readSavings(t, seeded.householdId)).toMatchObject({
-    state: activated.state,
-  });
-});
-
-test("savings transitions reject invalid amounts and stale daily closes", async () => {
-  const t = convexTest(schema, modules);
-  const seeded = await seedHousehold(t);
-  const state = await t.run(async (ctx) => {
-    const stateId = await ctx.db.insert("goalSavingsStates", {
-      householdId: seeded.householdId,
-      positionCents: 3_000n,
-      activatedAt: 0,
-      firstEligibleLocalDate: "2026-03-10",
-      lastClosedLocalDate: "2026-03-11",
-      updatedAt: 0,
-    });
-    return await ctx.db.get("goalSavingsStates", stateId);
-  });
-
-  if (!state) {
-    throw new Error("Expected savings state");
-  }
-
-  expect(() =>
-    reduceSavingsEvent(state, {
-      kind: "daily_close",
-      localDate: "2026-03-11",
-      allowanceCents: 5_500n,
-      spendingCents: 1_000n,
-    }),
-  ).toThrow("Savings days must close after the recorded close cursor");
-
-  expect(() => reduceSavingsEvent(state, { kind: "purchase", savingsUsedCents: -1n })).toThrow(
-    "Paid from savings must not be negative",
-  );
+  expect(await readSavings(t, seeded.householdId)).toEqual(activated);
 });
 
 test("reports open-day underspending as potential instead of funded savings", async () => {
@@ -187,11 +143,15 @@ test("reports open-day underspending as potential instead of funded savings", as
       status: "plan_for_it",
       order: 1,
     });
-    await ctx.db.insert("goalSavingsStates", {
+    // One closed day (Mar 9): $55 earned, $25 spent -> $30 of savings.
+    await ctx.db.patch(seeded.householdId, { savingsStartLocalDate: "2026-03-09" });
+    await ctx.db.insert("dailyBudgetRollups", {
       householdId: seeded.householdId,
-      positionCents: 3_000n,
-      activatedAt: 0,
-      firstEligibleLocalDate: "2026-03-01",
+      localDate: "2026-03-09",
+      expenseCents: 2_500n,
+      savingsFundedExpenseCents: 0n,
+      reserveFundedExpenseCents: 0n,
+      budgetImpactExpenseCents: 2_500n,
       updatedAt: 0,
     });
     await ctx.db.insert("dailyBudgetRollups", {
@@ -244,11 +204,15 @@ test("immediately reduces visible progress when open-day spending exceeds allowa
       status: "plan_for_it",
       order: 0,
     });
-    await ctx.db.insert("goalSavingsStates", {
+    // One closed day (Mar 9): $55 earned, $45 spent -> $10 of savings.
+    await ctx.db.patch(seeded.householdId, { savingsStartLocalDate: "2026-03-09" });
+    await ctx.db.insert("dailyBudgetRollups", {
       householdId: seeded.householdId,
-      positionCents: 1_000n,
-      activatedAt: 0,
-      firstEligibleLocalDate: "2026-03-01",
+      localDate: "2026-03-09",
+      expenseCents: 4_500n,
+      savingsFundedExpenseCents: 0n,
+      reserveFundedExpenseCents: 0n,
+      budgetImpactExpenseCents: 4_500n,
       updatedAt: 0,
     });
     await ctx.db.insert("dailyBudgetRollups", {

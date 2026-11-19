@@ -53,19 +53,14 @@ async function handleSubmit() {
   if (!Number.isFinite(amount)) return;
 
   try {
-    const res = await mutate({
-      apiVersion: 2,
+    await mutate({
       name,
       notes,
       amountCents: legacyDollarsToCents(amount),
       date: toTransactionTimestamp(date),
     });
 
-    if (res.success) {
-      formState.value = makeFormState(date);
-    } else {
-      submitError.value = "Savings are still syncing. Try again in a moment.";
-    }
+    formState.value = makeFormState(date);
   } catch (error) {
     submitError.value =
       error instanceof Error ? error.message : "Could not add spending. Try again.";

@@ -224,17 +224,15 @@ describe("useWantList", () => {
       now: nowRef.value,
     });
     expect(mutationFor(api.wants.purchase)).toHaveBeenCalledWith({
-      apiVersion: 2,
       itemId,
       actualAmountCents: 10_000n,
       purchaseLocalDate: "2026-08-20",
     });
     expect(mutationFor(api.wants.correctPurchase)).toHaveBeenCalledWith({
-      apiVersion: 2,
       itemId,
       actualAmountCents: 9_000n,
     });
-    expect(mutationFor(api.wants.undoPurchase)).toHaveBeenCalledWith({ apiVersion: 2, itemId });
+    expect(mutationFor(api.wants.undoPurchase)).toHaveBeenCalledWith({ itemId });
   });
 
   it("returns server messages and user-safe fallbacks instead of throwing from mutations", async () => {

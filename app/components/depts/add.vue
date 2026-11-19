@@ -52,17 +52,14 @@ async function handleSubmit() {
   if (!Number.isFinite(amount)) return;
 
   try {
-    const res = await mutate({
+    await mutate({
       name,
       notes,
-      amount,
+      amountCents: legacyDollarsToCents(amount),
       date: toTransactionTimestamp(date),
-      householdId,
     });
 
-    if (res.success) {
-      formState.value = makeFormState(date);
-    }
+    formState.value = makeFormState(date);
   } catch (error) {
     submitError.value =
       error instanceof Error ? error.message : "Could not add spending. Try again.";

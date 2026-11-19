@@ -110,15 +110,8 @@ test("derives one nested month-to-date summary and excludes future local-date ro
       budgetImpactExpenseCents: 100_000n,
       updatedAt: 0,
     });
-    await ctx.db.insert("goalSavingsStates", {
-      householdId: seeded.householdId,
-      positionCents: 6_000n,
-      activatedAt: 0,
-      // Only March 5 is closed: it contributes 5_000 − 3_000 = 2_000.
-      firstEligibleLocalDate: "2026-03-05",
-      lastClosedLocalDate: "2026-03-05",
-      updatedAt: 0,
-    });
+    // Only March 9 is a closed eligible day, with no spending: it earns the full $50.
+    await ctx.db.patch(seeded.householdId, { savingsStartLocalDate: "2026-03-09" });
     const cameraId = await ctx.db.insert("wantItems", {
       householdId: seeded.householdId,
       name: "Camera",
@@ -151,8 +144,8 @@ test("derives one nested month-to-date summary and excludes future local-date ro
     plan: {
       dailyAllowanceCents: 5_000n,
       allowanceCents: 150_000n,
-      safeToSpendCents: 138_000n,
-      closedPositiveSavingsContributionCents: 2_000n,
+      safeToSpendCents: 135_000n,
+      closedPositiveSavingsContributionCents: 5_000n,
     },
     spending: {
       monthToDate: {
@@ -168,8 +161,8 @@ test("derives one nested month-to-date summary and excludes future local-date ro
       },
     },
     savings: {
-      positionCents: 6_000n,
-      availableCents: 4_000n,
+      positionCents: 5_000n,
+      availableCents: 3_000n,
       recoveryCents: 0n,
       todayOverageAdjustmentCents: -2_000n,
       projectedEndOfDayContributionCents: 0n,
@@ -178,9 +171,9 @@ test("derives one nested month-to-date summary and excludes future local-date ro
       itemId: cameraId,
       name: "Camera",
       estimatedCostCents: 10_000n,
-      allocatedCents: 4_000n,
-      remainingCents: 6_000n,
-      progressBasisPoints: 4_000,
+      allocatedCents: 3_000n,
+      remainingCents: 7_000n,
+      progressBasisPoints: 3_000,
     },
   });
 });

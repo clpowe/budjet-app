@@ -11,7 +11,6 @@
 import type * as auth from "../auth.js";
 import type * as budget from "../budget.js";
 import type * as chat from "../chat.js";
-import type * as crons from "../crons.js";
 import type * as depts from "../depts.js";
 import type * as expenses from "../expenses.js";
 import type * as households from "../households.js";
@@ -25,7 +24,6 @@ import type * as lib_savings_account from "../lib/savings_account.js";
 import type * as lib_want_savings from "../lib/want_savings.js";
 import type * as migrations_backfillMoney from "../migrations/backfillMoney.js";
 import type * as savings from "../savings.js";
-import type * as savingsMaintenance from "../savingsMaintenance.js";
 import type * as test_utils_seed from "../test_utils/seed.js";
 import type * as users from "../users.js";
 import type * as wants from "../wants.js";
@@ -41,7 +39,6 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   budget: typeof budget;
   chat: typeof chat;
-  crons: typeof crons;
   depts: typeof depts;
   expenses: typeof expenses;
   households: typeof households;
@@ -55,7 +52,6 @@ declare const fullApi: ApiFromModules<{
   "lib/want_savings": typeof lib_want_savings;
   "migrations/backfillMoney": typeof migrations_backfillMoney;
   savings: typeof savings;
-  savingsMaintenance: typeof savingsMaintenance;
   "test_utils/seed": typeof test_utils_seed;
   users: typeof users;
   wants: typeof wants;

@@ -158,6 +158,6 @@ describe("useExpenses", () => {
     const composable = useExpenses();
     composable.removeExpense("expense-id" as Doc<"expenses">["_id"]);
 
-    expect(deleteExpenseMock).toHaveBeenCalledWith({ apiVersion: 2, expenseId: "expense-id" });
+    expect(deleteExpenseMock).toHaveBeenCalledWith({ expenseId: "expense-id" });
   });
 });
