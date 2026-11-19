@@ -5,7 +5,7 @@ import { api } from "@generated/api";
 import type { Doc, Id } from "@generated/dataModel";
 import type { WantStatus } from "../utils/want-status";
 
-type WantItem = Doc<"wantItems">;
+type WantItem = Doc<"goals">;
 type WantPriority = WantItem["priority"];
 
 type WantFormModel = {
@@ -24,7 +24,7 @@ type WantSubmitValues = {
   notes: string;
 };
 
-type PurchasePreview = FunctionReturnType<typeof api.wants.previewPurchase> & {
+type PurchasePreview = FunctionReturnType<typeof api.goals.previewPurchase> & {
   actualAmountCents: bigint;
 };
 type PurchaseDialogMode = "purchase" | "correct";
@@ -61,7 +61,7 @@ const purchasePreview = ref<PurchasePreview | null>(null);
 const isPreviewPending = ref(false);
 const isSubmittingPurchase = ref(false);
 const purchaseError = ref("");
-const undoPendingItemId = ref<Id<"wantItems"> | undefined>();
+const undoPendingItemId = ref<Id<"goals"> | undefined>();
 const purchaseTrigger = shallowRef<HTMLElement | null>(null);
 const formDialog = shallowRef<HTMLDialogElement | null>(null);
 let latestPreviewRequest = 0;
@@ -156,14 +156,11 @@ function closePurchaseDialog(force = false) {
   });
 }
 
-async function requestPurchasePreview(value: {
-  itemId: Id<"wantItems">;
-  actualAmountCents: bigint;
-}) {
+async function requestPurchasePreview(value: { goalId: Id<"goals">; actualAmountCents: bigint }) {
   if (
     purchaseMode.value !== "purchase" ||
     !purchaseItem.value ||
-    purchaseItem.value._id !== value.itemId
+    purchaseItem.value._id !== value.goalId
   ) {
     return;
   }
@@ -196,12 +193,12 @@ async function requestPurchasePreview(value: {
 async function submitPurchase(
   value:
     | {
-        itemId: Id<"wantItems">;
+        goalId: Id<"goals">;
         actualAmountCents: bigint;
         purchaseLocalDate: string;
       }
     | {
-        itemId: Id<"wantItems">;
+        goalId: Id<"goals">;
         actualAmountCents: bigint;
       },
 ) {
@@ -213,7 +210,7 @@ async function submitPurchase(
   try {
     if (purchaseMode.value === "correct") {
       const result = await correctPurchase({
-        itemId: value.itemId,
+        goalId: value.goalId,
         actualAmountCents: value.actualAmountCents,
       });
 
@@ -236,22 +233,22 @@ async function submitPurchase(
       return;
     }
 
-    pageNotice.value = `${formatCents(value.actualAmountCents)} total · ${formatCents(result.data.savingsUsedCents)} from savings · ${formatCents(result.data.budgetImpactCents)} budget impact.`;
+    pageNotice.value = `${formatCents(value.actualAmountCents)} total · ${formatCents(result.data.fromSavingsCents)} from savings · ${formatCents(result.data.budgetImpactCents)} budget impact.`;
     closePurchaseDialog(true);
   } finally {
     isSubmittingPurchase.value = false;
   }
 }
 
-async function undoPurchaseFromHistory(itemId: Id<"wantItems">) {
+async function undoPurchaseFromHistory(goalId: Id<"goals">) {
   if (undoPendingItemId.value) return;
 
-  undoPendingItemId.value = itemId;
+  undoPendingItemId.value = goalId;
   boughtError.value = "";
   pageNotice.value = "";
 
   try {
-    const result = await undoPurchase({ itemId });
+    const result = await undoPurchase({ goalId });
 
     if (!result.success) {
       boughtError.value = result.error;
@@ -319,7 +316,7 @@ async function saveWant(values: WantSubmitValues) {
   try {
     if (editingItem.value) {
       const result = await updateItem({
-        itemId: editingItem.value._id,
+        goalId: editingItem.value._id,
         name: values.name,
         estimatedCostCents: values.estimatedCostCents,
         priority: values.priority,
@@ -358,7 +355,7 @@ async function saveWant(values: WantSubmitValues) {
   }
 }
 
-async function updateStatus(value: { itemId: Id<"wantItems">; status: WantStatus }) {
+async function updateStatus(value: { goalId: Id<"goals">; status: WantStatus }) {
   pageError.value = "";
   pageNotice.value = "";
 
@@ -372,7 +369,7 @@ async function updateStatus(value: { itemId: Id<"wantItems">; status: WantStatus
   pageNotice.value = "Want status updated.";
 }
 
-async function saveOrder(order: FunctionArgs<typeof api.wants.reorder>) {
+async function saveOrder(order: FunctionArgs<typeof api.goals.reorder>) {
   if (isReordering.value) return;
 
   isReordering.value = true;

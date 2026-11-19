@@ -40,7 +40,7 @@ const table = useTable({
 
 function formatPurchaseFunding(expense: Expense) {
   const total = expense.amountCents;
-  const savings = expense.savingsUsedCents ?? 0n;
+  const savings = expense.fromSavingsCents ?? 0n;
   return `${formatCents(total)} total · ${formatCents(savings)} from savings · ${formatCents(total - savings)} budget impact`;
 }
 
@@ -83,10 +83,10 @@ function onExpenseUpdated(id: string) {
         <tbody>
           <tr v-for="row in table.getRowModel().rows" :key="row.id">
             <td v-for="cell in row.getAllCells()" :key="cell.id">
-              <template v-if="cell.column.id === 'amount' && row.original.wantItemId">
+              <template v-if="cell.column.id === 'amount' && row.original.goalId">
                 {{ formatPurchaseFunding(row.original) }}
               </template>
-              <template v-else-if="cell.column.id === 'actions' && row.original.wantItemId">
+              <template v-else-if="cell.column.id === 'actions' && row.original.goalId">
                 Want purchase
               </template>
               <template v-else-if="cell.column.id === 'actions'">

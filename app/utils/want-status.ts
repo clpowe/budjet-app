@@ -1,6 +1,6 @@
 import type { Doc } from "../../convex/_generated/dataModel";
 
-export type WantStatus = Doc<"wantItems">["status"];
+export type WantStatus = Doc<"goals">["status"];
 
 export type WantStatusStrategy = {
   label: string;
@@ -10,25 +10,25 @@ export type WantStatusStrategy = {
 };
 
 export const WANT_STATUS_STRATEGIES = {
-  considering: {
+  idea: {
     label: "Considering",
     description: "Ideas the household is still deciding on.",
     badgeClass: "badge-info badge-outline",
-    allowedActions: ["plan_for_it", "not_now"],
+    allowedActions: ["saving", "on_hold"],
   },
-  plan_for_it: {
+  saving: {
     label: "Plan for it",
     description: "Active Wants funded in this queue order.",
     badgeClass: "badge-primary",
-    allowedActions: ["considering", "not_now"],
+    allowedActions: ["idea", "on_hold"],
   },
-  not_now: {
+  on_hold: {
     label: "Not now",
     description: "Wants saved for another time.",
     badgeClass: "badge-neutral badge-outline",
-    allowedActions: ["considering", "plan_for_it"],
+    allowedActions: ["idea", "saving"],
   },
-  bought: {
+  purchased: {
     label: "Bought",
     description: "Completed Wants with linked purchase history.",
     badgeClass: "badge-success",

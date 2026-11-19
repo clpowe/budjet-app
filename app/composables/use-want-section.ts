@@ -3,8 +3,8 @@ import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import { computed, onScopeDispose, ref, shallowReactive } from "vue";
 import { api } from "../../convex/_generated/api";
 
-type SectionArgs = FunctionArgs<typeof api.wants.listSection>;
-type SectionResult = FunctionReturnType<typeof api.wants.listSection>;
+type SectionArgs = FunctionArgs<typeof api.goals.listSection>;
+type SectionResult = FunctionReturnType<typeof api.goals.listSection>;
 
 type Page = {
   cursor: string | null;
@@ -23,7 +23,7 @@ export function useWantSection(client: ConvexClient, status: SectionArgs["status
   function subscribe(page: Page) {
     page.unsubscribe?.();
     page.unsubscribe = client.onUpdate(
-      api.wants.listSection,
+      api.goals.listSection,
       {
         status,
         paginationOpts: {

@@ -2,14 +2,14 @@
 import { computed, nextTick, ref, useId, watch } from "vue";
 import type { Doc, Id } from "@generated/dataModel";
 
-type WantItem = Doc<"wantItems">;
+type WantItem = Doc<"goals">;
 
 type PurchasePreview = {
   actualAmountCents: bigint;
-  savingsUsedCents: bigint;
+  fromSavingsCents: bigint;
   budgetImpactCents: bigint;
   progressLosses: Array<{
-    itemId: Id<"wantItems">;
+    goalId: Id<"goals">;
     name: string;
     lostCents: bigint;
     allocatedCentsAfter: bigint;
@@ -40,7 +40,7 @@ const emit = defineEmits<{
   (
     event: "request-preview",
     value: {
-      itemId: Id<"wantItems">;
+      goalId: Id<"goals">;
       actualAmountCents: bigint;
     },
   ): void;
@@ -48,12 +48,12 @@ const emit = defineEmits<{
     event: "submit",
     value:
       | {
-          itemId: Id<"wantItems">;
+          goalId: Id<"goals">;
           actualAmountCents: bigint;
           purchaseLocalDate: string;
         }
       | {
-          itemId: Id<"wantItems">;
+          goalId: Id<"goals">;
           actualAmountCents: bigint;
         },
   ): void;
@@ -136,7 +136,7 @@ function requestPreview() {
   }
 
   emit("request-preview", {
-    itemId: props.item._id,
+    goalId: props.item._id,
     actualAmountCents: parsedAmount.value,
   });
 }
@@ -206,7 +206,7 @@ function submit() {
 
   if (props.mode === "correct") {
     emit("submit", {
-      itemId: props.item._id,
+      goalId: props.item._id,
       actualAmountCents: parsedAmount.value,
     });
     return;
@@ -215,7 +215,7 @@ function submit() {
   if (!purchaseDate.value) return;
 
   emit("submit", {
-    itemId: props.item._id,
+    goalId: props.item._id,
     actualAmountCents: parsedAmount.value,
     purchaseLocalDate: purchaseDate.value,
   });
@@ -288,7 +288,7 @@ function submit() {
           <div>
             <dt>Paid from savings</dt>
             <dd>
-              {{ formatCents(matchingPreview.savingsUsedCents) }}
+              {{ formatCents(matchingPreview.fromSavingsCents) }}
             </dd>
           </div>
 
@@ -308,7 +308,7 @@ function submit() {
           <h3 id="progress-losses-heading">Progress affected on other Wants</h3>
 
           <ul>
-            <li v-for="loss in matchingPreview.progressLosses" :key="loss.itemId">
+            <li v-for="loss in matchingPreview.progressLosses" :key="loss.goalId">
               <strong>{{ loss.name }}</strong>
               <span>
                 {{ formatCents(loss.lostCents) }} progress used ·

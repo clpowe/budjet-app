@@ -5,27 +5,27 @@ import { useWantList } from "../../app/composables/use-want-list";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 
-type WantItem = Doc<"wantItems">;
+type WantItem = Doc<"goals">;
 
 const activeItem = {
-  _id: "want-active" as Id<"wantItems">,
+  _id: "want-active" as Id<"goals">,
   name: "Camera",
-  status: "plan_for_it",
+  status: "saving",
 } as WantItem;
 const consideringItem = {
-  _id: "want-considering" as Id<"wantItems">,
+  _id: "want-considering" as Id<"goals">,
   name: "Bike",
-  status: "considering",
+  status: "idea",
 } as WantItem;
 const notNowItem = {
-  _id: "want-not-now" as Id<"wantItems">,
+  _id: "want-not-now" as Id<"goals">,
   name: "Kayak",
-  status: "not_now",
+  status: "on_hold",
 } as WantItem;
 const boughtItem = {
-  _id: "want-bought" as Id<"wantItems">,
+  _id: "want-bought" as Id<"goals">,
   name: "Headphones",
-  status: "bought",
+  status: "purchased",
 } as WantItem;
 
 const wantsRef = ref({ active: [activeItem] });
@@ -55,13 +55,13 @@ const summaryRef = ref({
 const nowRef = ref(Date.UTC(2026, 7, 20, 16));
 const summaryPending = ref(false);
 const mutations = new Map([
-  [getFunctionName(api.wants.create), vi.fn()],
-  [getFunctionName(api.wants.update), vi.fn()],
-  [getFunctionName(api.wants.changeStatus), vi.fn()],
-  [getFunctionName(api.wants.reorder), vi.fn()],
-  [getFunctionName(api.wants.purchase), vi.fn()],
-  [getFunctionName(api.wants.correctPurchase), vi.fn()],
-  [getFunctionName(api.wants.undoPurchase), vi.fn()],
+  [getFunctionName(api.goals.create), vi.fn()],
+  [getFunctionName(api.goals.update), vi.fn()],
+  [getFunctionName(api.goals.changeStatus), vi.fn()],
+  [getFunctionName(api.goals.reorder), vi.fn()],
+  [getFunctionName(api.goals.purchase), vi.fn()],
+  [getFunctionName(api.goals.correctPurchase), vi.fn()],
+  [getFunctionName(api.goals.undoPurchase), vi.fn()],
 ]);
 
 function mutationFor(endpoint: FunctionReference<"mutation">) {
@@ -86,7 +86,7 @@ describe("useWantList", () => {
     vi.stubGlobal("useConvexQuery", (endpoint: FunctionReference<"query">, args: unknown) => {
       const name = getFunctionName(endpoint);
       switch (name) {
-        case getFunctionName(api.wants.list):
+        case getFunctionName(api.goals.list):
           expect(args).toEqual({});
           return { data: wantsRef, isPending: ref(false) };
         case getFunctionName(api.savings.getSummary):
@@ -98,9 +98,9 @@ describe("useWantList", () => {
     });
     subscribeMock.mockImplementation((_query, args, callback) => {
       const sections = {
-        considering: consideringRef.value,
-        not_now: notNowRef.value,
-        bought: boughtRef.value,
+        idea: consideringRef.value,
+        on_hold: notNowRef.value,
+        purchased: boughtRef.value,
       };
       callback(sections[args.status as keyof typeof sections]);
       return vi.fn();
@@ -126,9 +126,9 @@ describe("useWantList", () => {
     summaryPending.value = true;
     expect(wants.isLoading.value).toBe(true);
 
-    for (const status of ["considering", "not_now", "bought"]) {
+    for (const status of ["idea", "on_hold", "purchased"]) {
       expect(subscribeMock).toHaveBeenCalledWith(
-        api.wants.listSection,
+        api.goals.listSection,
         { status, paginationOpts: { numItems: 25, cursor: null } },
         expect.any(Function),
         expect.any(Function),
@@ -139,22 +139,22 @@ describe("useWantList", () => {
   it("pins the loaded Bought page and loads its continuation independently", () => {
     const firstPage = { page: [boughtItem], isDone: false, continueCursor: "next-bought" };
     subscribeMock.mockImplementation((_query, args, callback) => {
-      if (args.status === "considering") callback(consideringRef.value);
-      if (args.status === "not_now") callback(notNowRef.value);
-      if (args.status === "bought" && args.paginationOpts.cursor === null) callback(firstPage);
+      if (args.status === "idea") callback(consideringRef.value);
+      if (args.status === "on_hold") callback(notNowRef.value);
+      if (args.status === "purchased" && args.paginationOpts.cursor === null) callback(firstPage);
       return vi.fn();
     });
     const wants = useWantList();
-    const older = { ...boughtItem, _id: "older-purchase" as Id<"wantItems"> };
+    const older = { ...boughtItem, _id: "older-purchase" as Id<"goals"> };
 
     wants.history.bought.loadMore();
     wants.history.bought.loadMore();
     expect(subscribeMock).toHaveBeenCalledTimes(5);
     expect(subscribeMock).toHaveBeenNthCalledWith(
       4,
-      api.wants.listSection,
+      api.goals.listSection,
       {
-        status: "bought",
+        status: "purchased",
         paginationOpts: { numItems: 25, cursor: null, endCursor: "next-bought" },
       },
       expect.any(Function),
@@ -162,8 +162,8 @@ describe("useWantList", () => {
     );
     expect(subscribeMock).toHaveBeenNthCalledWith(
       5,
-      api.wants.listSection,
-      { status: "bought", paginationOpts: { numItems: 25, cursor: "next-bought" } },
+      api.goals.listSection,
+      { status: "purchased", paginationOpts: { numItems: 25, cursor: "next-bought" } },
       expect.any(Function),
       expect.any(Function),
     );
@@ -177,7 +177,7 @@ describe("useWantList", () => {
 
   it("runs focused network calls and never sends a client clock to a mutation", async () => {
     const wants = useWantList();
-    const itemId = activeItem._id;
+    const goalId = activeItem._id;
     const createArgs = {
       name: "Camera",
       estimatedCostCents: 10_000n,
@@ -185,7 +185,7 @@ describe("useWantList", () => {
       notes: "",
     };
     const updateArgs = {
-      itemId,
+      goalId,
       name: "Camera",
       estimatedCostCents: 12_000n,
       priority: "medium" as const,
@@ -196,48 +196,48 @@ describe("useWantList", () => {
     const results = await Promise.all([
       wants.createItem(createArgs),
       wants.updateItem(updateArgs),
-      wants.changeStatus({ itemId, status: "not_now" }),
-      wants.reorder({ itemIds: [itemId], expectedItemIds: [itemId] }),
-      wants.previewPurchase({ itemId, actualAmountCents: 10_000n }),
+      wants.changeStatus({ goalId, status: "on_hold" }),
+      wants.reorder({ goalIds: [goalId], expectedGoalIds: [goalId] }),
+      wants.previewPurchase({ goalId, actualAmountCents: 10_000n }),
       wants.purchase({
-        itemId,
+        goalId,
         actualAmountCents: 10_000n,
         purchaseLocalDate: "2026-08-20",
       }),
-      wants.correctPurchase({ itemId, actualAmountCents: 9_000n }),
-      wants.undoPurchase({ itemId }),
+      wants.correctPurchase({ goalId, actualAmountCents: 9_000n }),
+      wants.undoPurchase({ goalId }),
     ]);
 
     results.forEach((result) => {
       expect(result.success).toBe(true);
     });
-    expect(mutationFor(api.wants.create)).toHaveBeenCalledWith(createArgs);
-    expect(mutationFor(api.wants.update)).toHaveBeenCalledWith(updateArgs);
-    expect(mutationFor(api.wants.changeStatus)).toHaveBeenCalledWith({ itemId, status: "not_now" });
-    expect(mutationFor(api.wants.reorder)).toHaveBeenCalledWith({
-      itemIds: [itemId],
-      expectedItemIds: [itemId],
+    expect(mutationFor(api.goals.create)).toHaveBeenCalledWith(createArgs);
+    expect(mutationFor(api.goals.update)).toHaveBeenCalledWith(updateArgs);
+    expect(mutationFor(api.goals.changeStatus)).toHaveBeenCalledWith({ goalId, status: "on_hold" });
+    expect(mutationFor(api.goals.reorder)).toHaveBeenCalledWith({
+      goalIds: [goalId],
+      expectedGoalIds: [goalId],
     });
-    expect(previewQueryMock).toHaveBeenCalledWith(api.wants.previewPurchase, {
-      itemId,
+    expect(previewQueryMock).toHaveBeenCalledWith(api.goals.previewPurchase, {
+      goalId,
       actualAmountCents: 10_000n,
       now: nowRef.value,
     });
-    expect(mutationFor(api.wants.purchase)).toHaveBeenCalledWith({
-      itemId,
+    expect(mutationFor(api.goals.purchase)).toHaveBeenCalledWith({
+      goalId,
       actualAmountCents: 10_000n,
       purchaseLocalDate: "2026-08-20",
     });
-    expect(mutationFor(api.wants.correctPurchase)).toHaveBeenCalledWith({
-      itemId,
+    expect(mutationFor(api.goals.correctPurchase)).toHaveBeenCalledWith({
+      goalId,
       actualAmountCents: 9_000n,
     });
-    expect(mutationFor(api.wants.undoPurchase)).toHaveBeenCalledWith({ itemId });
+    expect(mutationFor(api.goals.undoPurchase)).toHaveBeenCalledWith({ goalId });
   });
 
   it("returns server messages and user-safe fallbacks instead of throwing from mutations", async () => {
-    mutationFor(api.wants.create).mockRejectedValueOnce("offline");
-    mutationFor(api.wants.update).mockRejectedValueOnce(new Error("Want item not found"));
+    mutationFor(api.goals.create).mockRejectedValueOnce("offline");
+    mutationFor(api.goals.update).mockRejectedValueOnce(new Error("Want item not found"));
     const wants = useWantList();
 
     await expect(
@@ -253,7 +253,7 @@ describe("useWantList", () => {
     });
     await expect(
       wants.updateItem({
-        itemId: activeItem._id,
+        goalId: activeItem._id,
         name: "Camera",
         estimatedCostCents: 10_000n,
         priority: "high",

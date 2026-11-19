@@ -104,13 +104,13 @@ test("derives one nested month-to-date summary and excludes future local-date ro
     });
     // Only March 9 is a closed eligible day, with no spending: it earns the full $50.
     await ctx.db.patch(seeded.householdId, { savingsStartLocalDate: "2026-03-09" });
-    const cameraId = await ctx.db.insert("wantItems", {
+    const cameraId = await ctx.db.insert("goals", {
       householdId: seeded.householdId,
       name: "Camera",
       estimatedCostCents: 10_000n,
       priority: "high",
       notes: "",
-      status: "plan_for_it",
+      status: "saving",
       order: 0,
       createdBy: seeded.ownerId,
       updatedBy: seeded.ownerId,
@@ -160,7 +160,7 @@ test("derives one nested month-to-date summary and excludes future local-date ro
       projectedEndOfDayContributionCents: 0n,
     },
     nextPlannedWant: {
-      itemId: cameraId,
+      goalId: cameraId,
       name: "Camera",
       estimatedCostCents: 10_000n,
       allocatedCents: 3_000n,
@@ -221,13 +221,13 @@ test("marks want purchases and returns exact savings and budget-impact cents", a
   const seeded = await seedHousehold(t);
 
   await t.run(async (ctx) => {
-    const wantItemId = await ctx.db.insert("wantItems", {
+    const goalId = await ctx.db.insert("goals", {
       householdId: seeded.householdId,
       name: "Camera",
       estimatedCostCents: 12_000n,
       priority: "high",
       notes: "",
-      status: "bought",
+      status: "purchased",
       createdBy: seeded.ownerId,
       updatedBy: seeded.ownerId,
       createdAt: 0,
@@ -238,8 +238,8 @@ test("marks want purchases and returns exact savings and budget-impact cents", a
       name: "Camera",
       notes: "",
       amountCents: 12_000n,
-      savingsUsedCents: 10_000n,
-      wantItemId,
+      fromSavingsCents: 10_000n,
+      goalId,
       localDate: "2026-03-10",
     });
   });
@@ -254,7 +254,7 @@ test("marks want purchases and returns exact savings and budget-impact cents", a
     expect.objectContaining({
       type: "expense",
       amountCents: 12_000n,
-      savingsUsedCents: 10_000n,
+      fromSavingsCents: 10_000n,
       budgetImpactCents: 2_000n,
       isWantPurchase: true,
     }),

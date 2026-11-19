@@ -32,25 +32,25 @@ async function seedHousehold(t: TestConvex<typeof schema>) {
 
     await ctx.db.patch(ownerId, { householdId });
 
-    const cameraId = await ctx.db.insert("wantItems", {
+    const cameraId = await ctx.db.insert("goals", {
       householdId,
       name: "Camera",
       estimatedCostCents: 5_000n,
       priority: "high",
       notes: "",
-      status: "considering",
+      status: "idea",
       createdBy: ownerId,
       updatedBy: ownerId,
       createdAt: 0,
       updatedAt: 0,
     });
-    const headphonesId = await ctx.db.insert("wantItems", {
+    const headphonesId = await ctx.db.insert("goals", {
       householdId,
       name: "Headphones",
       estimatedCostCents: 4_000n,
       priority: "medium",
       notes: "",
-      status: "considering",
+      status: "idea",
       createdBy: ownerId,
       updatedBy: ownerId,
       createdAt: 0,
@@ -79,13 +79,13 @@ test("activates exactly once at zero and preserves the state after the queue emp
   const seeded = await seedHousehold(t);
   const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
 
-  const firstResult = await asOwner.mutation(api.wants.changeStatus, {
-    itemId: seeded.cameraId,
-    status: "plan_for_it",
+  const firstResult = await asOwner.mutation(api.goals.changeStatus, {
+    goalId: seeded.cameraId,
+    status: "saving",
   });
-  const secondResult = await asOwner.mutation(api.wants.changeStatus, {
-    itemId: seeded.headphonesId,
-    status: "plan_for_it",
+  const secondResult = await asOwner.mutation(api.goals.changeStatus, {
+    goalId: seeded.headphonesId,
+    status: "saving",
   });
 
   expect(firstResult.kind).toBe("updated");
@@ -95,13 +95,13 @@ test("activates exactly once at zero and preserves the state after the queue emp
 
   expect(activated).toEqual({ savingsStartLocalDate: "2026-03-11" });
 
-  await asOwner.mutation(api.wants.changeStatus, {
-    itemId: seeded.cameraId,
-    status: "considering",
+  await asOwner.mutation(api.goals.changeStatus, {
+    goalId: seeded.cameraId,
+    status: "idea",
   });
-  await asOwner.mutation(api.wants.changeStatus, {
-    itemId: seeded.headphonesId,
-    status: "not_now",
+  await asOwner.mutation(api.goals.changeStatus, {
+    goalId: seeded.headphonesId,
+    status: "on_hold",
   });
 
   expect(await readSavings(t, seeded.householdId)).toEqual(activated);
@@ -113,11 +113,11 @@ test("reports open-day underspending as potential instead of funded savings", as
 
   await t.run(async (ctx) => {
     await ctx.db.patch(seeded.cameraId, {
-      status: "plan_for_it",
+      status: "saving",
       order: 0,
     });
     await ctx.db.patch(seeded.headphonesId, {
-      status: "plan_for_it",
+      status: "saving",
       order: 1,
     });
     // One closed day (Mar 9): $55 earned, $25 spent -> $30 of savings.
@@ -151,13 +151,13 @@ test("reports open-day underspending as potential instead of funded savings", as
     projectedEndOfDayContributionCents: 2_500n,
     activeAllocations: [
       {
-        itemId: seeded.cameraId,
+        goalId: seeded.cameraId,
         allocatedCents: 3_000n,
         remainingCents: 2_000n,
         progressBasisPoints: 6_000,
       },
       {
-        itemId: seeded.headphonesId,
+        goalId: seeded.headphonesId,
         allocatedCents: 0n,
         remainingCents: 4_000n,
         progressBasisPoints: 0,
@@ -174,7 +174,7 @@ test("immediately reduces visible progress when open-day spending exceeds allowa
 
   await t.run(async (ctx) => {
     await ctx.db.patch(seeded.cameraId, {
-      status: "plan_for_it",
+      status: "saving",
       order: 0,
     });
     // One closed day (Mar 9): $55 earned, $45 spent -> $10 of savings.
@@ -208,7 +208,7 @@ test("immediately reduces visible progress when open-day spending exceeds allowa
     projectedEndOfDayContributionCents: 0n,
     activeAllocations: [
       {
-        itemId: seeded.cameraId,
+        goalId: seeded.cameraId,
         allocatedCents: 0n,
         remainingCents: 5_000n,
         progressBasisPoints: 0,

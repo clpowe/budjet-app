@@ -1,11 +1,11 @@
 import { v } from "convex/values";
 import { query, type QueryCtx } from "./_generated/server";
-import { loadActiveWantQueue, projectActiveWantAllocations } from "./lib/active_want_queue.ts";
+import { loadActiveGoalQueue, projectActiveGoalAllocations } from "./lib/active_goal_queue.ts";
 import { requireHouseholdMember } from "./lib/household_access";
 import { getSavingsSnapshot } from "./lib/savings_account";
 
 const activeAllocationValidator = v.object({
-  itemId: v.id("wantItems"),
+  goalId: v.id("goals"),
   allocatedCents: v.int64(),
   remainingCents: v.int64(),
   progressBasisPoints: v.number(),
@@ -33,14 +33,14 @@ export async function readSavingsSummary(ctx: QueryCtx, now: number) {
 
   const [currentSavings, activeItems] = await Promise.all([
     getSavingsSnapshot(ctx, household, now),
-    loadActiveWantQueue(ctx, household._id),
+    loadActiveGoalQueue(ctx, household._id),
   ]);
 
-  const activeAllocations = projectActiveWantAllocations(
+  const activeAllocations = projectActiveGoalAllocations(
     currentSavings.availableCents,
     activeItems,
-  ).map(({ item, allocatedCents, remainingCents, progressBasisPoints }) => ({
-    itemId: item._id,
+  ).map(({ goal, allocatedCents, remainingCents, progressBasisPoints }) => ({
+    goalId: goal._id,
     allocatedCents,
     remainingCents,
     progressBasisPoints,

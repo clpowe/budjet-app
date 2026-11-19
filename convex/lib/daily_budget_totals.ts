@@ -7,16 +7,16 @@ export type ExpenseFacts = {
   /** Household-local day the expense counts against, fixed when it was written. */
   localDate: string;
   amountCents: bigint;
-  savingsUsedCents: bigint;
+  fromSavingsCents: bigint;
 };
 
 export function toExpenseFacts(
-  expense: Pick<Doc<"expenses">, "amountCents" | "localDate" | "savingsUsedCents">,
+  expense: Pick<Doc<"expenses">, "amountCents" | "localDate" | "fromSavingsCents">,
 ): ExpenseFacts {
   return {
     localDate: expense.localDate,
     amountCents: expense.amountCents,
-    savingsUsedCents: expense.savingsUsedCents ?? 0n,
+    fromSavingsCents: expense.fromSavingsCents ?? 0n,
   };
 }
 
@@ -39,12 +39,12 @@ function addDelta(
 ): void {
   assertPositiveCents(expense.amountCents, "Expense amount");
   // Throws unless the savings part is between zero and the amount.
-  budgetImpact(expense.amountCents, expense.savingsUsedCents);
+  budgetImpact(expense.amountCents, expense.fromSavingsCents);
 
   const delta = deltas.get(expense.localDate) ?? { totalSpentCents: 0n, spentFromSavingsCents: 0n };
 
   delta.totalSpentCents += direction * expense.amountCents;
-  delta.spentFromSavingsCents += direction * expense.savingsUsedCents;
+  delta.spentFromSavingsCents += direction * expense.fromSavingsCents;
 
   deltas.set(expense.localDate, delta);
 }

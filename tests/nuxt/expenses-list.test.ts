@@ -78,9 +78,9 @@ describe("ExpensesList", () => {
     const wrapper = mountList([
       {
         ...makeExpense("expense-want", "Camera", 120.01),
-        wantItemId: "want-camera" as NonNullable<Expense["wantItemId"]>,
+        goalId: "want-camera" as NonNullable<Expense["goalId"]>,
         amountCents: 12_001n,
-        savingsUsedCents: 10_002n,
+        fromSavingsCents: 10_002n,
       },
     ]);
     const row = wrapper.get("tbody tr");

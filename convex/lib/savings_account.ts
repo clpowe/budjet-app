@@ -3,13 +3,13 @@ import {
   getLocalDayBounds,
   getNextLocalDate,
 } from "../../shared/utils/local-date.ts";
+import { calculatePurchaseFunding } from "../../shared/utils/goal-allocation";
 import { assertPositiveCents } from "../../shared/utils/money-cents";
 import { calculateSavings, type Savings } from "../../shared/utils/savings";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { getEffectiveTimeZone } from "../households";
 import { applyExpenseDelta, toExpenseFacts } from "./daily_budget_totals";
-import { calculatePurchaseFunding } from "./want_savings";
 
 /*
  * Savings are never stored. They are calculated on read from the household's
@@ -24,9 +24,18 @@ import { calculatePurchaseFunding } from "./want_savings";
 type DatabaseCtx = MutationCtx | QueryCtx;
 
 export type PurchaseFunding = {
-  savingsUsedCents: bigint;
+  fromSavingsCents: bigint;
   budgetImpactCents: bigint;
 };
+
+function fundPurchase(amountCents: bigint, availableSavingsCents: bigint): PurchaseFunding {
+  const { fromSavingsCents, fromDailyBudgetCents } = calculatePurchaseFunding(
+    amountCents,
+    availableSavingsCents,
+  );
+
+  return { fromSavingsCents, budgetImpactCents: fromDailyBudgetCents };
+}
 
 // ---------------------------------------------------------------------------
 // Reads
@@ -83,7 +92,7 @@ export async function getSavingsSnapshot(
   now: number,
   {
     excluding,
-  }: { excluding?: { localDate: string; amountCents: bigint; savingsUsedCents: bigint } } = {},
+  }: { excluding?: { localDate: string; amountCents: bigint; fromSavingsCents: bigint } } = {},
 ): Promise<SavingsSnapshot> {
   const dailyAllowanceCents = household.allowanceCents;
   const timeZone = getEffectiveTimeZone(household, now);
@@ -105,7 +114,7 @@ export async function getSavingsSnapshot(
   if (excluding) {
     if (excluding.localDate === localDate) {
       todaySpent -= excluding.amountCents;
-      todayFromSavings -= excluding.savingsUsedCents;
+      todayFromSavings -= excluding.fromSavingsCents;
     } else if (
       hasClosedDays &&
       excluding.localDate >= firstEligibleLocalDate &&
@@ -278,7 +287,7 @@ export async function recordPurchase(
     now,
   }: {
     household: Doc<"households">;
-    want: Doc<"wantItems">;
+    want: Doc<"goals">;
     amountCents: bigint;
     localDate: string;
     now: number;
@@ -295,7 +304,7 @@ export async function recordPurchase(
   }
 
   const snapshot = await getSavingsSnapshot(ctx, household, now);
-  const funding = calculatePurchaseFunding(amountCents, fundableSavingsCents(snapshot, localDate));
+  const funding = fundPurchase(amountCents, fundableSavingsCents(snapshot, localDate));
 
   const expenseId = await ctx.db.insert("expenses", {
     householdId: household._id,
@@ -303,13 +312,13 @@ export async function recordPurchase(
     notes: want.notes,
     amountCents,
     localDate,
-    wantItemId: want._id,
-    savingsUsedCents: funding.savingsUsedCents,
+    goalId: want._id,
+    fromSavingsCents: funding.fromSavingsCents,
   });
 
   await applyExpenseDelta(ctx, {
     householdId: household._id,
-    after: { localDate, amountCents, savingsUsedCents: funding.savingsUsedCents },
+    after: { localDate, amountCents, fromSavingsCents: funding.fromSavingsCents },
     now,
   });
 
@@ -339,14 +348,14 @@ export async function correctPurchase(
 
   const before = toExpenseFacts(expense);
   const withoutPurchase = await getSavingsSnapshot(ctx, household, now, { excluding: before });
-  const funding = calculatePurchaseFunding(
+  const funding = fundPurchase(
     amountCents,
     fundableSavingsCents(withoutPurchase, before.localDate),
   );
 
   await ctx.db.patch("expenses", expense._id, {
     amountCents,
-    savingsUsedCents: funding.savingsUsedCents,
+    fromSavingsCents: funding.fromSavingsCents,
   });
   await applyExpenseDelta(ctx, {
     householdId: household._id,
@@ -354,7 +363,7 @@ export async function correctPurchase(
     after: {
       localDate: before.localDate,
       amountCents,
-      savingsUsedCents: funding.savingsUsedCents,
+      fromSavingsCents: funding.fromSavingsCents,
     },
     now,
   });
@@ -386,7 +395,7 @@ export async function undoPurchase(
 }
 
 function assertLinkedPurchase(expense: Doc<"expenses">): void {
-  if (!expense.wantItemId) {
+  if (!expense.goalId) {
     throw new Error("Expense is not a Want purchase");
   }
 }
@@ -409,7 +418,7 @@ function assertExpenseDayIsNotFuture(localDate: string, now: number, timeZone: s
 }
 
 function assertEverydayExpense(expense: Doc<"expenses">): void {
-  if (expense.wantItemId) {
+  if (expense.goalId) {
     throw new Error("Want purchases must be managed from the wants flow");
   }
 }
@@ -436,7 +445,7 @@ export async function addExpense(
 
   await applyExpenseDelta(ctx, {
     householdId: household._id,
-    after: { localDate, amountCents: fields.amountCents, savingsUsedCents: 0n },
+    after: { localDate, amountCents: fields.amountCents, fromSavingsCents: 0n },
     now,
   });
 
@@ -479,7 +488,7 @@ export async function editExpense(
   await applyExpenseDelta(ctx, {
     householdId: household._id,
     before,
-    after: { localDate, amountCents: fields.amountCents, savingsUsedCents: 0n },
+    after: { localDate, amountCents: fields.amountCents, fromSavingsCents: 0n },
     now,
   });
 }

@@ -3,12 +3,12 @@ import { nextTick, ref } from "vue";
 import type { Doc, Id } from "@generated/dataModel";
 import WantsStatusBadge from "./status-badge.vue";
 
-type WantItem = Doc<"wantItems">;
+type WantItem = Doc<"goals">;
 
 withDefaults(
   defineProps<{
     items: WantItem[];
-    pendingItemId?: Id<"wantItems">;
+    pendingItemId?: Id<"goals">;
     error?: string;
   }>(),
   {
@@ -19,10 +19,10 @@ withDefaults(
 
 const emit = defineEmits<{
   (event: "correct", item: WantItem): void;
-  (event: "undo", itemId: Id<"wantItems">): void;
+  (event: "undo", goalId: Id<"goals">): void;
 }>();
 
-const confirmingItemId = ref<Id<"wantItems"> | null>(null);
+const confirmingItemId = ref<Id<"goals"> | null>(null);
 
 function purchaseDateLabel(timestamp?: number): string {
   if (timestamp === undefined) return "Purchase date unavailable";
@@ -32,16 +32,16 @@ function purchaseDateLabel(timestamp?: number): string {
   }).format(new Date(timestamp));
 }
 
-function confirmUndo(itemId: Id<"wantItems">) {
-  emit("undo", itemId);
-  (document.getElementById(`undo-${itemId}`) as HTMLDialogElement | null)?.close();
+function confirmUndo(goalId: Id<"goals">) {
+  emit("undo", goalId);
+  (document.getElementById(`undo-${goalId}`) as HTMLDialogElement | null)?.close();
   confirmingItemId.value = null;
 }
 
-async function openUndoDialog(itemId: Id<"wantItems">) {
-  confirmingItemId.value = itemId;
+async function openUndoDialog(goalId: Id<"goals">) {
+  confirmingItemId.value = goalId;
   await nextTick();
-  (document.getElementById(`undo-${itemId}`) as HTMLDialogElement | null)?.showModal();
+  (document.getElementById(`undo-${goalId}`) as HTMLDialogElement | null)?.showModal();
 }
 </script>
 
@@ -63,7 +63,7 @@ async function openUndoDialog(itemId: Id<"wantItems">) {
           <p>Purchased {{ purchaseDateLabel(item.purchasedAt) }}</p>
         </div>
 
-        <WantsStatusBadge status="bought" />
+        <WantsStatusBadge status="purchased" />
       </div>
 
       <p>Estimated cost: {{ formatCents(item.estimatedCostCents) }}</p>

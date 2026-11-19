@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { getEffectiveTimeZone } from "./households";
-import { loadActiveWantQueue, projectActiveWantAllocations } from "./lib/active_want_queue";
+import { loadActiveGoalQueue, projectActiveGoalAllocations } from "./lib/active_goal_queue";
 import { requireHouseholdMember } from "./lib/household_access";
 import {
   getSavingsSnapshot,
@@ -13,7 +13,7 @@ import { query } from "./_generated/server";
 const DAYS_IN_PLAN = 30n;
 
 const nextPlannedWantSummaryValidator = v.object({
-  itemId: v.id("wantItems"),
+  goalId: v.id("goals"),
   name: v.string(),
   estimatedCostCents: v.int64(),
   allocatedCents: v.int64(),
@@ -91,7 +91,7 @@ export const getHomeSummary = query({
         endExclusiveLocalDate: period.toDateEndExclusiveLocalDate,
       }),
       getSavingsSnapshot(ctx, household, args.asOfTimestamp),
-      loadActiveWantQueue(ctx, household._id),
+      loadActiveGoalQueue(ctx, household._id),
     ]);
 
     const monthToDateSpending = rollups.reduce(
@@ -133,20 +133,20 @@ export const getHomeSummary = query({
     const budgetImpactVarianceCents =
       currentSavings.dailyAllowanceCents * BigInt(period.elapsedDays) -
       monthToDateSpending.budgetImpactCents;
-    const nextAllocation = projectActiveWantAllocations(
+    const nextAllocation = projectActiveGoalAllocations(
       currentSavings.availableCents,
       activeItems,
     )[0];
     const nextPlannedWant = nextAllocation
       ? {
-          itemId: nextAllocation.item._id,
-          name: nextAllocation.item.name,
-          estimatedCostCents: nextAllocation.item.estimatedCostCents,
+          goalId: nextAllocation.goal._id,
+          name: nextAllocation.goal.name,
+          estimatedCostCents: nextAllocation.goal.estimatedCostCents,
           allocatedCents: nextAllocation.allocatedCents,
           remainingCents: nextAllocation.remainingCents,
           progressBasisPoints: nextAllocation.progressBasisPoints,
-          ...(nextAllocation.item.targetDate !== undefined
-            ? { targetDate: nextAllocation.item.targetDate }
+          ...(nextAllocation.goal.targetDate !== undefined
+            ? { targetDate: nextAllocation.goal.targetDate }
             : {}),
         }
       : null;

@@ -86,9 +86,9 @@ const currentMonthYear = computed(() => {
                   <span>
                     {{ tx.type === "expense" ? "-" : "+" }}{{ formatCents(tx.amountCents) }}
                   </span>
-                  <p v-if="tx.type === 'expense' && tx.savingsUsedCents > 0n">
+                  <p v-if="tx.type === 'expense' && tx.fromSavingsCents > 0n">
                     {{ formatCents(tx.amountCents) }} total ·
-                    {{ formatCents(tx.savingsUsedCents) }} from savings ·
+                    {{ formatCents(tx.fromSavingsCents) }} from savings ·
                     {{ formatCents(tx.budgetImpactCents) }} budget impact
                   </p>
                 </td>

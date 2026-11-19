@@ -51,13 +51,13 @@ async function seedHouseholds(t: TestConvex<typeof schema>) {
     await ctx.db.patch(memberId, { householdId });
     await ctx.db.patch(otherOwnerId, { householdId: otherHouseholdId });
 
-    const cameraId = await ctx.db.insert("wantItems", {
+    const cameraId = await ctx.db.insert("goals", {
       householdId,
       name: "Camera",
       estimatedCostCents: 10_000n,
       priority: "high",
       notes: "",
-      status: "plan_for_it",
+      status: "saving",
       order: 0,
       createdBy: ownerId,
       updatedBy: ownerId,
@@ -65,13 +65,13 @@ async function seedHouseholds(t: TestConvex<typeof schema>) {
       updatedAt: 1,
     });
 
-    const tripId = await ctx.db.insert("wantItems", {
+    const tripId = await ctx.db.insert("goals", {
       householdId,
       name: "Trip",
       estimatedCostCents: 8_000n,
       priority: "low",
       notes: "",
-      status: "plan_for_it",
+      status: "saving",
       order: 1,
       createdBy: ownerId,
       updatedBy: ownerId,
@@ -79,13 +79,13 @@ async function seedHouseholds(t: TestConvex<typeof schema>) {
       updatedAt: 2,
     });
 
-    const otherWantId = await ctx.db.insert("wantItems", {
+    const otherWantId = await ctx.db.insert("goals", {
       householdId: otherHouseholdId,
       name: "Other household item",
       estimatedCostCents: 5_000n,
       priority: "medium",
       notes: "",
-      status: "considering",
+      status: "idea",
       createdBy: otherOwnerId,
       updatedBy: otherOwnerId,
       createdAt: 3,
@@ -93,13 +93,13 @@ async function seedHouseholds(t: TestConvex<typeof schema>) {
     });
 
     for (let index = 0; index < 26; index += 1) {
-      await ctx.db.insert("wantItems", {
+      await ctx.db.insert("goals", {
         householdId,
         name: `Not now ${index}`,
         estimatedCostCents: 1_000n,
         priority: "low",
         notes: "",
-        status: "not_now",
+        status: "on_hold",
         createdBy: ownerId,
         updatedBy: ownerId,
         createdAt: 10 + index,
@@ -130,7 +130,7 @@ test("creates trimmed items in the authenticated household", async () => {
   const seeded = await seedHouseholds(t);
   const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
 
-  const item = await asOwner.mutation(api.wants.create, {
+  const item = await asOwner.mutation(api.goals.create, {
     name: "  Noise-cancelling headphones  ",
     estimatedCostCents: 19_999n,
     priority: "medium",
@@ -145,13 +145,13 @@ test("creates trimmed items in the authenticated household", async () => {
     priority: "medium",
     targetDate: Date.UTC(2026, 11, 25),
     notes: "For flights",
-    status: "considering",
+    status: "idea",
     createdBy: seeded.ownerId,
     updatedBy: seeded.ownerId,
   });
 
   await expect(
-    asOwner.mutation(api.wants.create, {
+    asOwner.mutation(api.goals.create, {
       name: "Invalid",
       estimatedCostCents: 0n,
       priority: "medium",
@@ -166,36 +166,36 @@ test("lists the bounded active queue and one paginated inactive section", async 
   const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
   const asOther = t.withIdentity({ tokenIdentifier: "test|other" });
 
-  const active = await asOwner.query(api.wants.list);
+  const active = await asOwner.query(api.goals.list);
 
   expect(active.active.map((item) => [item.name, item.order])).toEqual([
     ["Camera", 0],
     ["Trip", 1],
   ]);
 
-  const notNow = await asOwner.query(api.wants.listSection, {
-    status: "not_now",
+  const notNow = await asOwner.query(api.goals.listSection, {
+    status: "on_hold",
     paginationOpts: firstPage(),
   });
 
   expect(notNow.page).toHaveLength(25);
   expect(notNow.isDone).toBe(false);
 
-  const otherActive = await asOther.query(api.wants.list);
+  const otherActive = await asOther.query(api.goals.list);
   expect(otherActive.active).toEqual([]);
 
-  const ownerConsidering = await asOwner.query(api.wants.listSection, {
-    status: "considering",
+  const ownerConsidering = await asOwner.query(api.goals.listSection, {
+    status: "idea",
     paginationOpts: firstPage(),
   });
 
-  const otherConsidering = await asOther.query(api.wants.listSection, {
-    status: "considering",
+  const otherConsidering = await asOther.query(api.goals.listSection, {
+    status: "idea",
     paginationOpts: firstPage(),
   });
 
-  const otherNotNow = await asOther.query(api.wants.listSection, {
-    status: "not_now",
+  const otherNotNow = await asOther.query(api.goals.listSection, {
+    status: "on_hold",
     paginationOpts: firstPage(),
   });
 
@@ -210,8 +210,8 @@ test("allows household members to edit items but blocks other households", async
   const asMember = t.withIdentity({ tokenIdentifier: "test|member" });
   const asOther = t.withIdentity({ tokenIdentifier: "test|other" });
 
-  const updated = await asMember.mutation(api.wants.update, {
-    itemId: seeded.cameraId,
+  const updated = await asMember.mutation(api.goals.update, {
+    goalId: seeded.cameraId,
     name: "  Camera body  ",
     estimatedCostCents: 12_000n,
     priority: "medium",
@@ -229,8 +229,8 @@ test("allows household members to edit items but blocks other households", async
   expect(updated.targetDate).toBeUndefined();
 
   await expect(
-    asOther.mutation(api.wants.update, {
-      itemId: seeded.cameraId,
+    asOther.mutation(api.goals.update, {
+      goalId: seeded.cameraId,
       name: "Hijacked",
       estimatedCostCents: 1n,
       priority: "low",
@@ -245,35 +245,35 @@ test("appends planned items and removes queue order when they leave the active q
   const seeded = await seedHouseholds(t);
   const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
 
-  const created = await asOwner.mutation(api.wants.create, {
+  const created = await asOwner.mutation(api.goals.create, {
     name: "Speaker",
     estimatedCostCents: 20_000n,
     priority: "high",
     notes: "",
   });
 
-  const planned = await asOwner.mutation(api.wants.changeStatus, {
-    itemId: created._id,
-    status: "plan_for_it",
+  const planned = await asOwner.mutation(api.goals.changeStatus, {
+    goalId: created._id,
+    status: "saving",
   });
 
   expect(planned).toMatchObject({
     kind: "updated",
     item: {
-      status: "plan_for_it",
+      status: "saving",
       order: 2,
     },
   });
 
-  const movedOut = await asOwner.mutation(api.wants.changeStatus, {
-    itemId: seeded.cameraId,
-    status: "considering",
+  const movedOut = await asOwner.mutation(api.goals.changeStatus, {
+    goalId: seeded.cameraId,
+    status: "idea",
   });
 
   expect(movedOut).toMatchObject({
     kind: "updated",
     item: {
-      status: "considering",
+      status: "idea",
     },
   });
 
@@ -290,33 +290,33 @@ test("requires a complete current queue for reordering and keeps priority data s
   const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
 
   await expect(
-    asOwner.mutation(api.wants.reorder, {
-      expectedItemIds: [seeded.cameraId, seeded.tripId],
-      itemIds: [seeded.cameraId, seeded.cameraId],
+    asOwner.mutation(api.goals.reorder, {
+      expectedGoalIds: [seeded.cameraId, seeded.tripId],
+      goalIds: [seeded.cameraId, seeded.cameraId],
     }),
   ).rejects.toThrow();
 
   await expect(
-    asOwner.mutation(api.wants.reorder, {
-      expectedItemIds: [seeded.cameraId, seeded.tripId],
-      itemIds: [seeded.cameraId],
+    asOwner.mutation(api.goals.reorder, {
+      expectedGoalIds: [seeded.cameraId, seeded.tripId],
+      goalIds: [seeded.cameraId],
     }),
   ).rejects.toThrow();
 
   await expect(
-    asOwner.mutation(api.wants.reorder, {
-      expectedItemIds: [seeded.cameraId, seeded.tripId],
-      itemIds: [seeded.cameraId, seeded.otherWantId],
+    asOwner.mutation(api.goals.reorder, {
+      expectedGoalIds: [seeded.cameraId, seeded.tripId],
+      goalIds: [seeded.cameraId, seeded.otherWantId],
     }),
   ).rejects.toThrow();
 
-  await asOwner.mutation(api.wants.reorder, {
-    expectedItemIds: [seeded.cameraId, seeded.tripId],
-    itemIds: [seeded.tripId, seeded.cameraId],
+  await asOwner.mutation(api.goals.reorder, {
+    expectedGoalIds: [seeded.cameraId, seeded.tripId],
+    goalIds: [seeded.tripId, seeded.cameraId],
   });
 
-  await asOwner.mutation(api.wants.update, {
-    itemId: seeded.tripId,
+  await asOwner.mutation(api.goals.update, {
+    goalId: seeded.tripId,
     name: "Trip",
     estimatedCostCents: 8_000n,
     priority: "high",
@@ -324,7 +324,7 @@ test("requires a complete current queue for reordering and keeps priority data s
     notes: "Priority and date should not reorder this item",
   });
 
-  const active = await asOwner.query(api.wants.list);
+  const active = await asOwner.query(api.goals.list);
 
   expect(active.active.map((item) => [item._id, item.order])).toEqual([
     [seeded.tripId, 0],
@@ -337,21 +337,21 @@ test("rejects a stale reorder even when the active membership is unchanged", asy
   const { cameraId, tripId } = await seedHouseholds(t);
   const owner = t.withIdentity({ tokenIdentifier: "test|owner" });
   const member = t.withIdentity({ tokenIdentifier: "test|member" });
-  const expectedItemIds = (await member.query(api.wants.list)).active.map((item) => item._id);
+  const expectedGoalIds = (await member.query(api.goals.list)).active.map((item) => item._id);
 
   expect(
-    await owner.mutation(api.wants.reorder, {
-      expectedItemIds,
-      itemIds: [tripId, cameraId],
+    await owner.mutation(api.goals.reorder, {
+      expectedGoalIds,
+      goalIds: [tripId, cameraId],
     }),
   ).toEqual({ success: true });
   expect(
-    await member.mutation(api.wants.reorder, {
-      expectedItemIds,
-      itemIds: expectedItemIds,
+    await member.mutation(api.goals.reorder, {
+      expectedGoalIds,
+      goalIds: expectedGoalIds,
     }),
   ).toEqual({ success: false });
-  expect((await member.query(api.wants.list)).active.map((item) => item._id)).toEqual([
+  expect((await member.query(api.goals.list)).active.map((item) => item._id)).toEqual([
     tripId,
     cameraId,
   ]);
@@ -364,13 +364,13 @@ test("refuses a one-hundred-and-first active item", async () => {
 
   await t.run(async (ctx) => {
     for (let order = 2; order < 100; order += 1) {
-      await ctx.db.insert("wantItems", {
+      await ctx.db.insert("goals", {
         householdId: seeded.householdId,
         name: `Active ${order}`,
         estimatedCostCents: 1_000n,
         priority: "low",
         notes: "",
-        status: "plan_for_it",
+        status: "saving",
         order,
         createdBy: seeded.ownerId,
         updatedBy: seeded.ownerId,
@@ -380,7 +380,7 @@ test("refuses a one-hundred-and-first active item", async () => {
     }
   });
 
-  const created = await asOwner.mutation(api.wants.create, {
+  const created = await asOwner.mutation(api.goals.create, {
     name: "Overflow item",
     estimatedCostCents: 1_000n,
     priority: "low",
@@ -388,9 +388,9 @@ test("refuses a one-hundred-and-first active item", async () => {
   });
 
   await expect(
-    asOwner.mutation(api.wants.changeStatus, {
-      itemId: created._id,
-      status: "plan_for_it",
+    asOwner.mutation(api.goals.changeStatus, {
+      goalId: created._id,
+      status: "saving",
     }),
   ).rejects.toThrow("Move an item to Considering or Not now before planning another purchase");
 });

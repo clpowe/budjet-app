@@ -6,7 +6,7 @@ import type { Doc, Id } from "@generated/dataModel";
 import { getWantStatusStrategy, type WantStatus } from "../../utils/want-status";
 import WantsStatusBadge from "./status-badge.vue";
 
-type WantItem = Doc<"wantItems">;
+type WantItem = Doc<"goals">;
 type SavingsSummary = FunctionReturnType<typeof api.savings.getSummary>;
 type ActiveAllocation = SavingsSummary["activeAllocations"][number];
 
@@ -20,14 +20,14 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (event: "move-up", itemId: Id<"wantItems">): void;
-  (event: "move-down", itemId: Id<"wantItems">): void;
+  (event: "move-up", goalId: Id<"goals">): void;
+  (event: "move-down", goalId: Id<"goals">): void;
   (event: "edit", item: WantItem): void;
   (event: "purchase", item: WantItem): void;
   (
     event: "change-status",
     value: {
-      itemId: Id<"wantItems">;
+      goalId: Id<"goals">;
       status: WantStatus;
     },
   ): void;
@@ -108,7 +108,7 @@ const priorityLabel = computed(() => {
       </template>
 
       <button
-        v-if="item.status === 'plan_for_it'"
+        v-if="item.status === 'saving'"
         type="button"
         :aria-label="`Purchase ${item.name}`"
         @click="emit('purchase', item)"
@@ -117,7 +117,7 @@ const priorityLabel = computed(() => {
       </button>
 
       <button
-        v-if="item.status !== 'bought'"
+        v-if="item.status !== 'purchased'"
         type="button"
         :aria-label="`Edit ${item.name}`"
         @click="emit('edit', item)"
@@ -135,7 +135,7 @@ const priorityLabel = computed(() => {
               :aria-label="`Move ${item.name} to ${getWantStatusStrategy(targetStatus).label}`"
               @click="
                 emit('change-status', {
-                  itemId: item._id,
+                  goalId: item._id,
                   status: targetStatus,
                 })
               "

@@ -258,13 +258,13 @@ test("refuses generic edits and deletes for want purchases", async () => {
   const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
 
   const { expenseId } = await t.run(async (ctx) => {
-    const wantItemId = await ctx.db.insert("wantItems", {
+    const goalId = await ctx.db.insert("goals", {
       householdId: seeded.householdId,
       name: "Camera",
       estimatedCostCents: 10_000n,
       priority: "high",
       notes: "",
-      status: "bought",
+      status: "purchased",
       createdBy: seeded.ownerId,
       updatedBy: seeded.ownerId,
       createdAt: 0,
@@ -276,8 +276,8 @@ test("refuses generic edits and deletes for want purchases", async () => {
       amountCents: 10_000n,
       householdId: seeded.householdId,
       localDate: "2026-03-10",
-      wantItemId,
-      savingsUsedCents: 5_000n,
+      goalId,
+      fromSavingsCents: 5_000n,
     });
 
     return { expenseId };

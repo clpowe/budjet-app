@@ -8,7 +8,7 @@ import AppHeader from "../../app/components/app-header.vue";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
 import WantsPage from "../../app/pages/wants.vue";
 
-type WantItem = Doc<"wantItems">;
+type WantItem = Doc<"goals">;
 type WantStatus = WantItem["status"];
 
 const mockFns = vi.hoisted(() => ({
@@ -50,7 +50,7 @@ const ownerId = "user-1" as Id<"users">;
 
 function makeWant(id: string, name: string, status: WantStatus, order?: number): WantItem {
   return {
-    _id: id as Id<"wantItems">,
+    _id: id as Id<"goals">,
     _creationTime: 1,
     householdId,
     name,
@@ -74,7 +74,7 @@ function makeSummary() {
     todayOverageAdjustmentCents: 0n,
     projectedEndOfDayContributionCents: 2_500n,
     activeAllocations: [] as Array<{
-      itemId: Id<"wantItems">;
+      goalId: Id<"goals">;
       allocatedCents: bigint;
       remainingCents: bigint;
       progressBasisPoints: number;
@@ -180,12 +180,12 @@ describe("WantsPage", () => {
   });
 
   it("renders the active queue with accessible savings progress", () => {
-    const camera = makeWant("want-camera", "Camera", "plan_for_it", 0);
+    const camera = makeWant("want-camera", "Camera", "saving", 0);
     const summary = makeSummary();
 
     summary.activeAllocations = [
       {
-        itemId: camera._id,
+        goalId: camera._id,
         allocatedCents: 4_000n,
         remainingCents: 6_000n,
         progressBasisPoints: 4_000,
@@ -203,9 +203,9 @@ describe("WantsPage", () => {
 
   it("keeps Considering, Not now, and Bought items in distinct sections", () => {
     const wrapper = arrangePage({
-      considering: [makeWant("want-bike", "Bike", "considering")],
-      notNow: [makeWant("want-kayak", "Kayak", "not_now")],
-      bought: [makeWant("want-headphones", "Headphones", "bought")],
+      considering: [makeWant("want-bike", "Bike", "idea")],
+      notNow: [makeWant("want-kayak", "Kayak", "on_hold")],
+      bought: [makeWant("want-headphones", "Headphones", "purchased")],
     });
 
     const headings = wrapper.findAll("h2").map((heading) => heading.text());
@@ -218,11 +218,11 @@ describe("WantsPage", () => {
 
   it("offers purchase correction for an older Bought Want after loading the next page", async () => {
     const wrapper = arrangePage({
-      considering: [makeWant("bike", "Bike", "considering")],
+      considering: [makeWant("bike", "Bike", "idea")],
       bought: Array.from({ length: 25 }, (_, index) =>
-        makeWant(`bought-${index}`, `Bought ${index}`, "bought"),
+        makeWant(`bought-${index}`, `Bought ${index}`, "purchased"),
       ),
-      loadMoreBought: () => makeWant("older", "Older headphones", "bought"),
+      loadMoreBought: () => makeWant("older", "Older headphones", "purchased"),
     });
     expect(wrapper.find('[aria-label="Correct Older headphones purchase"]').exists()).toBe(false);
     await wrapper

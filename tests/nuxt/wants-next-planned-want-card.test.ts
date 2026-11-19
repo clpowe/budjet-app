@@ -45,7 +45,7 @@ function makeSummary(): HomeSummary {
     savings,
     reserve: savings,
     nextPlannedWant: {
-      itemId: "want-camera" as NextPlannedWant["itemId"],
+      goalId: "want-camera" as NextPlannedWant["goalId"],
       name: "Camera",
       estimatedCostCents: 10_000n,
       allocatedCents: 4_000n,

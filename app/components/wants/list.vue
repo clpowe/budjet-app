@@ -7,7 +7,7 @@ import type { Doc, Id } from "@generated/dataModel";
 import type { WantStatus } from "../../utils/want-status";
 import WantsItem from "./item.vue";
 
-type WantItem = Doc<"wantItems">;
+type WantItem = Doc<"goals">;
 type SavingsSummary = FunctionReturnType<typeof api.savings.getSummary>;
 type ActiveAllocation = SavingsSummary["activeAllocations"][number];
 
@@ -29,13 +29,13 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  (event: "reorder", order: FunctionArgs<typeof api.wants.reorder>): void;
+  (event: "reorder", order: FunctionArgs<typeof api.goals.reorder>): void;
   (event: "edit", item: WantItem): void;
   (event: "purchase", item: WantItem): void;
   (
     event: "change-status",
     value: {
-      itemId: Id<"wantItems">;
+      goalId: Id<"goals">;
       status: WantStatus;
     },
   ): void;
@@ -48,7 +48,7 @@ const dragSnapshot = ref<WantItem[] | null>(null);
 const isDragging = ref(false);
 
 const allocationsByItem = computed(() => {
-  return new Map(props.allocations.map((allocation) => [allocation.itemId, allocation]));
+  return new Map(props.allocations.map((allocation) => [allocation.goalId, allocation]));
 });
 
 watch(
@@ -80,8 +80,8 @@ function hasSameOrder(first: WantItem[], second: WantItem[]) {
 
 function emitCurrentOrder(previousItems: WantItem[]) {
   emit("reorder", {
-    expectedItemIds: previousItems.map((item) => item._id),
-    itemIds: localItems.value.map((item) => item._id),
+    expectedGoalIds: previousItems.map((item) => item._id),
+    goalIds: localItems.value.map((item) => item._id),
   });
 }
 
@@ -112,10 +112,10 @@ function onDragEnd() {
   emitCurrentOrder(previousOrder);
 }
 
-function moveItem(itemId: Id<"wantItems">, direction: -1 | 1) {
+function moveItem(goalId: Id<"goals">, direction: -1 | 1) {
   if (props.reorderPending) return;
 
-  const currentIndex = localItems.value.findIndex((item) => item._id === itemId);
+  const currentIndex = localItems.value.findIndex((item) => item._id === goalId);
   const targetIndex = currentIndex + direction;
 
   if (currentIndex < 0 || targetIndex < 0 || targetIndex >= localItems.value.length) {

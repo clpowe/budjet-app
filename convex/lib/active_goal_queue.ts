@@ -1,127 +1,96 @@
 import { assertPositiveCents } from "../../shared/utils/money-cents";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { allocateSavings } from "./want_savings";
+import { allocateSavings, type GoalAllocation } from "../../shared/utils/goal-allocation";
 
-export const MAX_ACTIVE_WANTS = 100;
+export const MAX_ACTIVE_GOALS = 100;
 
 type DatabaseCtx = QueryCtx | MutationCtx;
-type InactiveWantStatus = Exclude<Doc<"wantItems">["status"], "plan_for_it">;
+type InactiveWantStatus = Exclude<Doc<"goals">["status"], "saving">;
 
 interface QueueMutationMetadata {
   actorId: Id<"users">;
   now: number;
 }
 
-interface AppendActiveWantOptions extends QueueMutationMetadata {
-  item: Doc<"wantItems">;
+interface AppendActiveGoalOptions extends QueueMutationMetadata {
+  item: Doc<"goals">;
   queueFullErrorMessage?: string;
 }
 
-interface RemoveActiveWantOptions extends QueueMutationMetadata {
-  item: Doc<"wantItems">;
+interface RemoveActiveGoalOptions extends QueueMutationMetadata {
+  item: Doc<"goals">;
   nextStatus: InactiveWantStatus;
 }
 
-interface ReorderActiveWantsOptions extends QueueMutationMetadata {
+interface ReorderActiveGoalsOptions extends QueueMutationMetadata {
   householdId: Id<"households">;
-  expectedItemIds: readonly Id<"wantItems">[];
-  itemIds: readonly Id<"wantItems">[];
+  expectedGoalIds: readonly Id<"goals">[];
+  goalIds: readonly Id<"goals">[];
 }
 
-export interface ActiveWantAllocation {
-  item: Doc<"wantItems">;
-  allocatedCents: bigint;
-  remainingCents: bigint;
-  progressBasisPoints: number;
-}
-
-export async function loadActiveWantQueue(
+export async function loadActiveGoalQueue(
   ctx: DatabaseCtx,
   householdId: Id<"households">,
-): Promise<Doc<"wantItems">[]> {
+): Promise<Doc<"goals">[]> {
   const items = await ctx.db
-    .query("wantItems")
+    .query("goals")
     .withIndex("by_household_and_status_and_order", (q) =>
-      q.eq("householdId", householdId).eq("status", "plan_for_it"),
+      q.eq("householdId", householdId).eq("status", "saving"),
     )
     .order("asc")
-    .take(MAX_ACTIVE_WANTS + 1);
+    .take(MAX_ACTIVE_GOALS + 1);
 
   assertValidActiveQueue(items);
 
   return items;
 }
 
-export function projectActiveWantAllocations(
+export function projectActiveGoalAllocations(
   availableCents: bigint,
-  activeItems: readonly Doc<"wantItems">[],
-): ActiveWantAllocation[] {
-  const allocations = allocateSavings(
-    availableCents,
-    activeItems.map((item) => ({
-      id: item._id,
-      estimatedCostCents: item.estimatedCostCents,
-    })),
-  );
-
-  return allocations.map((allocation, index) => {
-    const item = activeItems[index];
-
-    if (item === undefined || item._id !== allocation.id) {
-      throw new Error("Active Want allocation no longer matches the queue");
-    }
-
-    return {
-      item,
-      allocatedCents: allocation.allocatedCents,
-      remainingCents: allocation.remainingCents,
-      progressBasisPoints: getProgressBasisPoints(
-        allocation.allocatedCents,
-        item.estimatedCostCents,
-      ),
-    };
-  });
+  activeGoals: readonly Doc<"goals">[],
+): GoalAllocation<Doc<"goals">>[] {
+  return allocateSavings(availableCents, activeGoals);
 }
 
-export async function appendActiveWant(
+export async function appendActiveGoal(
   ctx: MutationCtx,
   {
     item,
     actorId,
     now,
     queueFullErrorMessage = "Active Want queue has reached its maximum size",
-  }: AppendActiveWantOptions,
+  }: AppendActiveGoalOptions,
 ): Promise<void> {
-  if (item.status === "plan_for_it") {
+  if (item.status === "saving") {
     throw new Error("Want item is already active");
   }
 
   assertPositiveCents(item.estimatedCostCents, "Estimated cost");
 
-  const activeItems = await loadActiveWantQueue(ctx, item.householdId);
+  const activeItems = await loadActiveGoalQueue(ctx, item.householdId);
 
-  if (activeItems.length >= MAX_ACTIVE_WANTS) {
+  if (activeItems.length >= MAX_ACTIVE_GOALS) {
     throw new Error(queueFullErrorMessage);
   }
 
   await ctx.db.patch(item._id, {
-    status: "plan_for_it",
+    status: "saving",
     order: activeItems.length,
     updatedBy: actorId,
     updatedAt: now,
   });
 }
 
-export async function removeActiveWant(
+export async function removeActiveGoal(
   ctx: MutationCtx,
-  { item, nextStatus, actorId, now }: RemoveActiveWantOptions,
+  { item, nextStatus, actorId, now }: RemoveActiveGoalOptions,
 ): Promise<void> {
-  if (item.status !== "plan_for_it") {
+  if (item.status !== "saving") {
     throw new Error("Want item is not active");
   }
 
-  const activeItems = await loadActiveWantQueue(ctx, item.householdId);
+  const activeItems = await loadActiveGoalQueue(ctx, item.householdId);
 
   if (!activeItems.some((activeItem) => activeItem._id === item._id)) {
     throw new Error("Active Want queue does not contain the requested item");
@@ -147,42 +116,42 @@ export async function removeActiveWant(
   }
 }
 
-export async function reorderActiveWants(
+export async function reorderActiveGoals(
   ctx: MutationCtx,
-  { householdId, expectedItemIds, itemIds, actorId, now }: ReorderActiveWantsOptions,
+  { householdId, expectedGoalIds, goalIds, actorId, now }: ReorderActiveGoalsOptions,
 ): Promise<boolean> {
-  const activeItems = await loadActiveWantQueue(ctx, householdId);
+  const activeItems = await loadActiveGoalQueue(ctx, householdId);
 
   if (
-    expectedItemIds.length !== activeItems.length ||
-    activeItems.some((item, index) => item._id !== expectedItemIds[index])
+    expectedGoalIds.length !== activeItems.length ||
+    activeItems.some((item, index) => item._id !== expectedGoalIds[index])
   ) {
     return false;
   }
 
-  if (new Set(itemIds).size !== itemIds.length) {
+  if (new Set(goalIds).size !== goalIds.length) {
     throw new Error("Requested active item IDs must not contain duplicates");
   }
 
-  if (itemIds.length !== activeItems.length) {
+  if (goalIds.length !== activeItems.length) {
     throw new Error("Reorder must include every active item exactly once");
   }
 
   const activeById = new Map(activeItems.map((item) => [item._id, item]));
 
-  if (itemIds.some((itemId) => !activeById.has(itemId))) {
+  if (goalIds.some((goalId) => !activeById.has(goalId))) {
     throw new Error("Reorder contains an item that is not active");
   }
 
-  for (const [order, itemId] of itemIds.entries()) {
-    const item = activeById.get(itemId);
+  for (const [order, goalId] of goalIds.entries()) {
+    const item = activeById.get(goalId);
 
     if (!item) {
       throw new Error("Active Want queue changed while reordering");
     }
 
     if (item.order !== order) {
-      await ctx.db.patch(itemId, {
+      await ctx.db.patch(goalId, {
         order,
         updatedBy: actorId,
         updatedAt: now,
@@ -192,8 +161,8 @@ export async function reorderActiveWants(
   return true;
 }
 
-function assertValidActiveQueue(items: Doc<"wantItems">[]): void {
-  if (items.length > MAX_ACTIVE_WANTS) {
+function assertValidActiveQueue(items: Doc<"goals">[]): void {
+  if (items.length > MAX_ACTIVE_GOALS) {
     throw new Error("Active Want queue exceeds its maximum size");
   }
 
@@ -224,10 +193,4 @@ function assertValidActiveQueue(items: Doc<"wantItems">[]): void {
       throw new Error("Active Want queue ordering is not contiguous");
     }
   }
-}
-
-function getProgressBasisPoints(allocatedCents: bigint, estimatedCostCents: bigint): number {
-  assertPositiveCents(estimatedCostCents, "Estimated cost");
-
-  return Number((allocatedCents * 10_000n) / estimatedCostCents);
 }

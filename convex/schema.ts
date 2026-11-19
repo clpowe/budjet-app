@@ -32,8 +32,8 @@ export default defineSchema({
     householdId: v.id("households"),
     /** Household-local YYYY-MM-DD the expense counts against; fixed at write time. */
     localDate: v.string(),
-    wantItemId: v.optional(v.id("wantItems")),
-    savingsUsedCents: v.optional(v.int64()),
+    goalId: v.optional(v.id("goals")),
+    fromSavingsCents: v.optional(v.int64()),
   }).index("by_household_and_local_date", ["householdId", "localDate"]),
 
   income: defineTable({
@@ -56,7 +56,7 @@ export default defineSchema({
     .index("by_household", ["householdId"])
     .index("by_household_order", ["householdId", "order"]),
 
-  wantItems: defineTable({
+  goals: defineTable({
     householdId: v.id("households"),
     name: v.string(),
     estimatedCostCents: v.int64(),
@@ -64,10 +64,10 @@ export default defineSchema({
     targetDate: v.optional(v.number()),
     notes: v.string(),
     status: v.union(
-      v.literal("considering"),
-      v.literal("plan_for_it"),
-      v.literal("not_now"),
-      v.literal("bought"),
+      v.literal("idea"),
+      v.literal("saving"),
+      v.literal("on_hold"),
+      v.literal("purchased"),
     ),
     order: v.optional(v.number()),
     createdBy: v.id("users"),

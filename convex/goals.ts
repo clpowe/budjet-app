@@ -5,12 +5,13 @@ import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import {
-  appendActiveWant,
-  loadActiveWantQueue,
-  MAX_ACTIVE_WANTS,
-  removeActiveWant,
-  reorderActiveWants,
-} from "./lib/active_want_queue.ts";
+  appendActiveGoal,
+  loadActiveGoalQueue,
+  MAX_ACTIVE_GOALS,
+  removeActiveGoal,
+  reorderActiveGoals,
+} from "./lib/active_goal_queue.ts";
+import schema from "./schema";
 import { requireHouseholdDoc, requireHouseholdMember } from "./lib/household_access";
 import {
   activateSavings,
@@ -19,63 +20,40 @@ import {
   recordPurchase,
   undoPurchase as undoSavingsFundedPurchase,
 } from "./lib/savings_account";
-import {
-  allocateSavings,
-  calculateProgressLosses,
-  calculatePurchaseFunding,
-} from "./lib/want_savings";
+import { previewPurchase as previewGoalPurchase } from "../shared/utils/goal-allocation";
 
-export const INACTIVE_WANTS_PAGE_SIZE = 25;
+export const INACTIVE_GOALS_PAGE_SIZE = 25;
 
-const wantPriorityValidator = v.union(v.literal("high"), v.literal("medium"), v.literal("low"));
+const goalFields = schema.tables.goals.validator.fields;
 
-const wantStatusValidator = v.union(
-  v.literal("considering"),
-  v.literal("plan_for_it"),
-  v.literal("not_now"),
-  v.literal("bought"),
+const goalPriorityValidator = goalFields.priority;
+const goalStatusValidator = goalFields.status;
+
+const inactiveGoalStatusValidator = v.union(
+  v.literal("idea"),
+  v.literal("on_hold"),
+  v.literal("purchased"),
 );
 
-const inactiveWantStatusValidator = v.union(
-  v.literal("considering"),
-  v.literal("not_now"),
-  v.literal("bought"),
-);
-
-const wantItemValidator = v.object({
-  _id: v.id("wantItems"),
+const goalValidator = schema.tables.goals.validator.extend({
+  _id: v.id("goals"),
   _creationTime: v.number(),
-  householdId: v.id("households"),
-  name: v.string(),
-  estimatedCostCents: v.int64(),
-  priority: wantPriorityValidator,
-  targetDate: v.optional(v.number()),
-  notes: v.string(),
-  status: wantStatusValidator,
-  order: v.optional(v.number()),
-  createdBy: v.id("users"),
-  updatedBy: v.id("users"),
-  createdAt: v.number(),
-  updatedAt: v.number(),
-  purchasedBy: v.optional(v.id("users")),
-  purchasedAt: v.optional(v.number()),
-  expenseId: v.optional(v.id("expenses")),
 });
 
 const changeStatusResultValidator = v.object({
   kind: v.literal("updated"),
-  item: wantItemValidator,
+  item: goalValidator,
 });
 
 const progressLossValidator = v.object({
-  itemId: v.id("wantItems"),
+  goalId: v.id("goals"),
   name: v.string(),
   lostCents: v.int64(),
   allocatedCentsAfter: v.int64(),
 });
 
 const previewPurchaseResultValidator = v.object({
-  savingsUsedCents: v.int64(),
+  fromSavingsCents: v.int64(),
   budgetImpactCents: v.int64(),
   progressLosses: v.array(progressLossValidator),
 });
@@ -83,7 +61,7 @@ const previewPurchaseResultValidator = v.object({
 const purchaseResultValidator = v.object({
   status: v.literal("ok"),
   expenseId: v.id("expenses"),
-  savingsUsedCents: v.int64(),
+  fromSavingsCents: v.int64(),
   budgetImpactCents: v.int64(),
 });
 
@@ -112,34 +90,28 @@ function assertFiniteTargetDate(targetDate: number | null): void {
 }
 
 function assertInactivePageSize(numItems: number): void {
-  if (numItems !== INACTIVE_WANTS_PAGE_SIZE) {
-    throw new Error(`Inactive Want pages must contain ${INACTIVE_WANTS_PAGE_SIZE} items`);
+  if (numItems !== INACTIVE_GOALS_PAGE_SIZE) {
+    throw new Error(`Inactive Want pages must contain ${INACTIVE_GOALS_PAGE_SIZE} items`);
   }
 }
 
 async function requireLinkedPurchase(
   ctx: MutationCtx,
-  itemId: Id<"wantItems">,
+  goalId: Id<"goals">,
   householdId: Id<"households">,
 ): Promise<{
-  item: Doc<"wantItems">;
+  item: Doc<"goals">;
   expense: Doc<"expenses">;
 }> {
-  const item = await requireHouseholdDoc(
-    ctx,
-    "wantItems",
-    itemId,
-    householdId,
-    "Want item not found",
-  );
+  const item = await requireHouseholdDoc(ctx, "goals", goalId, householdId, "Want item not found");
 
-  if (item.status !== "bought" || !item.expenseId) {
+  if (item.status !== "purchased" || !item.expenseId) {
     throw new Error("Want item does not have a linked purchase");
   }
 
   const expense = await ctx.db.get(item.expenseId);
 
-  if (!expense || expense.householdId !== householdId || expense.wantItemId !== item._id) {
+  if (!expense || expense.householdId !== householdId || expense.goalId !== item._id) {
     throw new Error("Linked purchase expense not found");
   }
 
@@ -147,9 +119,9 @@ async function requireLinkedPurchase(
     throw new Error("Linked purchase is missing its cent-valued amount");
   }
 
-  const savingsUsedCents = expense.savingsUsedCents ?? 0n;
+  const fromSavingsCents = expense.fromSavingsCents ?? 0n;
 
-  if (savingsUsedCents < 0n || savingsUsedCents > expense.amountCents) {
+  if (fromSavingsCents < 0n || fromSavingsCents > expense.amountCents) {
     throw new Error("Linked purchase contains invalid savings funding");
   }
 
@@ -159,21 +131,21 @@ async function requireLinkedPurchase(
 export const list = query({
   args: {},
   returns: v.object({
-    active: v.array(wantItemValidator),
+    active: v.array(goalValidator),
   }),
   handler: async (ctx) => {
     const { household } = await requireHouseholdMember(ctx);
     const householdId = household._id;
 
     const active = await ctx.db
-      .query("wantItems")
+      .query("goals")
       .withIndex("by_household_and_status_and_order", (q) =>
-        q.eq("householdId", householdId).eq("status", "plan_for_it"),
+        q.eq("householdId", householdId).eq("status", "saving"),
       )
       .order("asc")
-      .take(MAX_ACTIVE_WANTS + 1);
+      .take(MAX_ACTIVE_GOALS + 1);
 
-    if (active.length > MAX_ACTIVE_WANTS) {
+    if (active.length > MAX_ACTIVE_GOALS) {
       throw new Error("Active Want queue exceeds its maximum size");
     }
 
@@ -187,10 +159,10 @@ export const list = query({
 
 export const listSection = query({
   args: {
-    status: inactiveWantStatusValidator,
+    status: inactiveGoalStatusValidator,
     paginationOpts: paginationOptsValidator,
   },
-  returns: paginationResultValidator(wantItemValidator),
+  returns: paginationResultValidator(goalValidator),
   handler: async (ctx, args) => {
     const { household } = await requireHouseholdMember(ctx);
     const householdId = household._id;
@@ -198,7 +170,7 @@ export const listSection = query({
     assertInactivePageSize(args.paginationOpts.numItems);
 
     return await ctx.db
-      .query("wantItems")
+      .query("goals")
       .withIndex("by_household_and_status", (q) =>
         q.eq("householdId", householdId).eq("status", args.status),
       )
@@ -211,11 +183,11 @@ export const create = mutation({
   args: {
     name: v.string(),
     estimatedCostCents: v.int64(),
-    priority: wantPriorityValidator,
+    priority: goalPriorityValidator,
     targetDate: v.optional(v.number()),
     notes: v.string(),
   },
-  returns: wantItemValidator,
+  returns: goalValidator,
   handler: async (ctx, args) => {
     const now = Date.now();
     const { user, household } = await requireHouseholdMember(ctx);
@@ -226,60 +198,60 @@ export const create = mutation({
       throw new Error("Target date must be finite");
     }
 
-    const wantItemId = await ctx.db.insert("wantItems", {
+    const goalId = await ctx.db.insert("goals", {
       householdId: household._id,
       name: normalizeName(args.name),
       estimatedCostCents: args.estimatedCostCents,
       priority: args.priority,
       ...(args.targetDate !== undefined ? { targetDate: args.targetDate } : {}),
       notes: normalizeNotes(args.notes),
-      status: "considering",
+      status: "idea",
       createdBy: user._id,
       updatedBy: user._id,
       createdAt: now,
       updatedAt: now,
     });
 
-    const wantItem = await ctx.db.get(wantItemId);
+    const goal = await ctx.db.get(goalId);
 
-    if (!wantItem) {
+    if (!goal) {
       throw new Error("Failed to create Want item");
     }
 
-    return wantItem;
+    return goal;
   },
 });
 
 export const update = mutation({
   args: {
-    itemId: v.id("wantItems"),
+    goalId: v.id("goals"),
     name: v.string(),
     estimatedCostCents: v.int64(),
-    priority: wantPriorityValidator,
+    priority: goalPriorityValidator,
     targetDate: v.union(v.number(), v.null()),
     notes: v.string(),
   },
-  returns: wantItemValidator,
+  returns: goalValidator,
   handler: async (ctx, args) => {
     const now = Date.now();
     const { user, household } = await requireHouseholdMember(ctx);
 
-    const wantItem = await requireHouseholdDoc(
+    const goal = await requireHouseholdDoc(
       ctx,
-      "wantItems",
-      args.itemId,
+      "goals",
+      args.goalId,
       household._id,
       "Want item not found",
     );
 
-    if (wantItem.status === "bought") {
+    if (goal.status === "purchased") {
       throw new Error("Bought items can only be changed through purchase actions");
     }
 
     assertPositiveCents(args.estimatedCostCents, "Estimated cost");
     assertFiniteTargetDate(args.targetDate);
 
-    await ctx.db.patch(wantItem._id, {
+    await ctx.db.patch(goal._id, {
       name: normalizeName(args.name),
       estimatedCostCents: args.estimatedCostCents,
       priority: args.priority,
@@ -289,7 +261,7 @@ export const update = mutation({
       updatedAt: now,
     });
 
-    const updatedWantItem = await ctx.db.get(wantItem._id);
+    const updatedWantItem = await ctx.db.get(goal._id);
 
     if (!updatedWantItem) {
       throw new Error("Want item disappeared during update");
@@ -301,46 +273,46 @@ export const update = mutation({
 
 export const changeStatus = mutation({
   args: {
-    itemId: v.id("wantItems"),
-    status: wantStatusValidator,
+    goalId: v.id("goals"),
+    status: goalStatusValidator,
   },
   returns: changeStatusResultValidator,
   handler: async (ctx, args) => {
     const now = Date.now();
     const { user, household } = await requireHouseholdMember(ctx);
 
-    const wantItem = await requireHouseholdDoc(
+    const goal = await requireHouseholdDoc(
       ctx,
-      "wantItems",
-      args.itemId,
+      "goals",
+      args.goalId,
       household._id,
       "Want item not found",
     );
 
-    if (wantItem.status === "bought" || args.status === "bought") {
+    if (goal.status === "purchased" || args.status === "purchased") {
       throw new Error("Bought items can only be changed through purchase actions");
     }
 
-    const isActivating = args.status === "plan_for_it" && wantItem.status !== "plan_for_it";
+    const isActivating = args.status === "saving" && goal.status !== "saving";
 
     if (isActivating) {
-      await appendActiveWant(ctx, {
-        item: wantItem,
+      await appendActiveGoal(ctx, {
+        item: goal,
         actorId: user._id,
         now,
         queueFullErrorMessage:
           "Move an item to Considering or Not now before planning another purchase",
       });
-    } else if (wantItem.status === "plan_for_it" && args.status !== "plan_for_it") {
-      await removeActiveWant(ctx, {
-        item: wantItem,
+    } else if (goal.status === "saving" && args.status !== "saving") {
+      await removeActiveGoal(ctx, {
+        item: goal,
         nextStatus: args.status,
         actorId: user._id,
         now,
       });
-    } else if (wantItem.status !== args.status) {
+    } else if (goal.status !== args.status) {
       // This is an inactive-to-inactive transition.
-      await ctx.db.patch(wantItem._id, {
+      await ctx.db.patch(goal._id, {
         status: args.status,
         order: undefined,
         updatedBy: user._id,
@@ -348,7 +320,7 @@ export const changeStatus = mutation({
       });
     } else {
       // Psavings the existing behavior of refreshing update metadata.
-      await ctx.db.patch(wantItem._id, {
+      await ctx.db.patch(goal._id, {
         updatedBy: user._id,
         updatedAt: now,
       });
@@ -358,7 +330,7 @@ export const changeStatus = mutation({
       await activateSavings(ctx, { household, now });
     }
 
-    const updatedWantItem = await ctx.db.get(wantItem._id);
+    const updatedWantItem = await ctx.db.get(goal._id);
 
     if (!updatedWantItem) {
       throw new Error("Want item disappeared during status change");
@@ -373,18 +345,18 @@ export const changeStatus = mutation({
 
 export const reorder = mutation({
   args: {
-    itemIds: v.array(v.id("wantItems")),
-    expectedItemIds: v.array(v.id("wantItems")),
+    goalIds: v.array(v.id("goals")),
+    expectedGoalIds: v.array(v.id("goals")),
   },
   returns: v.object({ success: v.boolean() }),
   handler: async (ctx, args) => {
     const now = Date.now();
     const { user, household } = await requireHouseholdMember(ctx);
 
-    const success = await reorderActiveWants(ctx, {
+    const success = await reorderActiveGoals(ctx, {
       householdId: household._id,
-      itemIds: args.itemIds,
-      expectedItemIds: args.expectedItemIds,
+      goalIds: args.goalIds,
+      expectedGoalIds: args.expectedGoalIds,
       actorId: user._id,
       now,
     });
@@ -395,7 +367,7 @@ export const reorder = mutation({
 
 export const previewPurchase = query({
   args: {
-    itemId: v.id("wantItems"),
+    goalId: v.id("goals"),
     actualAmountCents: v.int64(),
     now: v.number(),
   },
@@ -409,61 +381,42 @@ export const previewPurchase = query({
 
     const { household } = await requireHouseholdMember(ctx);
 
-    const wantItem = await requireHouseholdDoc(
+    const goal = await requireHouseholdDoc(
       ctx,
-      "wantItems",
-      args.itemId,
+      "goals",
+      args.goalId,
       household._id,
       "Want item not found",
     );
 
-    if (wantItem.status !== "plan_for_it") {
+    if (goal.status !== "saving") {
       throw new Error("Only planned Want items can be purchased");
     }
 
     const savingsSnapshot = await getSavingsSnapshot(ctx, household, args.now);
-    const activeItems = await loadActiveWantQueue(ctx, household._id);
-    const isInActiveQueue = activeItems.some((activeItem) => activeItem._id === wantItem._id);
+    const activeItems = await loadActiveGoalQueue(ctx, household._id);
+    const isInActiveQueue = activeItems.some((activeItem) => activeItem._id === goal._id);
 
     if (!isInActiveQueue) {
       throw new Error("Want item is not in the active queue");
     }
 
-    const toSavingsItem = (activeItem: Doc<"wantItems">) => ({
-      id: activeItem._id,
-      estimatedCostCents: activeItem.estimatedCostCents,
-    });
-    const funding = calculatePurchaseFunding(
+    const { funding, losses } = previewGoalPurchase(
+      savingsSnapshot.availableCents,
+      activeItems,
+      goal._id,
       args.actualAmountCents,
-      savingsSnapshot.availableCents,
     );
-    const allocationsBefore = allocateSavings(
-      savingsSnapshot.availableCents,
-      activeItems.map(toSavingsItem),
-    );
-    const allocationsAfter = allocateSavings(
-      savingsSnapshot.availableCents - funding.savingsUsedCents,
-      activeItems.filter((activeItem) => activeItem._id !== wantItem._id).map(toSavingsItem),
-    );
-    const progressLosses = calculateProgressLosses(allocationsBefore, allocationsAfter).map(
-      (loss) => {
-        const affectedItem = activeItems.find((activeItem) => activeItem._id === loss.id);
-
-        if (!affectedItem) {
-          throw new Error("Want item losing progress is missing");
-        }
-
-        return {
-          itemId: loss.id,
-          name: affectedItem.name,
-          lostCents: loss.lostCents,
-          allocatedCentsAfter: loss.allocatedCentsAfter,
-        };
-      },
-    );
+    const progressLosses = losses.map(({ goal: affectedGoal, lostCents, allocatedCentsAfter }) => ({
+      goalId: affectedGoal._id,
+      name: affectedGoal.name,
+      lostCents,
+      allocatedCentsAfter,
+    }));
 
     return {
-      ...funding,
+      fromSavingsCents: funding.fromSavingsCents,
+      budgetImpactCents: funding.fromDailyBudgetCents,
       progressLosses,
     };
   },
@@ -471,7 +424,7 @@ export const previewPurchase = query({
 
 export const purchase = mutation({
   args: {
-    itemId: v.id("wantItems"),
+    goalId: v.id("goals"),
     actualAmountCents: v.int64(),
     purchaseLocalDate: v.string(),
   },
@@ -481,34 +434,34 @@ export const purchase = mutation({
     assertPositiveCents(args.actualAmountCents, "Actual amount");
 
     const { user, household } = await requireHouseholdMember(ctx);
-    const wantItem = await requireHouseholdDoc(
+    const goal = await requireHouseholdDoc(
       ctx,
-      "wantItems",
-      args.itemId,
+      "goals",
+      args.goalId,
       household._id,
       "Want item not found",
     );
 
-    if (wantItem.status !== "plan_for_it") {
+    if (goal.status !== "saving") {
       throw new Error("Only planned Want items can be purchased");
     }
 
     const result = await recordPurchase(ctx, {
       household,
-      want: wantItem,
+      want: goal,
       amountCents: args.actualAmountCents,
       localDate: args.purchaseLocalDate,
       now: serverNow,
     });
 
-    await removeActiveWant(ctx, {
-      item: wantItem,
-      nextStatus: "bought",
+    await removeActiveGoal(ctx, {
+      item: goal,
+      nextStatus: "purchased",
       actorId: user._id,
       now: serverNow,
     });
 
-    await ctx.db.patch("wantItems", wantItem._id, {
+    await ctx.db.patch("goals", goal._id, {
       purchasedBy: user._id,
       purchasedAt: serverNow,
       expenseId: result.expenseId,
@@ -517,7 +470,7 @@ export const purchase = mutation({
     return {
       status: "ok" as const,
       expenseId: result.expenseId,
-      savingsUsedCents: result.savingsUsedCents,
+      fromSavingsCents: result.fromSavingsCents,
       budgetImpactCents: result.budgetImpactCents,
     };
   },
@@ -525,7 +478,7 @@ export const purchase = mutation({
 
 export const correctPurchase = mutation({
   args: {
-    itemId: v.id("wantItems"),
+    goalId: v.id("goals"),
     actualAmountCents: v.int64(),
   },
   returns: correctPurchaseResultValidator,
@@ -534,11 +487,7 @@ export const correctPurchase = mutation({
     assertPositiveCents(args.actualAmountCents, "Actual amount");
 
     const { user, household } = await requireHouseholdMember(ctx);
-    const { item: wantItem, expense } = await requireLinkedPurchase(
-      ctx,
-      args.itemId,
-      household._id,
-    );
+    const { item: goal, expense } = await requireLinkedPurchase(ctx, args.goalId, household._id);
 
     const result = await correctSavingsFundedPurchase(ctx, {
       household,
@@ -547,7 +496,7 @@ export const correctPurchase = mutation({
       now: serverNow,
     });
 
-    await ctx.db.patch("wantItems", wantItem._id, {
+    await ctx.db.patch("goals", goal._id, {
       updatedBy: user._id,
       updatedAt: serverNow,
     });
@@ -555,7 +504,7 @@ export const correctPurchase = mutation({
     return {
       status: "ok" as const,
       expenseId: expense._id,
-      savingsUsedCents: result.savingsUsedCents,
+      fromSavingsCents: result.fromSavingsCents,
       budgetImpactCents: result.budgetImpactCents,
     };
   },
@@ -563,17 +512,13 @@ export const correctPurchase = mutation({
 
 export const undoPurchase = mutation({
   args: {
-    itemId: v.id("wantItems"),
+    goalId: v.id("goals"),
   },
   returns: undoPurchaseResultValidator,
   handler: async (ctx, args) => {
     const serverNow = Date.now();
     const { user, household } = await requireHouseholdMember(ctx);
-    const { item: wantItem, expense } = await requireLinkedPurchase(
-      ctx,
-      args.itemId,
-      household._id,
-    );
+    const { item: goal, expense } = await requireLinkedPurchase(ctx, args.goalId, household._id);
 
     await undoSavingsFundedPurchase(ctx, {
       household,
@@ -582,14 +527,14 @@ export const undoPurchase = mutation({
     });
 
     // Throws (rolling back the undo) when the active queue is full.
-    await appendActiveWant(ctx, {
-      item: wantItem,
+    await appendActiveGoal(ctx, {
+      item: goal,
       actorId: user._id,
       now: serverNow,
       queueFullErrorMessage: "Move an item to Considering or Not now before undoing this purchase",
     });
 
-    await ctx.db.patch("wantItems", wantItem._id, {
+    await ctx.db.patch("goals", goal._id, {
       purchasedBy: undefined,
       purchasedAt: undefined,
       expenseId: undefined,

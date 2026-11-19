@@ -5,7 +5,7 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
 import WantsList from "../../app/components/wants/list.vue";
 
-type WantItem = Doc<"wantItems">;
+type WantItem = Doc<"goals">;
 
 const householdId = "household-1" as Id<"households">;
 const ownerId = "user-1" as Id<"users">;
@@ -34,14 +34,14 @@ const VueDraggableStub = defineComponent({
 
 function makeWant(id: string, name: string, order: number): WantItem {
   return {
-    _id: id as Id<"wantItems">,
+    _id: id as Id<"goals">,
     _creationTime: 1,
     householdId,
     name,
     estimatedCostCents: 10_000n,
     priority: "medium",
     notes: "",
-    status: "plan_for_it",
+    status: "saving",
     order,
     createdBy: ownerId,
     updatedBy: ownerId,
@@ -113,8 +113,8 @@ describe("WantsList reordering", () => {
     await simulatePointerReorder(wrapper, [bike, trip, camera], 0, 2);
 
     expect(lastReorder(wrapper)).toEqual({
-      expectedItemIds: [camera._id, bike._id, trip._id],
-      itemIds: [bike._id, trip._id, camera._id],
+      expectedGoalIds: [camera._id, bike._id, trip._id],
+      goalIds: [bike._id, trip._id, camera._id],
     });
     expect(renderedNames(wrapper)).toEqual([
       expect.stringContaining("Bike"),
@@ -130,8 +130,8 @@ describe("WantsList reordering", () => {
     await flushPromises();
 
     expect(lastReorder(wrapper)).toEqual({
-      expectedItemIds: [camera._id, bike._id, trip._id],
-      itemIds: [bike._id, camera._id, trip._id],
+      expectedGoalIds: [camera._id, bike._id, trip._id],
+      goalIds: [bike._id, camera._id, trip._id],
     });
     expect(renderedNames(wrapper)).toEqual([
       expect.stringContaining("Bike"),

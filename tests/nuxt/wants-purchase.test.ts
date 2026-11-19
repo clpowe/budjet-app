@@ -6,14 +6,14 @@ import BoughtList from "../../app/components/wants/bought-list.vue";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
 import PurchaseDialog from "../../app/components/wants/purchase-dialog.vue";
 
-type WantItem = Doc<"wantItems">;
+type WantItem = Doc<"goals">;
 
 const householdId = "household-1" as Id<"households">;
 const ownerId = "user-1" as Id<"users">;
 
-function makeWant(status: WantItem["status"] = "plan_for_it"): WantItem {
+function makeWant(status: WantItem["status"] = "saving"): WantItem {
   return {
-    _id: "want-camera" as Id<"wantItems">,
+    _id: "want-camera" as Id<"goals">,
     _creationTime: 1,
     householdId,
     name: "Camera",
@@ -21,8 +21,8 @@ function makeWant(status: WantItem["status"] = "plan_for_it"): WantItem {
     priority: "high",
     notes: "For the trip",
     status,
-    ...(status === "plan_for_it" ? { order: 0 } : {}),
-    ...(status === "bought"
+    ...(status === "saving" ? { order: 0 } : {}),
+    ...(status === "purchased"
       ? {
           purchasedBy: ownerId,
           purchasedAt: Date.UTC(2026, 7, 18, 16),
@@ -40,21 +40,21 @@ function makePreview({
   actualAmountCents = 10_000n,
   budgetImpactCents = 0n,
   progressLosses = [],
-  savingsUsedCents = 10_000n,
+  fromSavingsCents = 10_000n,
 }: {
   actualAmountCents?: bigint;
   budgetImpactCents?: bigint;
   progressLosses?: Array<{
-    itemId: Id<"wantItems">;
+    goalId: Id<"goals">;
     name: string;
     lostCents: bigint;
     allocatedCentsAfter: bigint;
   }>;
-  savingsUsedCents?: bigint;
+  fromSavingsCents?: bigint;
 } = {}) {
   return {
     actualAmountCents,
-    savingsUsedCents,
+    fromSavingsCents,
     budgetImpactCents,
     progressLosses,
   };
@@ -92,7 +92,7 @@ describe("WantsPurchaseDialog", () => {
       name: "partially funded",
       preview: makePreview({
         actualAmountCents: 12_000n,
-        savingsUsedCents: 10_000n,
+        fromSavingsCents: 10_000n,
         budgetImpactCents: 2_000n,
       }),
       expected: ["Actual amount$120.00", "Paid from savings$100.00", "General-budget impact$20.00"],
@@ -110,10 +110,10 @@ describe("WantsPurchaseDialog", () => {
     const wrapper = mountDialog({
       preview: makePreview({
         actualAmountCents: 12_000n,
-        savingsUsedCents: 12_000n,
+        fromSavingsCents: 12_000n,
         progressLosses: [
           {
-            itemId: "want-trip" as Id<"wantItems">,
+            goalId: "want-trip" as Id<"goals">,
             name: "Trip",
             lostCents: 2_000n,
             allocatedCentsAfter: 3_000n,
@@ -139,7 +139,7 @@ describe("WantsPurchaseDialog", () => {
     await input.setValue("120.00");
 
     expect(wrapper.emitted("request-preview")?.at(-1)?.[0]).toEqual({
-      itemId: "want-camera",
+      goalId: "want-camera",
       actualAmountCents: 12_000n,
     });
     expect(wrapper.find('[data-test="purchase-breakdown"]').exists()).toBe(false);
@@ -147,7 +147,7 @@ describe("WantsPurchaseDialog", () => {
     await wrapper.get("form").trigger("submit");
 
     expect(wrapper.emitted("submit")?.at(-1)?.[0]).toEqual({
-      itemId: "want-camera",
+      goalId: "want-camera",
       actualAmountCents: 12_000n,
       purchaseLocalDate: "2026-08-19",
     });
@@ -185,7 +185,7 @@ describe("WantsBoughtList", () => {
   function mountHistory() {
     return mount(BoughtList, {
       props: {
-        items: [makeWant("bought")],
+        items: [makeWant("purchased")],
       },
       global: {
         stubs: {

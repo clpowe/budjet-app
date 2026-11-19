@@ -3,14 +3,14 @@ import { computed, onBeforeUnmount, onMounted } from "vue";
 import { api } from "../../convex/_generated/api";
 import { useWantSection } from "./use-want-section";
 
-type CreateItemArgs = FunctionArgs<typeof api.wants.create>;
-type UpdateItemArgs = FunctionArgs<typeof api.wants.update>;
-type ChangeStatusArgs = FunctionArgs<typeof api.wants.changeStatus>;
-type ReorderArgs = FunctionArgs<typeof api.wants.reorder>;
-type PreviewPurchaseArgs = Omit<FunctionArgs<typeof api.wants.previewPurchase>, "now">;
-type PurchaseArgs = FunctionArgs<typeof api.wants.purchase>;
-type CorrectPurchaseArgs = FunctionArgs<typeof api.wants.correctPurchase>;
-type UndoPurchaseArgs = FunctionArgs<typeof api.wants.undoPurchase>;
+type CreateItemArgs = FunctionArgs<typeof api.goals.create>;
+type UpdateItemArgs = FunctionArgs<typeof api.goals.update>;
+type ChangeStatusArgs = FunctionArgs<typeof api.goals.changeStatus>;
+type ReorderArgs = FunctionArgs<typeof api.goals.reorder>;
+type PreviewPurchaseArgs = Omit<FunctionArgs<typeof api.goals.previewPurchase>, "now">;
+type PurchaseArgs = FunctionArgs<typeof api.goals.purchase>;
+type CorrectPurchaseArgs = FunctionArgs<typeof api.goals.correctPurchase>;
+type UndoPurchaseArgs = FunctionArgs<typeof api.goals.undoPurchase>;
 
 type ActionResult<T> =
   | {
@@ -43,13 +43,13 @@ async function runAction<T>(action: () => Promise<T>, fallback: string): Promise
 export function useWantList() {
   const now = useState<number>("wants-summary-now", () => Date.now());
 
-  const { data: activeResult, isPending: isActivePending } = useConvexQuery(api.wants.list, {});
+  const { data: activeResult, isPending: isActivePending } = useConvexQuery(api.goals.list, {});
 
   const convex = useConvexClient();
   const history = {
-    considering: useWantSection(convex, "considering"),
-    notNow: useWantSection(convex, "not_now"),
-    bought: useWantSection(convex, "bought"),
+    considering: useWantSection(convex, "idea"),
+    notNow: useWantSection(convex, "on_hold"),
+    bought: useWantSection(convex, "purchased"),
   };
 
   const { data: summary, isPending: isSummaryPending } = useConvexQuery(
@@ -59,13 +59,13 @@ export function useWantList() {
     })),
   );
 
-  const { mutate: createMutation } = useConvexMutation(api.wants.create);
-  const { mutate: updateMutation } = useConvexMutation(api.wants.update);
-  const { mutate: changeStatusMutation } = useConvexMutation(api.wants.changeStatus);
-  const { mutate: reorderMutation } = useConvexMutation(api.wants.reorder);
-  const { mutate: purchaseMutation } = useConvexMutation(api.wants.purchase);
-  const { mutate: correctPurchaseMutation } = useConvexMutation(api.wants.correctPurchase);
-  const { mutate: undoPurchaseMutation } = useConvexMutation(api.wants.undoPurchase);
+  const { mutate: createMutation } = useConvexMutation(api.goals.create);
+  const { mutate: updateMutation } = useConvexMutation(api.goals.update);
+  const { mutate: changeStatusMutation } = useConvexMutation(api.goals.changeStatus);
+  const { mutate: reorderMutation } = useConvexMutation(api.goals.reorder);
+  const { mutate: purchaseMutation } = useConvexMutation(api.goals.purchase);
+  const { mutate: correctPurchaseMutation } = useConvexMutation(api.goals.correctPurchase);
+  const { mutate: undoPurchaseMutation } = useConvexMutation(api.goals.undoPurchase);
 
   const sections = computed(() => ({
     active: activeResult.value?.active ?? [],
@@ -135,7 +135,7 @@ export function useWantList() {
   function previewPurchase(args: PreviewPurchaseArgs) {
     return runAction(
       () =>
-        convex.query(api.wants.previewPurchase, {
+        convex.query(api.goals.previewPurchase, {
           ...args,
           now: now.value,
         }),

@@ -47,7 +47,7 @@ function onExpenseUpdated(id: string) {
 }
 
 function budgetImpactCents(expense: Expense): bigint {
-  return (expense.amountCents ?? 0n) - (expense.savingsUsedCents ?? 0n);
+  return (expense.amountCents ?? 0n) - (expense.fromSavingsCents ?? 0n);
 }
 </script>
 
@@ -67,21 +67,21 @@ function budgetImpactCents(expense: Expense): bigint {
             <template v-if="cell.column.id === 'name'">
               <div>
                 <span>{{ row.original.name }}</span>
-                <span v-if="row.original.wantItemId !== undefined"> Want purchase </span>
+                <span v-if="row.original.goalId !== undefined"> Want purchase </span>
               </div>
             </template>
             <template v-else-if="cell.column.id === 'amount'">
               <span>
                 {{ formatCents(row.original.amountCents) }}
               </span>
-              <p v-if="(row.original.savingsUsedCents ?? 0n) > 0n">
+              <p v-if="(row.original.fromSavingsCents ?? 0n) > 0n">
                 {{ formatCents(row.original.amountCents) }} total ·
-                {{ formatCents(row.original.savingsUsedCents ?? 0n) }} from savings ·
+                {{ formatCents(row.original.fromSavingsCents ?? 0n) }} from savings ·
                 {{ formatCents(budgetImpactCents(row.original)) }} budget impact
               </p>
             </template>
             <template v-else-if="cell.column.id === 'actions'">
-              <template v-if="row.original.wantItemId === undefined">
+              <template v-if="row.original.goalId === undefined">
                 <button @click="onDelete(row.original._id)">Delete</button>
                 <button :popovertarget="row.id">Edit</button>
                 <div :id="row.id" popover>

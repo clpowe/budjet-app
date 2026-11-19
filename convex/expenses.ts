@@ -5,13 +5,13 @@ import { toExpenseFacts } from "./lib/daily_budget_totals";
 import { getHouseholdId } from "./lib/helpers";
 import { requireHouseholdDoc, requireHouseholdMember } from "./lib/household_access";
 import { addExpense, editExpense, removeExpense } from "./lib/savings_account";
-import { getBudgetImpact } from "./lib/want_savings";
 import {
   getLocalDateKey,
   getLocalMonthPeriod,
   getNextLocalDate,
   getNextMonthStart,
 } from "../shared/utils/local-date.ts";
+import { budgetImpact } from "../shared/utils/savings";
 import schema from "./schema";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
@@ -30,7 +30,7 @@ const expenseDoc = schema.tables.expenses.validator.extend({
 const monthlyTransaction = v.union(
   expenseDoc.extend({
     type: v.literal("expense"),
-    savingsUsedCents: v.int64(),
+    fromSavingsCents: v.int64(),
     budgetImpactCents: v.int64(),
     isWantPurchase: v.boolean(),
   }),
@@ -86,7 +86,7 @@ async function getAuthorizedExpense(ctx: MutationCtx, expenseId: Id<"expenses">)
     "Expense not found",
   );
 
-  if (expense.wantItemId) {
+  if (expense.goalId) {
     throw new Error("Want purchases must be managed from the wants flow");
   }
 
@@ -197,13 +197,13 @@ export const listMonthlyTransactions = query({
 
     return [
       ...expenses.map((expense) => {
-        const { amountCents, savingsUsedCents } = toExpenseFacts(expense);
+        const { amountCents, fromSavingsCents } = toExpenseFacts(expense);
 
         return {
           ...expense,
-          savingsUsedCents,
-          budgetImpactCents: getBudgetImpact(amountCents, savingsUsedCents),
-          isWantPurchase: expense.wantItemId !== undefined,
+          fromSavingsCents,
+          budgetImpactCents: budgetImpact(amountCents, fromSavingsCents),
+          isWantPurchase: expense.goalId !== undefined,
           type: "expense" as const,
         };
       }),
