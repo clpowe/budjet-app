@@ -7,7 +7,7 @@ import {
   listSavingsActivity,
   sumClosedPositiveContributions,
 } from "./lib/savings_account";
-import { getLocalMonthPeriod } from "./lib/want_savings";
+import { getLocalMonthPeriod } from "../shared/utils/local-date.ts";
 import { query } from "./_generated/server";
 
 const DAYS_IN_PLAN = 30n;

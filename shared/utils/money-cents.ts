@@ -70,3 +70,15 @@ export function formatCents(cents: Cents): string {
 
   return `${isNegative ? "-" : ""}$${formattedDollars}.${fractionalCents}`;
 }
+
+export function assertPositiveCents(value: Cents, label: string): void {
+  if (value <= 0n) {
+    throw new RangeError(`${label} must be greater than zero`);
+  }
+}
+
+export function assertNonNegativeCents(value: Cents, label: string): void {
+  if (value < 0n) {
+    throw new RangeError(`${label} must not be negative`);
+  }
+}

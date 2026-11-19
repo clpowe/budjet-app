@@ -1,3 +1,4 @@
+import { assertPositiveCents } from "../../shared/utils/money-cents";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { allocateSavings } from "./want_savings";
@@ -33,12 +34,6 @@ export interface ActiveWantAllocation {
   allocatedCents: bigint;
   remainingCents: bigint;
   progressBasisPoints: number;
-}
-
-export function assertPositiveEstimatedCost(estimatedCostCents: bigint): void {
-  if (estimatedCostCents <= 0n) {
-    throw new Error("Estimated cost must be greater than zero");
-  }
 }
 
 export async function loadActiveWantQueue(
@@ -102,7 +97,7 @@ export async function appendActiveWant(
     throw new Error("Want item is already active");
   }
 
-  assertPositiveEstimatedCost(item.estimatedCostCents);
+  assertPositiveCents(item.estimatedCostCents, "Estimated cost");
 
   const activeItems = await loadActiveWantQueue(ctx, item.householdId);
 
@@ -232,7 +227,7 @@ function assertValidActiveQueue(items: Doc<"wantItems">[]): void {
 }
 
 function getProgressBasisPoints(allocatedCents: bigint, estimatedCostCents: bigint): number {
-  assertPositiveEstimatedCost(estimatedCostCents);
+  assertPositiveCents(estimatedCostCents, "Estimated cost");
 
   return Number((allocatedCents * 10_000n) / estimatedCostCents);
 }

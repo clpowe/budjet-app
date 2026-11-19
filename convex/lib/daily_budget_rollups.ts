@@ -1,7 +1,7 @@
-import { legacyDollarsToCents } from "../../shared/utils/money-cents";
+import { assertPositiveCents, legacyDollarsToCents } from "../../shared/utils/money-cents";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { getLocalDateKey } from "./want_savings";
+import { getLocalDateKey } from "../../shared/utils/local-date.ts";
 
 export type ExpenseFacts = {
   /** Household-local day the expense counts against, fixed when it was written. */
@@ -130,9 +130,7 @@ type RollupDelta = {
 export function getBudgetImpactCents(
   expense: Pick<ExpenseFacts, "amountCents" | "savingsUsedCents">,
 ): bigint {
-  if (expense.amountCents <= 0n) {
-    throw new Error("Expense amount must be greater than zero");
-  }
+  assertPositiveCents(expense.amountCents, "Expense amount");
 
   if (expense.savingsUsedCents < 0n || expense.savingsUsedCents > expense.amountCents) {
     throw new Error("Paid from savings must be between zero and the expense amount");

@@ -1,3 +1,5 @@
+import { LOCAL_DATE_PATTERN } from "../../shared/utils/local-date.ts";
+
 export type WantGuidance =
   | { kind: "ready" }
   | { kind: "recovery"; amountCents: bigint }
@@ -19,8 +21,6 @@ export type WantGuidanceInput = {
   recoveryAmountCents: bigint;
   todayOverageAdjustmentCents: bigint;
 };
-
-const LOCAL_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function localDateToTimestamp(localDate: string): number | undefined {
   if (!LOCAL_DATE_PATTERN.test(localDate)) {

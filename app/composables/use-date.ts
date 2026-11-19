@@ -1,12 +1,12 @@
 import { addMonth, format, tzDate } from "@formkit/tempo";
 import { computed, toValue, type MaybeRefOrGetter } from "vue";
+import { DEFAULT_HOUSEHOLD_TIME_ZONE } from "./use-households";
 import {
   getLocalDateKey,
   getLocalDayBounds,
   getNextLocalDate,
   getNextMonthStart,
-} from "../../convex/lib/want_savings";
-import { DEFAULT_HOUSEHOLD_TIME_ZONE } from "./use-households";
+} from "../../shared/utils/local-date.ts";
 
 type TimeZoneInput = MaybeRefOrGetter<string | null | undefined>;
 

@@ -8,7 +8,7 @@ import {
   getBudgetImpactCents,
   replaceDailyBudgetRollup,
 } from "../lib/daily_budget_rollups";
-import { getLocalDateKey, getLocalDayBounds } from "../lib/want_savings";
+import { getLocalDateKey, getLocalDayBounds } from "../../shared/utils/local-date.ts";
 
 export const HOUSEHOLDS_PER_BATCH = 10;
 export const EXPENSES_PER_BATCH = 100;

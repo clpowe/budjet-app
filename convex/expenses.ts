@@ -5,14 +5,14 @@ import { toExpenseFacts } from "./lib/daily_budget_rollups";
 import { getHouseholdId } from "./lib/helpers";
 import { requireHouseholdDoc, requireHouseholdMember } from "./lib/household_access";
 import { addExpense, editExpense, removeExpense, type SavingsResult } from "./lib/savings_account";
+import { getBudgetImpact } from "./lib/want_savings";
 import {
-  getBudgetImpact,
   getLocalDateKey,
   getLocalDayBounds,
   getLocalMonthPeriod,
   getNextLocalDate,
   getNextMonthStart,
-} from "./lib/want_savings";
+} from "../shared/utils/local-date.ts";
 import schema from "./schema";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";

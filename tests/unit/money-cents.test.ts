@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  assertNonNegativeCents,
+  assertPositiveCents,
   formatCents,
   legacyDollarsToCents,
   parseMoneyToCents,
@@ -51,5 +53,22 @@ describe("money cents", () => {
     expect(legacyDollarsToCents(-12.345)).toBe(-1_234n);
     expect(() => legacyDollarsToCents(Number.NaN)).toThrow();
     expect(() => legacyDollarsToCents(Number.POSITIVE_INFINITY)).toThrow();
+  });
+});
+
+describe("cent assertions", () => {
+  it("requires positive amounts", () => {
+    expect(() => assertPositiveCents(1n, "Amount")).not.toThrow();
+    expect(() => assertPositiveCents(0n, "Amount")).toThrow("Amount must be greater than zero");
+    expect(() => assertPositiveCents(-1n, "Estimated cost")).toThrow(
+      "Estimated cost must be greater than zero",
+    );
+  });
+
+  it("allows zero but not negatives", () => {
+    expect(() => assertNonNegativeCents(0n, "Savings")).not.toThrow();
+    expect(() => assertNonNegativeCents(-1n, "Paid from savings")).toThrow(
+      "Paid from savings must not be negative",
+    );
   });
 });

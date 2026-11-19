@@ -1,3 +1,4 @@
+import { assertNonNegativeCents, assertPositiveCents } from "../../shared/utils/money-cents";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
@@ -8,12 +9,12 @@ import {
   toExpenseFacts,
   type ExpenseFacts,
 } from "./daily_budget_rollups";
+import { calculatePurchaseFunding } from "./want_savings";
 import {
-  calculatePurchaseFunding,
   getLocalDateKey,
   getLocalDayBounds,
   getNextLocalDate,
-} from "./want_savings";
+} from "../../shared/utils/local-date.ts";
 
 /*
  * Savings account: the one module that moves household money.
@@ -65,18 +66,6 @@ type SavingsTransition = {
   positionCents: bigint;
   lastClosedLocalDate?: string;
 };
-
-function assertNonNegativeCents(value: bigint, label: string): void {
-  if (value < 0n) {
-    throw new Error(`${label} cannot be negative`);
-  }
-}
-
-function assertPositiveCents(value: bigint, label: string): void {
-  if (value <= 0n) {
-    throw new Error(`${label} must be greater than zero`);
-  }
-}
 
 export function reduceSavingsEvent(state: SavingsState, event: SavingsEvent): SavingsTransition {
   let amountCents: bigint;
@@ -788,16 +777,10 @@ export type ExpenseFields = {
 };
 
 function assertExpenseFields(fields: ExpenseFields, now: number, timeZone: string): string {
-  assertPositiveExpenseAmount(fields.amountCents);
+  assertPositiveCents(fields.amountCents, "Expense amount");
   const localDate = getLocalDateKey(fields.date, timeZone);
   assertExpenseDayIsNotFuture(localDate, now, timeZone);
   return localDate;
-}
-
-function assertPositiveExpenseAmount(amountCents: bigint): void {
-  if (amountCents <= 0n) {
-    throw new Error("Expense amount must be greater than zero");
-  }
 }
 
 function assertExpenseDayIsNotFuture(localDate: string, now: number, timeZone: string): void {
@@ -858,7 +841,7 @@ export async function editExpense(
   },
 ): Promise<SavingsResult> {
   assertEverydayExpense(expense);
-  assertPositiveExpenseAmount(fields.amountCents);
+  assertPositiveCents(fields.amountCents, "Expense amount");
   const timeZone = getEffectiveTimeZone(household, now);
   const before = toExpenseFacts(expense, timeZone);
 

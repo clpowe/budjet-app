@@ -3,9 +3,6 @@ import {
   allocateSavings,
   calculatePurchaseFunding,
   getBudgetImpact,
-  getLocalDateKey,
-  getLocalDayBounds,
-  getNextLocalDate,
 } from "../../convex/lib/want_savings";
 
 describe("allocateSavings", () => {
@@ -77,27 +74,5 @@ describe("purchase funding", () => {
     expect(getBudgetImpact(12_000n, 10_000n)).toBe(2_000n);
     expect(() => getBudgetImpact(1_000n, 1_001n)).toThrow();
     expect(() => calculatePurchaseFunding(0n, 0n)).toThrow();
-  });
-});
-
-describe("household-local dates and forecasting", () => {
-  const timeZone = "America/New_York";
-
-  it("uses the correct local day around New York DST boundaries", () => {
-    expect(getLocalDateKey(Date.UTC(2026, 2, 8, 4, 59), timeZone)).toBe("2026-03-07");
-    expect(getLocalDateKey(Date.UTC(2026, 2, 8, 5), timeZone)).toBe("2026-03-08");
-
-    const springForward = getLocalDayBounds("2026-03-08", timeZone);
-    expect(springForward.endExclusiveTimestamp - springForward.startTimestamp).toBe(
-      23 * 60 * 60 * 1_000,
-    );
-
-    const fallBack = getLocalDayBounds("2026-11-01", timeZone);
-    expect(fallBack.endExclusiveTimestamp - fallBack.startTimestamp).toBe(25 * 60 * 60 * 1_000);
-  });
-
-  it("selects the first full local day after activation", () => {
-    expect(getNextLocalDate("2026-03-08", timeZone)).toBe("2026-03-09");
-    expect(getNextLocalDate("2026-11-01", timeZone)).toBe("2026-11-02");
   });
 });

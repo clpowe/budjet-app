@@ -170,7 +170,7 @@ test("savings transitions reject invalid amounts and stale daily closes", async 
   ).toThrow("Savings days must close after the recorded close cursor");
 
   expect(() => reduceSavingsEvent(state, { kind: "purchase", savingsUsedCents: -1n })).toThrow(
-    "Paid from savings cannot be negative",
+    "Paid from savings must not be negative",
   );
 });
 

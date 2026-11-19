@@ -1,3 +1,4 @@
+import { assertPositiveCents } from "../shared/utils/money-cents";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
@@ -133,12 +134,6 @@ function normalizeName(name: string): string {
 
 function normalizeNotes(notes: string): string {
   return notes.trim();
-}
-
-function assertPositiveCents(cents: bigint, label: string): void {
-  if (cents <= 0n) {
-    throw new Error(`${label} must be greater than zero`);
-  }
 }
 
 function assertFiniteTargetDate(targetDate: number | null): void {
