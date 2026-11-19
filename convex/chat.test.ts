@@ -29,6 +29,8 @@ async function seedHousehold(t: TestConvex<typeof schema>, label: string) {
       name: `${label} household`,
       inviteCode: label.toUpperCase(),
       ownerId,
+      allowanceCents: 5_500n,
+      timeZone: "America/New_York",
       createdAt: 0,
     });
 

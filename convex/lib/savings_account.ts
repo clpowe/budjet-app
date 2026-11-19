@@ -42,14 +42,6 @@ export type SavingsSnapshot = Savings & {
   budgetImpactExpenseCents: bigint;
 };
 
-function requireAllowanceCents(household: Doc<"households">): bigint {
-  if (household.allowanceCents === undefined) {
-    throw new Error("Household money migration is still in progress");
-  }
-
-  return household.allowanceCents;
-}
-
 async function loadRollup(ctx: DatabaseCtx, householdId: Id<"households">, localDate: string) {
   return await ctx.db
     .query("dailyBudgetRollups")
@@ -93,7 +85,7 @@ export async function getSavingsSnapshot(
     excluding,
   }: { excluding?: { localDate: string; amountCents: bigint; savingsUsedCents: bigint } } = {},
 ): Promise<SavingsSnapshot> {
-  const dailyAllowanceCents = requireAllowanceCents(household);
+  const dailyAllowanceCents = household.allowanceCents;
   const timeZone = getEffectiveTimeZone(household, now);
   const localDate = getLocalDateKey(now, timeZone);
   const firstEligibleLocalDate = household.savingsStartLocalDate;

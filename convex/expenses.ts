@@ -158,34 +158,6 @@ export const getMyTotal = query({
   },
 });
 
-export const getMyCurrentPosition = query({
-  args: {
-    allowance: v.number(),
-    from: v.number(),
-    to: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const householdId = await getHouseholdId(ctx);
-    const now = Date.now();
-    const effectiveEnd = Math.min(now, args.to);
-
-    if (effectiveEnd < args.from) {
-      return 0;
-    }
-
-    const daysElapsed = Math.ceil((effectiveEnd - args.from) / (24 * 60 * 60 * 1_000));
-    const expenses = await ctx.db
-      .query("expenses")
-      .withIndex("by_household", (q) =>
-        q.eq("householdId", householdId).gte("date", args.from).lt("date", args.to),
-      )
-      .collect();
-    const totalSpent = expenses.reduce((acc, curr) => acc + curr.amount, 0);
-
-    return daysElapsed * args.allowance - totalSpent;
-  },
-});
-
 export const createExpense = mutation({
   args: {
     name: v.string(),

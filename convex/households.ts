@@ -22,14 +22,13 @@ const timeZoneUpdateResultValidator = v.object({
   pendingTimeZoneEffectiveAt: v.number(),
 });
 
-export function getStoredHouseholdTimeZone(household: Partial<HouseholdTimeZoneSettings>): string {
-  return household.timeZone ?? DEFAULT_HOUSEHOLD_TIME_ZONE;
+export function getStoredHouseholdTimeZone(
+  household: Pick<HouseholdTimeZoneSettings, "timeZone">,
+): string {
+  return household.timeZone;
 }
 
-export function getEffectiveTimeZone(
-  household: Partial<HouseholdTimeZoneSettings>,
-  at: number,
-): string {
+export function getEffectiveTimeZone(household: HouseholdTimeZoneSettings, at: number): string {
   if (
     household.pendingTimeZone &&
     household.pendingTimeZoneEffectiveAt !== undefined &&
@@ -86,7 +85,6 @@ export const createHousehold = mutation({
       inviteCode: generateInviteCode(),
       ownerId: user._id,
       createdAt: now,
-      allowance: 55,
       allowanceCents: 5_500n,
       timeZone,
     });

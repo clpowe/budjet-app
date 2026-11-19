@@ -66,7 +66,6 @@ async function seedHousehold(t: TestConvex<typeof schema>) {
       name: "Primary household",
       inviteCode: "PRIMARY",
       ownerId,
-      allowance: 50,
       allowanceCents: 5_000n,
       timeZone: "America/New_York",
       createdAt: 0,

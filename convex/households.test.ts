@@ -32,7 +32,6 @@ async function seedHousehold(t: TestConvex<typeof schema>) {
       name: "Timezone household",
       inviteCode: "TZTEST",
       ownerId,
-      allowance: 55,
       allowanceCents: 5_500n,
       timeZone: "America/New_York",
       createdAt: 0,
@@ -45,9 +44,7 @@ async function seedHousehold(t: TestConvex<typeof schema>) {
   });
 }
 
-test("resolves legacy households to the default timezone", () => {
-  expect(getEffectiveTimeZone({}, Date.UTC(2026, 0, 1))).toBe("America/New_York");
-
+test("switches to the pending timezone once it takes effect", () => {
   expect(
     getEffectiveTimeZone(
       {

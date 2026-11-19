@@ -24,8 +24,8 @@ const previousMonthBounds = computed(() => {
 });
 const { data: household } = useConvexQuery(api.households.getMyHousehold, {});
 const dailyBudget = computed(() => {
-  const allowance = household.value?.allowance;
-  return typeof allowance === "number" && Number.isFinite(allowance) ? allowance : 50;
+  const allowanceCents = household.value?.allowanceCents;
+  return allowanceCents === undefined ? 50 : Number(allowanceCents) / 100;
 });
 
 const { data: monthlyExpenses } = useConvexQuery(

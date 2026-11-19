@@ -24,7 +24,6 @@ export type SeededHousehold = {
 export const DEFAULT_TEST_HOUSEHOLD: HouseholdFields = {
   name: "Test household",
   inviteCode: "TEST000",
-  allowance: 55,
   allowanceCents: 5_500n,
   timeZone: "America/New_York",
   createdAt: 0,
