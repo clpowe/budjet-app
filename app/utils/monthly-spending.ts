@@ -1,6 +1,7 @@
 export type ExpenseAmount = {
-  amount: number;
-  date: number;
+  amountCents: bigint;
+  /** Household-local YYYY-MM-DD. */
+  localDate: string;
 };
 
 export type MonthlySpendingRow = {
@@ -30,14 +31,7 @@ export function buildMonthlySpendingRows(
   const currentDay = currentDate.getDate();
   const dailyTotals = new Map<number, number>();
 
-  for (const expense of expenses) {
-    const expenseDate = new Date(expense.date);
-
-    if (expenseDate.getFullYear() !== year || expenseDate.getMonth() !== month) continue;
-
-    const day = expenseDate.getDate();
-    dailyTotals.set(day, (dailyTotals.get(day) ?? 0) + finiteAmount(expense.amount));
-  }
+  addDailyTotals(dailyTotals, expenses, year, month);
 
   return buildCumulativeRows(dailyTotals, year, month, dailyBudget, currentDay);
 }
@@ -53,20 +47,28 @@ export function buildPreviousMonthSpendingRows(
 }
 
 function collectDailyTotals(expenses: readonly ExpenseAmount[], monthDate: Date) {
-  const year = monthDate.getFullYear();
-  const month = monthDate.getMonth();
   const dailyTotals = new Map<number, number>();
 
-  for (const expense of expenses) {
-    const expenseDate = new Date(expense.date);
-
-    if (expenseDate.getFullYear() !== year || expenseDate.getMonth() !== month) continue;
-
-    const day = expenseDate.getDate();
-    dailyTotals.set(day, (dailyTotals.get(day) ?? 0) + finiteAmount(expense.amount));
-  }
+  addDailyTotals(dailyTotals, expenses, monthDate.getFullYear(), monthDate.getMonth());
 
   return dailyTotals;
+}
+
+function addDailyTotals(
+  dailyTotals: Map<number, number>,
+  expenses: readonly ExpenseAmount[],
+  year: number,
+  month: number,
+) {
+  for (const expense of expenses) {
+    const expenseYear = Number(expense.localDate.slice(0, 4));
+    const expenseMonth = Number(expense.localDate.slice(5, 7)) - 1;
+
+    if (expenseYear !== year || expenseMonth !== month) continue;
+
+    const day = Number(expense.localDate.slice(8, 10));
+    dailyTotals.set(day, (dailyTotals.get(day) ?? 0) + Number(expense.amountCents) / 100);
+  }
 }
 
 function buildCumulativeRows(

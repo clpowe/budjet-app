@@ -283,7 +283,7 @@ export async function recordPurchase(
 
   const timeZone = getEffectiveTimeZone(household, now);
   // Validation only: throws on a malformed date or an invalid time zone.
-  const { startTimestamp } = getLocalDayBounds(localDate, timeZone);
+  getLocalDayBounds(localDate, timeZone);
 
   if (localDate > getLocalDateKey(now, timeZone)) {
     throw new Error("Purchase date cannot be in the future");
@@ -296,13 +296,10 @@ export async function recordPurchase(
     householdId: household._id,
     name: want.name,
     notes: want.notes,
-    amount: centsToLegacyDollars(amountCents),
     amountCents,
-    date: startTimestamp,
     localDate,
     wantItemId: want._id,
     savingsUsedCents: funding.savingsUsedCents,
-    reserveUsedCents: funding.savingsUsedCents,
   });
 
   await applyExpenseDelta(ctx, {
@@ -335,7 +332,7 @@ export async function correctPurchase(
   assertPositiveCents(amountCents, "Actual amount");
   assertLinkedPurchase(expense);
 
-  const before = toExpenseFacts(expense, getEffectiveTimeZone(household, now));
+  const before = toExpenseFacts(expense);
   const withoutPurchase = await getSavingsSnapshot(ctx, household, now, { excluding: before });
   const funding = calculatePurchaseFunding(
     amountCents,
@@ -343,11 +340,8 @@ export async function correctPurchase(
   );
 
   await ctx.db.patch("expenses", expense._id, {
-    amount: centsToLegacyDollars(amountCents),
     amountCents,
     savingsUsedCents: funding.savingsUsedCents,
-    reserveUsedCents: funding.savingsUsedCents,
-    localDate: before.localDate,
   });
   await applyExpenseDelta(ctx, {
     householdId: household._id,
@@ -380,7 +374,7 @@ export async function undoPurchase(
 
   await applyExpenseDelta(ctx, {
     householdId: household._id,
-    before: toExpenseFacts(expense, getEffectiveTimeZone(household, now)),
+    before: toExpenseFacts(expense),
     now,
   });
   await ctx.db.delete("expenses", expense._id);
@@ -389,10 +383,6 @@ export async function undoPurchase(
 function assertLinkedPurchase(expense: Doc<"expenses">): void {
   if (!expense.wantItemId) {
     throw new Error("Expense is not a Want purchase");
-  }
-
-  if (expense.amountCents === undefined) {
-    throw new Error("Linked purchase is missing its cent-valued amount");
   }
 }
 
@@ -404,7 +394,7 @@ export type ExpenseFields = {
   name: string;
   notes: string;
   amountCents: bigint;
-  date: number;
+  localDate: string;
 };
 
 function assertExpenseDayIsNotFuture(localDate: string, now: number, timeZone: string): void {
@@ -426,16 +416,16 @@ export async function addExpense(
   assertPositiveCents(fields.amountCents, "Expense amount");
 
   const timeZone = getEffectiveTimeZone(household, now);
-  const localDate = getLocalDateKey(fields.date, timeZone);
+  const { localDate } = fields;
+  // Validation only: throws on a malformed date or an invalid time zone.
+  getLocalDayBounds(localDate, timeZone);
   assertExpenseDayIsNotFuture(localDate, now, timeZone);
 
   const expenseId = await ctx.db.insert("expenses", {
     householdId: household._id,
     name: fields.name,
     notes: fields.notes,
-    amount: centsToLegacyDollars(fields.amountCents),
     amountCents: fields.amountCents,
-    date: fields.date,
     localDate,
   });
 
@@ -458,37 +448,27 @@ export async function editExpense(
   }: {
     household: Doc<"households">;
     expense: Doc<"expenses">;
-    fields: Omit<ExpenseFields, "date"> & { date?: number; localDate?: string };
+    fields: Omit<ExpenseFields, "localDate"> & { localDate?: string };
     now: number;
   },
 ): Promise<void> {
   assertEverydayExpense(expense);
   assertPositiveCents(fields.amountCents, "Expense amount");
   const timeZone = getEffectiveTimeZone(household, now);
-  const before = toExpenseFacts(expense, timeZone);
+  const before = toExpenseFacts(expense);
 
-  // The local date identifies an intentional move even if its midnight
-  // happens to equal the original timestamp. Older clients send a timestamp.
-  let date = fields.date ?? expense.date;
   let localDate = before.localDate;
   if (fields.localDate !== undefined && fields.localDate !== before.localDate) {
+    // Validation only: throws on a malformed date or an invalid time zone.
+    getLocalDayBounds(fields.localDate, timeZone);
+    assertExpenseDayIsNotFuture(fields.localDate, now, timeZone);
     localDate = fields.localDate;
-    date = getLocalDayBounds(localDate, timeZone).startTimestamp;
-    if (getLocalDateKey(date, timeZone) !== localDate) {
-      throw new Error("Expense date does not exist in the household time zone");
-    }
-    assertExpenseDayIsNotFuture(localDate, now, timeZone);
-  } else if (date !== expense.date) {
-    localDate = getLocalDateKey(date, timeZone);
-    assertExpenseDayIsNotFuture(localDate, now, timeZone);
   }
 
   await ctx.db.patch("expenses", expense._id, {
     name: fields.name,
     notes: fields.notes,
-    amount: centsToLegacyDollars(fields.amountCents),
     amountCents: fields.amountCents,
-    date,
     localDate,
   });
   await applyExpenseDelta(ctx, {
@@ -515,12 +495,8 @@ export async function removeExpense(
 
   await applyExpenseDelta(ctx, {
     householdId: household._id,
-    before: toExpenseFacts(expense, getEffectiveTimeZone(household, now)),
+    before: toExpenseFacts(expense),
     now,
   });
   await ctx.db.delete("expenses", expense._id);
-}
-
-export function centsToLegacyDollars(amountCents: bigint): number {
-  return Number(amountCents) / 100;
 }

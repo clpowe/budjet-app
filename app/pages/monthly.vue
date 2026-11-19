@@ -40,7 +40,7 @@ const calculateDayTotal = (dateKey: string) => {
   const group = groupedTransactions.value[dateKey];
   if (!group) return 0;
   return group.reduce((acc, tx) => {
-    return acc + (tx.type === "expense" ? -tx.amount : tx.amount);
+    return acc + (tx.type === "expense" ? -Number(tx.amountCents) / 100 : tx.amount);
   }, 0);
 };
 

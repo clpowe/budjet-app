@@ -3,8 +3,8 @@ import { computed, ref } from "vue";
 import type { Doc } from "../../convex/_generated/dataModel";
 
 const expensesRef = ref<Doc<"expenses">[]>([
-  { amount: 10 } as Doc<"expenses">,
-  { amount: -4 } as Doc<"expenses">,
+  { amountCents: 1_000n } as Doc<"expenses">,
+  { amountCents: -400n } as Doc<"expenses">,
 ]);
 const currentDateRef = ref(new Date(1_000));
 const summaryRef = ref({
@@ -87,7 +87,10 @@ describe("useExpenses", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    expensesRef.value = [{ amount: 10 } as Doc<"expenses">, { amount: -4 } as Doc<"expenses">];
+    expensesRef.value = [
+      { amountCents: 1_000n } as Doc<"expenses">,
+      { amountCents: -400n } as Doc<"expenses">,
+    ];
     currentDateRef.value = new Date(1_000);
     summaryRef.value = {
       period: {

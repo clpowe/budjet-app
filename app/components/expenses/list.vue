@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { FlexRender, createColumnHelper, tableFeatures, useTable } from "@tanstack/vue-table";
 import type { Doc } from "../../../convex/_generated/dataModel";
-import { formatMoney } from "../../../shared/utils/format-money";
-import { formatCents, legacyDollarsToCents } from "../../../shared/utils/money-cents";
+import { formatCents } from "../../../shared/utils/money-cents";
 
 type Expense = Doc<"expenses">;
 
@@ -20,9 +19,10 @@ const columns = columnHelper.columns([
     header: "Name",
     cell: (context) => context.getValue(),
   }),
-  columnHelper.accessor("amount", {
+  columnHelper.accessor("amountCents", {
+    id: "amount",
     header: "Value",
-    cell: (context) => formatMoney(context.getValue()),
+    cell: (context) => formatCents(context.getValue()),
   }),
   columnHelper.display({
     id: "actions",
@@ -39,7 +39,7 @@ const table = useTable({
 });
 
 function formatPurchaseFunding(expense: Expense) {
-  const total = expense.amountCents ?? legacyDollarsToCents(expense.amount);
+  const total = expense.amountCents;
   const savings = expense.savingsUsedCents ?? 0n;
   return `${formatCents(total)} total · ${formatCents(savings)} from savings · ${formatCents(total - savings)} budget impact`;
 }

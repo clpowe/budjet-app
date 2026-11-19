@@ -6,21 +6,22 @@ import { decorative } from "@tanstack/charts/mark/decorative";
 import { scaleLinear } from "@tanstack/charts/scales/linear";
 import { tooltip } from "@tanstack/charts/tooltip";
 import { Chart } from "@tanstack/charts/vue";
-import { monthStart } from "@formkit/tempo";
 import { curveMonotoneX } from "d3-shape";
 import { api } from "../../../convex/_generated/api";
+import { getNextMonthStart } from "../../../shared/utils/local-date";
 import {
   buildMonthlySpendingRows,
   buildPreviousMonthSpendingRows,
 } from "../../utils/monthly-spending";
 
-const { currentDate, queryMonthBounds } = useDate();
-const previousMonthBounds = computed(() => {
-  const date = new Date(currentDate.value);
-  const currentMonthStart = monthStart(date);
-  const previousMonthStart = monthStart(new Date(date.getFullYear(), date.getMonth() - 1, 1));
+const { currentDate, localDate } = useDate();
+const monthStartLocalDate = computed(() => `${localDate.value.slice(0, 7)}-01`);
+const previousMonthStartLocalDate = computed(() => {
+  const year = Number(localDate.value.slice(0, 4));
+  const month = Number(localDate.value.slice(5, 7));
+  const previous = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
 
-  return { from: previousMonthStart.getTime(), to: currentMonthStart.getTime() };
+  return `${previous.year}-${String(previous.month).padStart(2, "0")}-01`;
 });
 const { data: household } = useConvexQuery(api.households.getMyHousehold, {});
 const dailyBudget = computed(() => {
@@ -31,14 +32,17 @@ const dailyBudget = computed(() => {
 const { data: monthlyExpenses } = useConvexQuery(
   api.expenses.listMyExpenses,
   computed(() => ({
-    from: queryMonthBounds.value.from,
-    to: queryMonthBounds.value.to,
+    startLocalDate: monthStartLocalDate.value,
+    endExclusiveLocalDate: getNextMonthStart(monthStartLocalDate.value),
   })),
 );
 
 const { data: previousMonthExpenses } = useConvexQuery(
   api.expenses.listMyExpenses,
-  previousMonthBounds,
+  computed(() => ({
+    startLocalDate: previousMonthStartLocalDate.value,
+    endExclusiveLocalDate: monthStartLocalDate.value,
+  })),
 );
 
 const rows = computed(() =>

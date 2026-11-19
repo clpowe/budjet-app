@@ -9,17 +9,11 @@ const props = withDefaults(defineProps<{ expense: Doc<"expenses">; submitLabel?:
 
 const emit = defineEmits<(e: "updated", id: Doc<"expenses">["_id"]) => void>();
 
-const { formatDateInput } = useDate();
-
-function expenseLocalDate(expense: Doc<"expenses">) {
-  return expense.localDate ?? formatDateInput(new Date(expense.date));
-}
-
 const makeFormState = (expense: Doc<"expenses">) => ({
   name: expense.name,
   notes: expense.notes,
-  amount: expense.amount,
-  date: expenseLocalDate(expense),
+  amount: Number(expense.amountCents) / 100,
+  date: expense.localDate,
 });
 
 const formState = ref(makeFormState(props.expense));

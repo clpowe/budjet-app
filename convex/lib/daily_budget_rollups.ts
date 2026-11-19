@@ -1,7 +1,6 @@
-import { assertPositiveCents, legacyDollarsToCents } from "../../shared/utils/money-cents";
+import { assertPositiveCents } from "../../shared/utils/money-cents";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { getLocalDateKey } from "../../shared/utils/local-date.ts";
 
 export type ExpenseFacts = {
   /** Household-local day the expense counts against, fixed when it was written. */
@@ -10,29 +9,13 @@ export type ExpenseFacts = {
   savingsUsedCents: bigint;
 };
 
-/**
- * The household-local day an expense belongs to. Uses the day stored on the
- * expense; legacy rows written before `localDate` existed fall back to the
- * given zone until the backfill has run.
- */
-export function getExpenseLocalDate(
-  expense: Pick<Doc<"expenses">, "date" | "localDate">,
-  fallbackTimeZone: string,
-): string {
-  return expense.localDate ?? getLocalDateKey(expense.date, fallbackTimeZone);
-}
-
 export function toExpenseFacts(
-  expense: Pick<
-    Doc<"expenses">,
-    "amount" | "amountCents" | "date" | "localDate" | "savingsUsedCents" | "reserveUsedCents"
-  >,
-  fallbackTimeZone: string,
+  expense: Pick<Doc<"expenses">, "amountCents" | "localDate" | "savingsUsedCents">,
 ): ExpenseFacts {
   return {
-    localDate: getExpenseLocalDate(expense, fallbackTimeZone),
-    amountCents: expense.amountCents ?? legacyDollarsToCents(expense.amount),
-    savingsUsedCents: expense.savingsUsedCents ?? expense.reserveUsedCents ?? 0n,
+    localDate: expense.localDate,
+    amountCents: expense.amountCents,
+    savingsUsedCents: expense.savingsUsedCents ?? 0n,
   };
 }
 

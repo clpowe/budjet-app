@@ -70,13 +70,13 @@ test("creates exact cents in the authenticated household without accepting a hou
     name: "Coffee",
     notes: "Morning",
     amountCents: 425n,
-    date: march10,
+    localDate: "2026-03-10",
   });
 
   const expense = await t.run(async (ctx) => {
     return await ctx.db
       .query("expenses")
-      .withIndex("by_household", (q) => q.eq("householdId", seeded.householdId))
+      .withIndex("by_household_and_local_date", (q) => q.eq("householdId", seeded.householdId))
       .unique();
   });
 
@@ -85,8 +85,7 @@ test("creates exact cents in the authenticated household without accepting a hou
     name: "Coffee",
     notes: "Morning",
     amountCents: 425n,
-    amount: 4.25,
-    date: march10,
+    localDate: "2026-03-10",
   });
 
   const rollup = await getRollup(t, seeded.householdId, "2026-03-10");
@@ -111,7 +110,7 @@ test("allows a later timestamp today but rejects creating an expense on a future
       name: "Late dinner",
       notes: "",
       amountCents: 2_000n,
-      date: march10At1159pmNewYork,
+      localDate: "2026-03-10",
     }),
   ).resolves.toEqual({ success: true });
 
@@ -120,7 +119,7 @@ test("allows a later timestamp today but rejects creating an expense on a future
       name: "Tomorrow",
       notes: "",
       amountCents: 2_000n,
-      date: march11,
+      localDate: "2026-03-11",
     }),
   ).rejects.toThrow("Expense date cannot be in the future");
 });
@@ -137,13 +136,13 @@ test("rejects moving an existing expense to a future local date", async () => {
     name: "Coffee",
     notes: "",
     amountCents: 500n,
-    date: march10,
+    localDate: "2026-03-10",
   });
 
   const expense = await t.run(async (ctx) => {
     return await ctx.db
       .query("expenses")
-      .withIndex("by_household", (q) => q.eq("householdId", seeded.householdId))
+      .withIndex("by_household_and_local_date", (q) => q.eq("householdId", seeded.householdId))
       .unique();
   });
 
@@ -155,14 +154,14 @@ test("rejects moving an existing expense to a future local date", async () => {
       name: "Coffee tomorrow",
       notes: "",
       amountCents: 600n,
-      date: march11,
+      localDate: "2026-03-11",
     }),
   ).rejects.toThrow("Expense date cannot be in the future");
 
   expect(await t.run(async (ctx) => await ctx.db.get(expense._id))).toMatchObject({
     name: "Coffee",
     amountCents: 500n,
-    date: march10,
+    localDate: "2026-03-10",
   });
 });
 
@@ -176,7 +175,7 @@ test("rejects unauthenticated and cross-household expense writes", async () => {
       name: "No session",
       notes: "",
       amountCents: 100n,
-      date: march10,
+      localDate: "2026-03-10",
     }),
   ).rejects.toThrow("Not authenticated");
 
@@ -184,10 +183,9 @@ test("rejects unauthenticated and cross-household expense writes", async () => {
     return await ctx.db.insert("expenses", {
       name: "Protected",
       notes: "",
-      amount: 10,
       amountCents: 1_000n,
       householdId: seeded.householdId,
-      date: march10,
+      localDate: "2026-03-10",
     });
   });
 
@@ -197,7 +195,7 @@ test("rejects unauthenticated and cross-household expense writes", async () => {
       name: "Hijacked",
       notes: "",
       amountCents: 1n,
-      date: march10,
+      localDate: "2026-03-10",
     }),
   ).rejects.toThrow("Expense not found");
 
@@ -218,13 +216,13 @@ test("maintains exact rollups when an expense changes days or is deleted", async
     name: "Groceries",
     notes: "",
     amountCents: 1_200n,
-    date: march10,
+    localDate: "2026-03-10",
   });
 
   const expense = await t.run(async (ctx) => {
     return await ctx.db
       .query("expenses")
-      .withIndex("by_household", (q) => q.eq("householdId", seeded.householdId))
+      .withIndex("by_household_and_local_date", (q) => q.eq("householdId", seeded.householdId))
       .unique();
   });
 
@@ -235,7 +233,7 @@ test("maintains exact rollups when an expense changes days or is deleted", async
     name: "Groceries",
     notes: "Updated",
     amountCents: 1_500n,
-    date: march11,
+    localDate: "2026-03-11",
   });
 
   expect(await getRollup(t, seeded.householdId, "2026-03-10")).toMatchObject({
@@ -279,10 +277,9 @@ test("refuses generic edits and deletes for want purchases", async () => {
     const expenseId = await ctx.db.insert("expenses", {
       name: "Camera",
       notes: "",
-      amount: 100,
       amountCents: 10_000n,
       householdId: seeded.householdId,
-      date: march10,
+      localDate: "2026-03-10",
       wantItemId,
       savingsUsedCents: 5_000n,
     });
@@ -296,7 +293,7 @@ test("refuses generic edits and deletes for want purchases", async () => {
       name: "Camera",
       notes: "",
       amountCents: 9_000n,
-      date: march10,
+      localDate: "2026-03-10",
     }),
   ).rejects.toThrow("Want purchases must be managed from the wants flow");
 
@@ -330,9 +327,8 @@ test("editing an expense on a closed day moves the savings position", async () =
       householdId: seeded.householdId,
       name: "Closed day purchase",
       notes: "",
-      amount: 10,
       amountCents: 1_000n,
-      date: march10,
+      localDate: "2026-03-10",
     });
   });
 
@@ -343,7 +339,7 @@ test("editing an expense on a closed day moves the savings position", async () =
     name: "Closed day purchase",
     notes: "Corrected",
     amountCents: 1_300n,
-    date: march10,
+    localDate: "2026-03-10",
   });
 
   expect(await getRollup(t, seeded.householdId, "2026-03-10")).toMatchObject({
@@ -368,7 +364,7 @@ test("editing an expense after a time-zone change keeps it on its original local
     name: "Late dinner",
     notes: "",
     amountCents: 2_000n,
-    date: march10At1159pmNewYork,
+    localDate: "2026-03-10",
   });
 
   await t.run(async (ctx) => {
@@ -378,7 +374,7 @@ test("editing an expense after a time-zone change keeps it on its original local
   const expense = await t.run(async (ctx) => {
     return await ctx.db
       .query("expenses")
-      .withIndex("by_household", (q) => q.eq("householdId", seeded.householdId))
+      .withIndex("by_household_and_local_date", (q) => q.eq("householdId", seeded.householdId))
       .unique();
   });
 
@@ -394,7 +390,7 @@ test("editing an expense after a time-zone change keeps it on its original local
   });
 
   expect(await asOwner.query(api.expenses.listDailyExpenses, { asOfTimestamp: march10 })).toEqual([
-    expect.objectContaining({ date: expense.date, localDate: "2026-03-10", notes: "with tip" }),
+    expect.objectContaining({ localDate: "2026-03-10", notes: "with tip" }),
   ]);
   expect(await asOwner.query(api.expenses.listDailyExpenses, { asOfTimestamp: march11 })).toEqual(
     [],
@@ -423,22 +419,28 @@ test("editing an expense after a time-zone change keeps it on its original local
   });
 });
 
-test("uses stored dates for monthly expenses and the household zone for legacy rows and windfalls", async () => {
+test("lists monthly expenses by stored local date alongside windfalls", async () => {
   const t = convexTest(schema, modules);
   const { householdId, otherHouseholdId } = await seedHouseholds(t);
   const date = Date.UTC(2026, 3, 1, 0);
   await t.run(async (ctx) => {
     await ctx.db.patch("households", householdId, { timeZone: "UTC" });
-    const fields = { householdId, date, amount: 8, notes: "" };
+    const fields = { householdId, amountCents: 800n, notes: "" };
     await ctx.db.insert("expenses", { ...fields, name: "Stored March", localDate: "2026-03-31" });
-    await ctx.db.insert("expenses", { ...fields, name: "Legacy April" });
+    await ctx.db.insert("expenses", { ...fields, name: "April", localDate: "2026-04-01" });
     await ctx.db.insert("expenses", {
       ...fields,
       householdId: otherHouseholdId,
       name: "Another household",
       localDate: "2026-03-31",
     });
-    await ctx.db.insert("windfall", { ...fields, source: "April gift" });
+    await ctx.db.insert("windfall", {
+      householdId,
+      date,
+      amount: 8,
+      notes: "",
+      source: "April gift",
+    });
   });
 
   const owner = t.withIdentity({ tokenIdentifier: "test|owner" });
@@ -450,7 +452,7 @@ test("uses stored dates for monthly expenses and the household zone for legacy r
     ["Stored March", "2026-03-31"],
   ]);
   expect(april.map(({ name, localDate }) => [name, localDate])).toEqual([
-    ["Legacy April", "2026-04-01"],
+    ["April", "2026-04-01"],
     ["April gift", "2026-04-01"],
   ]);
 });
@@ -462,7 +464,6 @@ test("edits before the first eligible savings day leave the position alone", asy
   const t = convexTest(schema, modules);
   const seeded = await seedHouseholds(t);
   const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
-  const march3 = Date.UTC(2026, 2, 3, 16);
 
   const expenseId = await t.run(async (ctx) => {
     await ctx.db.patch(seeded.householdId, { savingsStartLocalDate: "2026-03-05" });
@@ -480,9 +481,7 @@ test("edits before the first eligible savings day leave the position alone", asy
       householdId: seeded.householdId,
       name: "Before activation",
       notes: "",
-      amount: 10,
       amountCents: 1_000n,
-      date: march3,
       localDate: "2026-03-03",
     });
   });
@@ -494,7 +493,7 @@ test("edits before the first eligible savings day leave the position alone", asy
     name: "Before activation",
     notes: "",
     amountCents: 1_300n,
-    date: march3,
+    localDate: "2026-03-03",
   });
 
   expect(await getRollup(t, seeded.householdId, "2026-03-03")).toMatchObject({
@@ -527,9 +526,7 @@ test("rejects an expense change that would push a daily rollup below zero", asyn
       householdId: seeded.householdId,
       name: "Too big",
       notes: "",
-      amount: 10,
       amountCents: 1_000n,
-      date: march10,
       localDate: "2026-03-10",
     });
   });

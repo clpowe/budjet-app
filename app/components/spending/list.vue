@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { FlexRender, createColumnHelper, tableFeatures, useTable } from "@tanstack/vue-table";
 import type { Doc } from "../../../convex/_generated/dataModel";
-import { formatMoney } from "../../../shared/utils/format-money";
 import { formatCents } from "../../../shared/utils/money-cents";
 
 type Expense = Doc<"expenses">;
@@ -19,9 +18,9 @@ const columns = columnHelper.columns([
     header: "Notes",
     cell: (context) => context.getValue(),
   }),
-  columnHelper.accessor("amount", {
+  columnHelper.display({
+    id: "amount",
     header: "Value",
-    cell: (context) => formatMoney(context.getValue()),
   }),
   columnHelper.display({
     id: "actions",
@@ -73,14 +72,10 @@ function budgetImpactCents(expense: Expense): bigint {
             </template>
             <template v-else-if="cell.column.id === 'amount'">
               <span>
-                {{
-                  row.original.amountCents === undefined
-                    ? formatMoney(row.original.amount)
-                    : formatCents(row.original.amountCents)
-                }}
+                {{ formatCents(row.original.amountCents) }}
               </span>
               <p v-if="(row.original.savingsUsedCents ?? 0n) > 0n">
-                {{ formatCents(row.original.amountCents ?? 0n) }} total ·
+                {{ formatCents(row.original.amountCents) }} total ·
                 {{ formatCents(row.original.savingsUsedCents ?? 0n) }} from savings ·
                 {{ formatCents(budgetImpactCents(row.original)) }} budget impact
               </p>

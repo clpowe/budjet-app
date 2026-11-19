@@ -14,7 +14,7 @@ import {
   getNextMonthStart,
 } from "../shared/utils/local-date.ts";
 import schema from "./schema";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 
 /**
@@ -31,8 +31,6 @@ const expenseDoc = schema.tables.expenses.validator.extend({
 const monthlyTransaction = v.union(
   expenseDoc.extend({
     type: v.literal("expense"),
-    localDate: v.string(),
-    amountCents: v.int64(),
     savingsUsedCents: v.int64(),
     budgetImpactCents: v.int64(),
     isWantPurchase: v.boolean(),
@@ -46,44 +44,22 @@ const monthlyTransaction = v.union(
   }),
 );
 
-function withSavingsFunding(expense: Doc<"expenses">) {
-  const funding = expense.savingsUsedCents ?? expense.reserveUsedCents;
-  return funding === undefined
-    ? expense
-    : { ...expense, savingsUsedCents: funding, reserveUsedCents: funding };
-}
-
 async function readExpensesByLocalDate(
   ctx: QueryCtx,
   householdId: Id<"households">,
   startLocalDate: string,
   endExclusiveLocalDate: string,
-  timeZone: string,
 ) {
-  const from = getLocalDayBounds(startLocalDate, timeZone).startTimestamp;
-  const to = getLocalDayBounds(endExclusiveLocalDate, timeZone).startTimestamp;
-  const [stored, legacy] = await Promise.all([
-    ctx.db
-      .query("expenses")
-      .withIndex("by_household_and_local_date_and_date", (q) =>
-        q
-          .eq("householdId", householdId)
-          .gte("localDate", startLocalDate)
-          .lt("localDate", endExclusiveLocalDate),
-      )
-      .collect(),
-    ctx.db
-      .query("expenses")
-      .withIndex("by_household_and_local_date_and_date", (q) =>
-        q
-          .eq("householdId", householdId)
-          .eq("localDate", undefined)
-          .gte("date", from)
-          .lt("date", to),
-      )
-      .collect(),
-  ]);
-  return { expenses: [...stored, ...legacy].map(withSavingsFunding), from, to };
+  return await ctx.db
+    .query("expenses")
+    .withIndex("by_household_and_local_date", (q) =>
+      q
+        .eq("householdId", householdId)
+        .gte("localDate", startLocalDate)
+        .lt("localDate", endExclusiveLocalDate),
+    )
+    .order("desc")
+    .collect();
 }
 
 export const listDailyExpenses = query({
@@ -93,14 +69,12 @@ export const listDailyExpenses = query({
     const { household } = await requireHouseholdMember(ctx);
     const timeZone = getEffectiveTimeZone(household, asOfTimestamp);
     const localDate = getLocalDateKey(asOfTimestamp, timeZone);
-    const { expenses } = await readExpensesByLocalDate(
+    return await readExpensesByLocalDate(
       ctx,
       household._id,
       localDate,
       getNextLocalDate(localDate, timeZone),
-      timeZone,
     );
-    return expenses.sort((left, right) => right.date - left.date);
   },
 });
 
@@ -123,38 +97,19 @@ async function getAuthorizedExpense(ctx: MutationCtx, expenseId: Id<"expenses">)
 
 export const listMyExpenses = query({
   args: {
-    from: v.number(),
-    to: v.number(),
+    startLocalDate: v.string(),
+    endExclusiveLocalDate: v.string(),
   },
+  returns: v.array(expenseDoc),
   handler: async (ctx, args) => {
     const householdId = await getHouseholdId(ctx);
 
-    const expenses = await ctx.db
-      .query("expenses")
-      .withIndex("by_household", (q) =>
-        q.eq("householdId", householdId).gte("date", args.from).lt("date", args.to),
-      )
-      .order("desc")
-      .collect();
-    return expenses.map(withSavingsFunding);
-  },
-});
-
-export const getMyTotal = query({
-  args: {
-    from: v.number(),
-    to: v.number(),
-  },
-  handler: async (ctx, args) => {
-    const householdId = await getHouseholdId(ctx);
-    const expenses = await ctx.db
-      .query("expenses")
-      .withIndex("by_household", (q) =>
-        q.eq("householdId", householdId).gte("date", args.from).lt("date", args.to),
-      )
-      .collect();
-
-    return expenses.reduce((acc, curr) => acc + curr.amount, 0);
+    return await readExpensesByLocalDate(
+      ctx,
+      householdId,
+      args.startLocalDate,
+      args.endExclusiveLocalDate,
+    );
   },
 });
 
@@ -163,7 +118,7 @@ export const createExpense = mutation({
     name: v.string(),
     notes: v.string(),
     amountCents: v.int64(),
-    date: v.number(),
+    localDate: v.string(),
   },
   returns: expenseWriteResultValidator,
   handler: async (ctx, args) => {
@@ -184,14 +139,10 @@ export const updateExpense = mutation({
     name: v.string(),
     notes: v.string(),
     amountCents: v.int64(),
-    date: v.optional(v.number()),
     localDate: v.optional(v.string()),
   },
   returns: expenseWriteResultValidator,
   handler: async (ctx, args) => {
-    if (args.date !== undefined && args.localDate !== undefined) {
-      throw new Error("Provide either a timestamp or a local date");
-    }
     const { expenseId, ...fields } = args;
     const { expense, household } = await getAuthorizedExpense(ctx, expenseId);
     await editExpense(ctx, {
@@ -229,13 +180,15 @@ export const listMonthlyTransactions = query({
     const { household } = await requireHouseholdMember(ctx);
     const timeZone = getEffectiveTimeZone(household, asOfTimestamp);
     const { startLocalDate } = getLocalMonthPeriod(asOfTimestamp, timeZone);
-    const { expenses, from, to } = await readExpensesByLocalDate(
+    const endExclusiveLocalDate = getNextMonthStart(startLocalDate);
+    const expenses = await readExpensesByLocalDate(
       ctx,
       household._id,
       startLocalDate,
-      getNextMonthStart(startLocalDate),
-      timeZone,
+      endExclusiveLocalDate,
     );
+    const from = getLocalDayBounds(startLocalDate, timeZone).startTimestamp;
+    const to = getLocalDayBounds(endExclusiveLocalDate, timeZone).startTimestamp;
     const windfalls = await ctx.db
       .query("windfall")
       .withIndex("by_household_date", (q) =>
@@ -245,14 +198,11 @@ export const listMonthlyTransactions = query({
 
     return [
       ...expenses.map((expense) => {
-        const { amountCents, localDate, savingsUsedCents } = toExpenseFacts(expense, timeZone);
+        const { amountCents, savingsUsedCents } = toExpenseFacts(expense);
 
         return {
           ...expense,
-          localDate,
-          amountCents,
           savingsUsedCents,
-          reserveUsedCents: savingsUsedCents,
           budgetImpactCents: getBudgetImpact(amountCents, savingsUsedCents),
           isWantPurchase: expense.wantItemId !== undefined,
           type: "expense" as const,
@@ -270,6 +220,6 @@ export const listMonthlyTransactions = query({
               },
             ],
       ),
-    ].sort((left, right) => (right.date ?? 0) - (left.date ?? 0));
+    ].sort((left, right) => right.localDate.localeCompare(left.localDate));
   },
 });

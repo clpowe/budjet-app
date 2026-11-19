@@ -18,8 +18,7 @@ it("uses the stored date and only requests a move when the date field changes", 
     _id: "expense",
     name: "Late dinner",
     notes: "",
-    amount: 20,
-    date: Date.UTC(2026, 2, 11, 3, 59),
+    amountCents: 2_000n,
     localDate: "2026-03-10",
   } as Doc<"expenses">;
   const wrapper = mount(ExpenseEdit, { props: { expense } });

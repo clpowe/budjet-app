@@ -177,7 +177,7 @@ async function readSnapshot(
     const savings = await getSavingsSnapshot(ctx, household, Date.now());
     const expenses = await ctx.db
       .query("expenses")
-      .withIndex("by_household", (q) => q.eq("householdId", householdId))
+      .withIndex("by_household_and_local_date", (q) => q.eq("householdId", householdId))
       .collect();
     const rollups = await ctx.db
       .query("dailyBudgetRollups")
@@ -447,7 +447,7 @@ test("recalculates funding from current server state instead of trusting a stale
     name: "Unexpected repair",
     notes: "",
     amountCents: 10_000n,
-    date: serverNow,
+    localDate: "2026-03-10",
   });
 
   await asOwner.mutation(api.wants.purchase, {

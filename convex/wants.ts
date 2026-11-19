@@ -147,7 +147,7 @@ async function requireLinkedPurchase(
     throw new Error("Linked purchase is missing its cent-valued amount");
   }
 
-  const savingsUsedCents = expense.savingsUsedCents ?? expense.reserveUsedCents ?? 0n;
+  const savingsUsedCents = expense.savingsUsedCents ?? 0n;
 
   if (savingsUsedCents < 0n || savingsUsedCents > expense.amountCents) {
     throw new Error("Linked purchase contains invalid savings funding");

@@ -8,9 +8,9 @@ describe("buildMonthlySpendingRows", () => {
   it("builds cumulative spend and budget rows through the current day", () => {
     const rows = buildMonthlySpendingRows(
       [
-        { amount: 15, date: new Date(2026, 7, 1, 12).getTime() },
-        { amount: 10, date: new Date(2026, 7, 3, 12).getTime() },
-        { amount: 5, date: new Date(2026, 7, 3, 18).getTime() },
+        { amountCents: 1_500n, localDate: "2026-08-01" },
+        { amountCents: 1_000n, localDate: "2026-08-03" },
+        { amountCents: 500n, localDate: "2026-08-03" },
       ],
       new Date(2026, 7, 3, 20),
       50,
@@ -25,12 +25,9 @@ describe("buildMonthlySpendingRows", () => {
     ]);
   });
 
-  it("ignores expenses outside the selected month and invalid amounts", () => {
+  it("ignores expenses outside the selected month and an invalid budget", () => {
     const rows = buildMonthlySpendingRows(
-      [
-        { amount: 99, date: new Date(2026, 6, 31, 12).getTime() },
-        { amount: Number.NaN, date: new Date(2026, 7, 1, 12).getTime() },
-      ],
+      [{ amountCents: 9_900n, localDate: "2026-07-31" }],
       new Date(2026, 7, 1, 20),
       Number.NaN,
     );
@@ -41,8 +38,8 @@ describe("buildMonthlySpendingRows", () => {
   it("builds a full cumulative comparison for the previous month", () => {
     const rows = buildPreviousMonthSpendingRows(
       [
-        { amount: 20, date: new Date(2026, 6, 1, 12).getTime() },
-        { amount: 15, date: new Date(2026, 6, 31, 12).getTime() },
+        { amountCents: 2_000n, localDate: "2026-07-01" },
+        { amountCents: 1_500n, localDate: "2026-07-31" },
       ],
       new Date(2026, 7, 3, 20),
     );

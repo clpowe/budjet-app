@@ -247,11 +247,10 @@ test("marks want purchases and returns exact savings and budget-impact cents", a
       householdId: seeded.householdId,
       name: "Camera",
       notes: "",
-      amount: 120,
       amountCents: 12_000n,
       savingsUsedCents: 10_000n,
       wantItemId,
-      date: march10AtNoonNewYork,
+      localDate: "2026-03-10",
     });
   });
 

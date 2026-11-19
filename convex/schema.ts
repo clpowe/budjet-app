@@ -28,18 +28,13 @@ export default defineSchema({
   expenses: defineTable({
     name: v.string(),
     notes: v.string(),
-    amount: v.number(),
-    amountCents: v.optional(v.int64()),
+    amountCents: v.int64(),
     householdId: v.id("households"),
-    date: v.number(),
     /** Household-local YYYY-MM-DD the expense counts against; fixed at write time. */
-    localDate: v.optional(v.string()),
+    localDate: v.string(),
     wantItemId: v.optional(v.id("wantItems")),
     savingsUsedCents: v.optional(v.int64()),
-    reserveUsedCents: v.optional(v.int64()),
-  })
-    .index("by_household", ["householdId", "date"])
-    .index("by_household_and_local_date_and_date", ["householdId", "localDate", "date"]),
+  }).index("by_household_and_local_date", ["householdId", "localDate"]),
 
   windfall: defineTable({
     source: v.string(),

@@ -37,9 +37,9 @@ function makeExpense(id: string, name: string, notes: string, amount: number): E
     _creationTime: 1,
     name,
     notes,
-    amount,
+    amountCents: BigInt(Math.round(amount * 100)),
     householdId: "household-1" as Expense["householdId"],
-    date: Date.UTC(2026, 7, 12),
+    localDate: "2026-08-12",
   };
 }
 
