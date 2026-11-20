@@ -26,13 +26,11 @@ function makeSummary(): HomeSummary {
       allowanceCents: 300_000n,
       safeToSpendCents: 277_500n,
       closedPositiveSavingsContributionCents: 2_500n,
-      closedPositiveReserveContributionCents: 2_500n,
     },
     spending: {
       monthToDate: {
         expenseCents: 20_000n,
         savingsFundedCents: 0n,
-        reserveFundedCents: 0n,
         budgetImpactCents: 20_000n,
         averageDailyBudgetImpactCents: 2_000n,
         budgetImpactVarianceCents: 80_000n,
@@ -43,7 +41,6 @@ function makeSummary(): HomeSummary {
       },
     },
     savings,
-    reserve: savings,
     nextPlannedWant: {
       goalId: "want-camera" as NextPlannedWant["goalId"],
       name: "Camera",

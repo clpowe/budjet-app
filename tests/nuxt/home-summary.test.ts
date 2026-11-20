@@ -14,28 +14,25 @@ mockNuxtImport("useDate", () => () => ({
   currentDate: shallowRef(new Date(0)),
 }));
 
-it.each(["savings", "reserve"])(
-  "renders Home while loading and then shows the %s summary",
-  async (field) => {
-    const loaded = {
-      plan: { dailyAllowanceCents: 5000n },
-      spending: { today: { expenseCents: 1201n, budgetImpactCents: 801n } },
-      [field]: { projectedEndOfDayContributionCents: 4199n },
-    };
-    const summary = shallowRef<typeof loaded>();
-    useConvexQueryMock.mockReturnValue({ data: summary });
-    const wrapper = mount(HomePage, { global: { stubs: { NuxtPage: true, HouseholdChat: true } } });
-    expect(wrapper.text()).toContain("Loading budget");
-    expect(wrapper.text()).not.toContain("$0.00");
+it("renders Home while loading and then shows the savings summary", async () => {
+  const loaded = {
+    plan: { dailyAllowanceCents: 5000n },
+    spending: { today: { expenseCents: 1201n, budgetImpactCents: 801n } },
+    savings: { projectedEndOfDayContributionCents: 4199n },
+  };
+  const summary = shallowRef<typeof loaded>();
+  useConvexQueryMock.mockReturnValue({ data: summary });
+  const wrapper = mount(HomePage, { global: { stubs: { NuxtPage: true, HouseholdChat: true } } });
+  expect(wrapper.text()).toContain("Loading budget");
+  expect(wrapper.text()).not.toContain("$0.00");
 
-    summary.value = loaded;
-    await nextTick();
-    expect(wrapper.text()).toContain("$37.99");
-    expect(wrapper.text()).toContain("$8.01");
-    expect(wrapper.text()).toContain("$41.99");
-    wrapper.unmount();
-  },
-);
+  summary.value = loaded;
+  await nextTick();
+  expect(wrapper.text()).toContain("$37.99");
+  expect(wrapper.text()).toContain("$8.01");
+  expect(wrapper.text()).toContain("$41.99");
+  wrapper.unmount();
+});
 
 it("subscribes only to the Home summary", () => {
   useConvexQueryMock.mockReset();

@@ -149,7 +149,7 @@ Update `GLOSSARY.md` and accessible names in the same change.
 
 - [x] P0 triage (checkpoint 4d48396; removed rename migration, reserve shims, goalReserveStates/savingsMigration, table mirroring; Home 5 subscriptions -> 1; dual fields/apiVersion/syncing left for P2)
 - [x] P1 shared math (local-date, money-cents asserts, calculateSavings, goal-allocation + previewPurchase, budgetImpact; old want_savings.ts and getBudgetImpactCents die in P2)
-- [ ] P2 Convex cutover
+- [x] P2 Convex cutover (P2a-d done; fresh dev deployment wipe still to do)
 - [ ] P3 frontend wiring
 - [ ] P4 naming pass
 - [ ] P5 chart
@@ -169,3 +169,5 @@ _P2b done: savings derived on read (`getSavingsSnapshot` + `calculateSavings`); 
 _P2a done (5 commits, 254 tests green): migrations/ and moneyMigrationCompletedAt removed; households require `allowanceCents` + `timeZone` (float `allowance` gone); expenses require `amountCents` + `localDate` (no `amount`, `date`, `reserveUsedCents`; index `by_household_and_local_date`; `listMyExpenses` takes local-date range; `createExpense` takes `localDate`); `dailyBudgetRollups` -> `dailyBudgetTotals(totalSpentCents, spentFromSavingsCents)`, budget impact derived; `windfall` -> `income(amountCents, localDate)` in `convex/income.ts`; debts `paymentCents`. Left for later: UI/file/route names still say windfall (P4), `savingsUsedCents` -> `fromSavingsCents` and `wantItemId` (P2c), `getHomeSummary` `reserve*` duplicate fields and `want_savings.ts` (P2d). Note: `vp check` does not type-check .vue files (no vue-tsc installed); .vue edits were verified by grep and Nuxt tests only. `depts/add.vue` was a stale copy of the expense form that posts an expense; fixed its payload but not its purpose._
 
 _P2c done (248 tests green): `wantItems` -> `goals` (statuses `idea|saving|on_hold|purchased`), `wants.ts` -> `goals.ts`, `active_want_queue` -> `active_goal_queue`, `itemId` -> `goalId`, expense `wantItemId` -> `goalId`, `savingsUsedCents` -> `fromSavingsCents` everywhere. Allocation, purchase funding and preview now come from shared `goal-allocation`; `want_savings.ts` and its test deleted; goal validators derive from the schema. Still on old names (P4): UI/section keys (`considering`, `notNow`, `bought`), component/page/route names, error strings ("Want item not found"), `nextPlannedWant`, `getHomeSummary` `reserve*` duplicates (P2d)._
+
+_P2d done (247 tests green): `getHomeSummary` drops `reserve`, `reserveFundedCents`, `closedPositiveReserveContributionCents`; Home reads `summary.savings` only. Time zone pending switch already resolves on read via `getEffectiveTimeZone` (cron gone). `want_savings.ts`/`getBudgetImpactCents` already deleted in P2c. Remaining for P2: wipe/create fresh dev deployment (user action). Next: P3 frontend wiring._

@@ -40,13 +40,11 @@ const homeSummaryValidator = v.object({
     allowanceCents: v.int64(),
     safeToSpendCents: v.int64(),
     closedPositiveSavingsContributionCents: v.int64(),
-    closedPositiveReserveContributionCents: v.int64(),
   }),
   spending: v.object({
     monthToDate: v.object({
       expenseCents: v.int64(),
       savingsFundedCents: v.int64(),
-      reserveFundedCents: v.int64(),
       budgetImpactCents: v.int64(),
       averageDailyBudgetImpactCents: v.int64(),
       budgetImpactVarianceCents: v.int64(),
@@ -57,7 +55,6 @@ const homeSummaryValidator = v.object({
     }),
   }),
   savings: savingsBalance,
-  reserve: savingsBalance,
   nextPlannedWant: v.union(v.null(), nextPlannedWantSummaryValidator),
 });
 
@@ -169,12 +166,10 @@ export const getHomeSummary = query({
         allowanceCents: planAllowanceCents,
         safeToSpendCents,
         closedPositiveSavingsContributionCents,
-        closedPositiveReserveContributionCents: closedPositiveSavingsContributionCents,
       },
       spending: {
         monthToDate: {
           ...monthToDateSpending,
-          reserveFundedCents: monthToDateSpending.savingsFundedCents,
           averageDailyBudgetImpactCents,
           budgetImpactVarianceCents,
         },
@@ -184,7 +179,6 @@ export const getHomeSummary = query({
         },
       },
       savings,
-      reserve: savings,
       nextPlannedWant,
     };
   },

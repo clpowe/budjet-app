@@ -83,11 +83,7 @@ definePageMeta({
                 </div>
 
                 <div>
-                  {{
-                    formatCents(
-                      (summary.savings ?? summary.reserve).projectedEndOfDayContributionCents,
-                    )
-                  }}
+                  {{ formatCents(summary.savings.projectedEndOfDayContributionCents) }}
                   spent today
                 </div>
               </div>

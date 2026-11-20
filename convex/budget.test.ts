@@ -127,7 +127,6 @@ test("derives one nested month-to-date summary and excludes future local-date ro
       asOfTimestamp: march10AtNoonNewYork,
     });
 
-  expect(summary.reserve).toEqual(summary.savings);
   expect(summary).toMatchObject({
     period: {
       localMonth: "2026-03",
