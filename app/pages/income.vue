@@ -9,14 +9,18 @@ const totalDollars = computed(() =>
 
 <template>
   <main class="l-page l-stack">
-    <app-main-card title="Windfall" subtitle="One-off income and outflows" :amount="totalDollars">
+    <app-main-card
+      title="One-off transactions"
+      subtitle="One-off income and outflows"
+      :amount="totalDollars"
+    >
       <template #actions>
-        <app-drawer title="windfall-add" label="Add Windfall">
-          <windfall-add drawer-id="windfall-add" />
+        <app-drawer title="income-add" label="Add income">
+          <income-add drawer-id="income-add" />
         </app-drawer>
       </template>
     </app-main-card>
 
-    <windfall-list />
+    <income-list />
   </main>
 </template>

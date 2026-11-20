@@ -4,25 +4,25 @@ import type { Doc } from "../../../convex/_generated/dataModel";
 import { legacyDollarsToCents } from "../../../shared/utils/money-cents";
 
 const props = defineProps<{
-  windfall: Doc<"income">;
+  income: Doc<"income">;
 }>();
 
 const emit = defineEmits<(e: "updated", id: Doc<"income">["_id"]) => void>();
 
-const makeFormState = (windfall: Doc<"income">) => ({
-  name: windfall.source,
-  notes: windfall.notes,
-  amount: Number(windfall.amountCents) / 100,
+const makeFormState = (income: Doc<"income">) => ({
+  name: income.source,
+  notes: income.notes,
+  amount: Number(income.amountCents) / 100,
   // the date is not editable here
   date: null as string | null,
 });
 
-const formState = ref(makeFormState(props.windfall));
+const formState = ref(makeFormState(props.income));
 
-const { mutate: editWindfall, isPending: isSaving } = useConvexMutation(api.income.updateIncome);
+const { mutate: editIncome, isPending: isSaving } = useConvexMutation(api.income.updateIncome);
 
 watch(
-  () => props.windfall,
+  () => props.income,
   (updated) => {
     if (!updated) return;
     formState.value = makeFormState(updated);
@@ -35,14 +35,14 @@ async function handleSubmit() {
 
   const { name, notes, amount } = formState.value;
 
-  await editWindfall({
-    incomeId: props.windfall._id,
+  await editIncome({
+    incomeId: props.income._id,
     source: name,
     notes,
     amountCents: legacyDollarsToCents(amount),
   });
 
-  emit("updated", props.windfall._id);
+  emit("updated", props.income._id);
 }
 </script>
 

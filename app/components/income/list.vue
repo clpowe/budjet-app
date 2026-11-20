@@ -3,18 +3,18 @@ import { createColumnHelper, FlexRender, tableFeatures, useTable } from "@tansta
 import type { Doc } from "../../../convex/_generated/dataModel";
 import { formatCents } from "../../../shared/utils/money-cents";
 
-const { windfall, remove } = useWindfall();
+const { entries, remove } = useIncome();
 const editDialogs = ref<HTMLDialogElement[]>([]);
 
 function onDelete(id: Doc<"income">["_id"]) {
   remove(id);
 }
 
-function onWindfallUpdated(id: string) {
+function onIncomeUpdated(id: string) {
   editDialogs.value.find((element) => element?.id === id)?.close();
 }
 
-function openWindfallDialog(id: string) {
+function openIncomeDialog(id: string) {
   editDialogs.value.find((element) => element?.id === id)?.showModal();
 }
 
@@ -36,11 +36,11 @@ const columns = columnHelper.columns([
 ]);
 
 const income = computed(() => {
-  return windfall.value?.filter(({ amountCents }) => amountCents > 0n) ?? [];
+  return entries.value?.filter(({ amountCents }) => amountCents > 0n) ?? [];
 });
 
 const expense = computed(() => {
-  return windfall.value?.filter(({ amountCents }) => amountCents <= 0n) ?? [];
+  return entries.value?.filter(({ amountCents }) => amountCents <= 0n) ?? [];
 });
 
 const incomeTable = useTable({
@@ -63,7 +63,7 @@ const allTableSections = [
 ] as const;
 
 const tableSections = computed(() => {
-  if (!windfall.value) return allTableSections;
+  if (!entries.value) return allTableSections;
 
   return allTableSections.filter((section) =>
     section.key === "income" ? income.value.length > 0 : expense.value.length > 0,
@@ -91,7 +91,7 @@ const tableSections = computed(() => {
                   <button
                     type="button"
                     :aria-label="`Edit ${row.original.source}`"
-                    @click="openWindfallDialog(row.id)"
+                    @click="openIncomeDialog(row.id)"
                   >
                     Edit
                   </button>
@@ -108,7 +108,7 @@ const tableSections = computed(() => {
                     <h2>Edit {{ row.original.source }}</h2>
                     <form method="dialog"><button type="submit">Close</button></form>
                   </header>
-                  <lazy-windfall-edit :windfall="row.original" @updated="onWindfallUpdated" />
+                  <lazy-income-edit :income="row.original" @updated="onIncomeUpdated" />
                 </dialog>
               </template>
               <FlexRender v-else :cell="cell" />

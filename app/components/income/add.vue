@@ -34,7 +34,7 @@ async function handleSubmit() {
   if (isDisabled.value) return;
 
   if (!user.value?.householdId) {
-    submitError.value = "Finish household setup before adding a windfall.";
+    submitError.value = "Finish household setup before adding income.";
     return;
   }
 
@@ -54,8 +54,7 @@ async function handleSubmit() {
       (document.getElementById(props.drawerId) as HTMLDialogElement | null)?.close();
     }
   } catch (error) {
-    submitError.value =
-      error instanceof Error ? error.message : "Could not add the windfall. Try again.";
+    submitError.value = error instanceof Error ? error.message : "Could not add income. Try again.";
   }
 }
 </script>

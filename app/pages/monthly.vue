@@ -93,7 +93,7 @@ const currentMonthYear = computed(() => {
                   </p>
                 </td>
                 <td>
-                  <span v-if="tx.type === 'income'">Windfall</span>
+                  <span v-if="tx.type === 'income'">One-off</span>
                 </td>
               </tr>
             </tbody>

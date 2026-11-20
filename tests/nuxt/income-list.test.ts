@@ -4,31 +4,31 @@ import { nextTick, type Ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { Doc } from "../../convex/_generated/dataModel";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
-import WindfallList from "../../app/components/windfall/list.vue";
+import IncomeList from "../../app/components/income/list.vue";
 
-type Windfall = Doc<"income">;
+type Income = Doc<"income">;
 
 const mockState = vi.hoisted(() => ({
   remove: vi.fn(),
-  windfall: undefined as Ref<Windfall[] | undefined> | undefined,
+  entries: undefined as Ref<Income[] | undefined> | undefined,
 }));
 
-mockNuxtImport("useWindfall", async () => {
+mockNuxtImport("useIncome", async () => {
   const { ref } = await import("vue");
-  mockState.windfall = ref<Windfall[] | undefined>([]);
+  mockState.entries = ref<Income[] | undefined>([]);
 
   return () => ({
-    windfall: mockState.windfall,
+    entries: mockState.entries,
     remove: mockState.remove,
   });
 });
 
-mockComponent("WindfallEdit", async () => {
+mockComponent("IncomeEdit", async () => {
   const { defineComponent, h } = await import("vue");
 
   return defineComponent({
     props: {
-      windfall: {
+      income: {
         type: Object,
         required: true,
       },
@@ -39,8 +39,8 @@ mockComponent("WindfallEdit", async () => {
         h(
           "button",
           {
-            class: "windfall-edit-stub",
-            onClick: () => emit("updated", (props.windfall as Windfall)._id),
+            class: "income-edit-stub",
+            onClick: () => emit("updated", (props.income as Income)._id),
           },
           "Save",
         );
@@ -52,16 +52,16 @@ const income = {
   _id: "income-id",
   source: "Paycheck",
   amountCents: 125_050n,
-} as Windfall;
+} as Income;
 
 const outflow = {
   _id: "outflow-id",
   source: "Car repair",
   amountCents: -37_500n,
-} as Windfall;
+} as Income;
 
 function mountList() {
-  return mount(WindfallList, {
+  return mount(IncomeList, {
     global: {
       stubs: {
         Icon: true,
@@ -70,14 +70,14 @@ function mountList() {
   });
 }
 
-describe("WindfallList", () => {
+describe("IncomeList", () => {
   beforeEach(() => {
     mockState.remove.mockReset();
-    mockState.windfall!.value = [];
+    mockState.entries!.value = [];
   });
 
   it("renders income and outflows through separate tables", async () => {
-    mockState.windfall!.value = [income, outflow];
+    mockState.entries!.value = [income, outflow];
 
     const wrapper = mountList();
     await flushPromises();
@@ -95,7 +95,7 @@ describe("WindfallList", () => {
   });
 
   it("keeps delete and edit behavior connected to the original row", async () => {
-    mockState.windfall!.value = [income, outflow];
+    mockState.entries!.value = [income, outflow];
 
     const wrapper = mountList();
     await wrapper.get('button[aria-label="Delete Paycheck"]').trigger("click");
@@ -103,21 +103,21 @@ describe("WindfallList", () => {
     const dialog = wrapper.get<HTMLDialogElement>(`dialog#${income._id}`);
     expect(dialog.element.open).toBe(true);
 
-    await wrapper.find(".windfall-edit-stub").trigger("click");
+    await wrapper.find(".income-edit-stub").trigger("click");
 
     expect(mockState.remove).toHaveBeenCalledWith(income._id);
     expect(dialog.element.open).toBe(false);
   });
 
-  it("reacts when Convex replaces the windfall data", async () => {
-    mockState.windfall!.value = [income];
+  it("reacts when Convex replaces the income data", async () => {
+    mockState.entries!.value = [income];
     const wrapper = mountList();
 
     expect(wrapper.findAll("table")).toHaveLength(1);
     expect(wrapper.text()).toContain("Income");
     expect(wrapper.text()).not.toContain("Outflows");
 
-    mockState.windfall!.value = [outflow];
+    mockState.entries!.value = [outflow];
     await nextTick();
     await flushPromises();
 
