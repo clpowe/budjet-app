@@ -141,12 +141,13 @@ Update `GLOSSARY.md` and accessible names in the same change.
 
 P7 runbook. Every step touches production; run each only after an explicit go-ahead. Step 3 permanently deletes all money rows.
 
-1. Snapshot prod: `npx convex export --prod --path backups/prod-before-money-reset-<date>.zip`. Keep it outside git. This is the only way back.
-2. Deploy release branch `release/prod-money-reset` (= `main` + `convex/migrations/prodMoneyReset.ts`) to prod: `npx convex deploy`. `main`'s schema already has optional `allowanceCents`/`timeZone`, so there is no separate widen step. Frontend is unchanged.
-3. Reset: `npx convex run --prod migrations/prodMoneyReset:start`. Patches every household (`allowanceCents` from cents, else the float `allowance`, else $55; `timeZone` else America/New_York; drops `allowance` and `moneyMigrationCompletedAt`), then wipes expenses, windfall, debts, wantItems, goalReserveStates, dailyBudgetRollups in batches of 200. Keeps users, households, chat.
+1. Snapshot prod: `npx convex export --prod --include-file-storage --path backups/prod-before-money-reset-<date>.zip`. Keep it outside git (`backups/` is in `.git/info/exclude`). This is the only way back. **Done 2026-11-20** (`backups/prod-before-money-reset-2026-11-20.zip`, 32 KB): 269 expenses, 36 dailyBudgetRollups, 11 debts, 5 extraDollars, 1 spending, 2 households (no `timeZone`), 3 users, 0 chat.
+2. Deploy release branch `release/prod-money-reset` (= `main` + `convex/migrations/prodMoneyReset.ts` + loose `spending`/`extraDollars` table definitions) to prod: `npx convex deploy`. `main`'s schema already has optional `allowanceCents`/`timeZone`, so there is no separate widen step. Frontend is unchanged. If the push rejects the legacy rows, nothing has changed yet; fix the table definitions.
+3. Reset: `npx convex run --prod migrations/prodMoneyReset:start`. Patches every household (`allowanceCents` from cents, else the float `allowance`, else $55; `timeZone` else America/New_York; drops `allowance` and `moneyMigrationCompletedAt`), then wipes expenses, windfall, debts, wantItems, goalReserveStates, dailyBudgetRollups, spending, extraDollars in batches of 200. Keeps users, households, chat.
 4. Check: `npx convex run --prod migrations/prodMoneyReset:status` until `done: true`.
 5. Right away, deploy the clean-schema branch (merged to `main`) to prod: `npx convex deploy`, then the frontend. It removes the old cron and does not contain this migration module. If the schema push fails because someone added an old-shape row after step 3, rerun steps 3-4 (on the release branch) and redeploy.
 6. Verify in prod: sign in, create a goal and start saving, add an expense, record a goal purchase, open /income and /mydebts.
+7. Optional cleanup: delete the now-empty tables the clean schema no longer declares (windfall, wantItems, goalReserveStates, dailyBudgetRollups, spending, extraDollars, snowball, goalReserveDays, goalReserveLedgerEntries) from the Convex dashboard.
 
 ## Risks
 
