@@ -3,6 +3,7 @@ import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import { computed, nextTick, ref, shallowRef, watch } from "vue";
 import { api } from "@generated/api";
 import type { Doc, Id } from "@generated/dataModel";
+import { projectAllocations } from "../utils/goal-allocations";
 import type { WantStatus } from "../utils/want-status";
 
 type WantItem = Doc<"goals">;
@@ -108,7 +109,7 @@ const hasPendingSections = computed(() =>
 );
 
 const activeAllocations = computed(() => {
-  return summary.value?.activeAllocations ?? [];
+  return projectAllocations(summary.value?.availableSavingsCents ?? 0n, sections.value.active);
 });
 
 const formTitle = computed(() => {

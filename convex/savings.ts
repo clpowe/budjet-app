@@ -1,15 +1,7 @@
 import { v } from "convex/values";
 import { query, type QueryCtx } from "./_generated/server";
-import { loadActiveGoalQueue, projectActiveGoalAllocations } from "./lib/active_goal_queue.ts";
 import { requireHouseholdMember } from "./lib/household_access";
 import { getSavingsSnapshot } from "./lib/savings_account";
-
-const activeAllocationValidator = v.object({
-  goalId: v.id("goals"),
-  allocatedCents: v.int64(),
-  remainingCents: v.int64(),
-  progressBasisPoints: v.number(),
-});
 
 export const savingsSummaryValidator = v.object({
   positionCents: v.int64(),
@@ -17,7 +9,6 @@ export const savingsSummaryValidator = v.object({
   recoveryAmountCents: v.int64(),
   todayOverageAdjustmentCents: v.int64(),
   projectedEndOfDayContributionCents: v.int64(),
-  activeAllocations: v.array(activeAllocationValidator),
 });
 
 export const getSummary = query({
@@ -30,28 +21,13 @@ export const getSummary = query({
 
 export async function readSavingsSummary(ctx: QueryCtx, now: number) {
   const { household } = await requireHouseholdMember(ctx);
-
-  const [currentSavings, activeItems] = await Promise.all([
-    getSavingsSnapshot(ctx, household, now),
-    loadActiveGoalQueue(ctx, household._id),
-  ]);
-
-  const activeAllocations = projectActiveGoalAllocations(
-    currentSavings.availableCents,
-    activeItems,
-  ).map(({ goal, allocatedCents, remainingCents, progressBasisPoints }) => ({
-    goalId: goal._id,
-    allocatedCents,
-    remainingCents,
-    progressBasisPoints,
-  }));
+  const savings = await getSavingsSnapshot(ctx, household, now);
 
   return {
-    positionCents: currentSavings.positionCents,
-    availableSavingsCents: currentSavings.availableCents,
-    recoveryAmountCents: currentSavings.shortfallCents,
-    todayOverageAdjustmentCents: currentSavings.todayOverageAdjustmentCents,
-    projectedEndOfDayContributionCents: currentSavings.projectedEndOfDayContributionCents,
-    activeAllocations,
+    positionCents: savings.positionCents,
+    availableSavingsCents: savings.availableCents,
+    recoveryAmountCents: savings.shortfallCents,
+    todayOverageAdjustmentCents: savings.todayOverageAdjustmentCents,
+    projectedEndOfDayContributionCents: savings.projectedEndOfDayContributionCents,
   };
 }

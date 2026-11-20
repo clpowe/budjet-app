@@ -73,12 +73,6 @@ function makeSummary() {
     recoveryAmountCents: 0n,
     todayOverageAdjustmentCents: 0n,
     projectedEndOfDayContributionCents: 2_500n,
-    activeAllocations: [] as Array<{
-      goalId: Id<"goals">;
-      allocatedCents: bigint;
-      remainingCents: bigint;
-      progressBasisPoints: number;
-    }>,
   };
 }
 
@@ -179,20 +173,13 @@ describe("WantsPage", () => {
     expect(wrapper.text()).not.toContain("-$5.00 available");
   });
 
-  it("renders the active queue with accessible savings progress", () => {
+  it("derives active queue progress locally from available savings", () => {
     const camera = makeWant("want-camera", "Camera", "saving", 0);
-    const summary = makeSummary();
+    const headphones = makeWant("want-headphones", "Headphones", "saving", 1);
 
-    summary.activeAllocations = [
-      {
-        goalId: camera._id,
-        allocatedCents: 4_000n,
-        remainingCents: 6_000n,
-        progressBasisPoints: 4_000,
-      },
-    ];
-
-    const wrapper = arrangePage({ active: [camera], summary });
+    const wrapper = arrangePage({ active: [camera, headphones] });
+    const headphonesProgress = wrapper.get('progress[aria-label="Headphones funding progress"]');
+    expect(Number(headphonesProgress.attributes("value"))).toBe(0);
     const progress = wrapper.get('progress[aria-label="Camera funding progress"]');
 
     expect(wrapper.text()).toContain("Plan for it");

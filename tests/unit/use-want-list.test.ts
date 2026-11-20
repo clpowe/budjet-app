@@ -50,7 +50,6 @@ const summaryRef = ref({
   recoveryAmountCents: 0n,
   todayOverageAdjustmentCents: -1_000n,
   projectedEndOfDayContributionCents: 0n,
-  activeAllocations: [],
 });
 const nowRef = ref(Date.UTC(2026, 7, 20, 16));
 const summaryPending = ref(false);

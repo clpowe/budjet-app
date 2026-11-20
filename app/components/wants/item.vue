@@ -1,14 +1,11 @@
 <script setup lang="ts">
-import type { FunctionReturnType } from "convex/server";
 import { computed } from "vue";
-import { api } from "@generated/api";
 import type { Doc, Id } from "@generated/dataModel";
 import { getWantStatusStrategy, type WantStatus } from "../../utils/want-status";
 import WantsStatusBadge from "./status-badge.vue";
+import type { ActiveAllocation } from "../../utils/goal-allocations";
 
 type WantItem = Doc<"goals">;
-type SavingsSummary = FunctionReturnType<typeof api.savings.getSummary>;
-type ActiveAllocation = SavingsSummary["activeAllocations"][number];
 
 const props = defineProps<{
   item: WantItem;

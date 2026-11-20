@@ -1,15 +1,14 @@
 <script setup lang="ts">
-import type { FunctionArgs, FunctionReturnType } from "convex/server";
+import type { FunctionArgs } from "convex/server";
 import { computed, ref, useId, watch } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
-import { api } from "@generated/api";
 import type { Doc, Id } from "@generated/dataModel";
 import type { WantStatus } from "../../utils/want-status";
 import WantsItem from "./item.vue";
+import type { ActiveAllocation } from "../../utils/goal-allocations";
+import type { api } from "~~/convex/_generated/api";
 
 type WantItem = Doc<"goals">;
-type SavingsSummary = FunctionReturnType<typeof api.savings.getSummary>;
-type ActiveAllocation = SavingsSummary["activeAllocations"][number];
 
 const props = withDefaults(
   defineProps<{

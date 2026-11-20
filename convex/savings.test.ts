@@ -149,23 +149,10 @@ test("reports open-day underspending as potential instead of funded savings", as
     recoveryAmountCents: 0n,
     todayOverageAdjustmentCents: 0n,
     projectedEndOfDayContributionCents: 2_500n,
-    activeAllocations: [
-      {
-        goalId: seeded.cameraId,
-        allocatedCents: 3_000n,
-        remainingCents: 2_000n,
-        progressBasisPoints: 6_000,
-      },
-      {
-        goalId: seeded.headphonesId,
-        allocatedCents: 0n,
-        remainingCents: 4_000n,
-        progressBasisPoints: 0,
-      },
-    ],
   });
 
   expect(summary).not.toHaveProperty("nextPlannedWant");
+  expect(summary).not.toHaveProperty("activeAllocations");
 });
 
 test("immediately reduces visible progress when open-day spending exceeds allowance", async () => {
@@ -206,13 +193,5 @@ test("immediately reduces visible progress when open-day spending exceeds allowa
     recoveryAmountCents: 500n,
     todayOverageAdjustmentCents: -1_500n,
     projectedEndOfDayContributionCents: 0n,
-    activeAllocations: [
-      {
-        goalId: seeded.cameraId,
-        allocatedCents: 0n,
-        remainingCents: 5_000n,
-        progressBasisPoints: 0,
-      },
-    ],
   });
 });

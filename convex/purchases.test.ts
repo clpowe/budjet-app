@@ -8,6 +8,7 @@ import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import schema from "./schema";
 import { getLocalDateKey } from "../shared/utils/local-date";
+import { allocateSavings } from "../shared/utils/goal-allocation";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -160,6 +161,12 @@ async function seedPurchaseHouseholds(
 }
 
 type SeededPurchase = Awaited<ReturnType<typeof seedPurchaseHouseholds>>;
+
+function activeGoalsInOrder<G extends { status: string; order?: number }>(goals: G[]): G[] {
+  return goals
+    .filter((goal) => goal.status === "saving")
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
 
 async function readSnapshot(
   t: TestConvex<typeof schema>,
@@ -374,6 +381,7 @@ test.each([
     const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
     const goalId = buyTrip ? seeded.tripId : seeded.cameraId;
     const before = await asOwner.query(api.savings.getSummary, { now: serverNow });
+    const beforeSnapshot = await readSnapshot(t, seeded.householdId);
     const preview = await asOwner.query(api.goals.previewPurchase, {
       goalId,
       actualAmountCents,
@@ -391,25 +399,32 @@ test.each([
 
     expect(purchase.status).toBe("ok");
     expect(before.availableSavingsCents).toBe(positionCents);
-    expect(after.activeAllocations.map(({ allocatedCents }) => allocatedCents)).toEqual(
+    const beforeAllocations = allocateSavings(
+      before.availableSavingsCents,
+      activeGoalsInOrder(beforeSnapshot.wants),
+    );
+    const afterAllocations = allocateSavings(
+      after.availableSavingsCents,
+      activeGoalsInOrder(snapshot.wants),
+    );
+    expect(afterAllocations.map(({ allocatedCents }) => allocatedCents)).toEqual(
       remainingAllocations,
     );
     expect(preview.fromSavingsCents).toBe(expense?.fromSavingsCents);
     expect(preview.budgetImpactCents).toBe(actualAmountCents - preview.fromSavingsCents);
 
-    const impacts = after.activeAllocations.flatMap((allocation) => {
-      const previous = before.activeAllocations.find((item) => item.goalId === allocation.goalId);
-      const want = snapshot.wants.find((item) => item._id === allocation.goalId);
-      if (!previous || !want) {
-        throw new Error("Expected the remaining Want and its original allocation");
+    const impacts = afterAllocations.flatMap((allocation) => {
+      const previous = beforeAllocations.find((item) => item.goal._id === allocation.goal._id);
+      if (!previous) {
+        throw new Error("Expected the remaining goal's original allocation");
       }
 
       const lostCents = previous.allocatedCents - allocation.allocatedCents;
       return lostCents > 0n
         ? [
             {
-              goalId: allocation.goalId,
-              name: want.name,
+              goalId: allocation.goal._id,
+              name: allocation.goal.name,
               lostCents,
               allocatedCentsAfter: allocation.allocatedCents,
             },
