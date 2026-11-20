@@ -147,6 +147,7 @@ P7 runbook. Every step touches production; run each only after an explicit go-ah
 4. Check: `npx convex run --prod migrations/prodMoneyReset:status` until `done: true`.
    **Steps 3-4 done 2026-11-20**: `householdsPatched: 2`; status `done: true` (all money tables 0). 2 households (allowanceCents set, timeZone America/New_York, legacy fields gone) and 3 users kept.
 5. Right away, deploy the clean-schema branch (merged to `main`) to prod: `npx convex deploy`, then the frontend. It removes the old cron and does not contain this migration module. If the schema push fails because someone added an old-shape row after step 3, rerun steps 3-4 (on the release branch) and redeploy.
+   **Step 5 done 2026-11-20**: `wip/rename-savings-checkpoint` fast-forwarded into `main` (50afd1c, 292 tests green) and pushed; `npx convex deploy` to prod (schema validation passed; old indexes dropped, new ones on goals/income/dailyBudgetTotals/expenses added); frontend `pnpm run deploy` to https://budget-app.clpowe.workers.dev (200; bundle points at tidy-fox-761). Prod modules: budget, chat, debts, expenses, goals, households, income, savings, users.
 6. Verify in prod: sign in, create a goal and start saving, add an expense, record a goal purchase, open /income and /mydebts.
 7. Optional cleanup: delete the now-empty tables the clean schema no longer declares (windfall, wantItems, goalReserveStates, dailyBudgetRollups, spending, extraDollars, snowball, goalReserveDays, goalReserveLedgerEntries) from the Convex dashboard.
 
