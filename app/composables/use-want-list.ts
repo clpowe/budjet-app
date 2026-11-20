@@ -1,46 +1,86 @@
-import type { FunctionArgs } from "convex/server";
+import type { FunctionArgs, FunctionReference, FunctionReturnType } from "convex/server";
 import { computed, onBeforeUnmount, onMounted } from "vue";
 import { api } from "../../convex/_generated/api";
+import {
+  getLocalDateKey,
+  getLocalDayBounds,
+  getNextLocalDate,
+} from "../../shared/utils/local-date.ts";
 import { useWantSection } from "./use-want-section";
 
-type CreateItemArgs = FunctionArgs<typeof api.goals.create>;
-type UpdateItemArgs = FunctionArgs<typeof api.goals.update>;
-type ChangeStatusArgs = FunctionArgs<typeof api.goals.changeStatus>;
-type ReorderArgs = FunctionArgs<typeof api.goals.reorder>;
-type PurchaseArgs = FunctionArgs<typeof api.goals.purchase>;
-type CorrectPurchaseArgs = FunctionArgs<typeof api.goals.correctPurchase>;
-type UndoPurchaseArgs = FunctionArgs<typeof api.goals.undoPurchase>;
-
-type ActionResult<T> =
-  | {
-      success: true;
-      data: T;
-    }
-  | {
-      success: false;
-      error: string;
-    };
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
+type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
 async function runAction<T>(action: () => Promise<T>, fallback: string): Promise<ActionResult<T>> {
   try {
-    return {
-      success: true,
-      data: await action(),
-    };
+    return { success: true, data: await action() };
   } catch (error) {
-    return {
-      success: false,
-      error: errorMessage(error, fallback),
-    };
+    return { success: false, error: error instanceof Error ? error.message : fallback };
   }
 }
 
-export function useWantList() {
+function useGoalAction<M extends FunctionReference<"mutation">>(mutation: M, fallback: string) {
+  const { mutate } = useConvexMutation(mutation);
+
+  return (args: FunctionArgs<M>): Promise<ActionResult<FunctionReturnType<M>>> =>
+    runAction(() => mutate(args), fallback);
+}
+
+function useSavingsClock() {
+  const { timeZone } = useDate();
   const now = useState<number>("wants-summary-now", () => Date.now());
+
+  let midnightTimer: number | undefined;
+
+  function refreshIfNewDay() {
+    const next = Date.now();
+
+    if (getLocalDateKey(next, timeZone.value) !== getLocalDateKey(now.value, timeZone.value)) {
+      now.value = next;
+    }
+  }
+
+  function scheduleMidnight() {
+    window.clearTimeout(midnightTimer);
+
+    const today = getLocalDateKey(Date.now(), timeZone.value);
+    const nextMidnight = getLocalDayBounds(
+      getNextLocalDate(today, timeZone.value),
+      timeZone.value,
+    ).startTimestamp;
+
+    midnightTimer = window.setTimeout(
+      () => {
+        refreshIfNewDay();
+        scheduleMidnight();
+      },
+      Math.max(nextMidnight - Date.now(), 0),
+    );
+  }
+
+  function onVisible() {
+    if (document.visibilityState === "visible") refreshIfNewDay();
+  }
+
+  if (import.meta.client) {
+    onMounted(() => {
+      refreshIfNewDay();
+      scheduleMidnight();
+      window.addEventListener("focus", refreshIfNewDay);
+      document.addEventListener("visibilitychange", onVisible);
+    });
+
+    onBeforeUnmount(() => {
+      window.clearTimeout(midnightTimer);
+      window.removeEventListener("focus", refreshIfNewDay);
+      document.removeEventListener("visibilitychange", onVisible);
+    });
+  }
+
+  return now;
+}
+
+export function useWantList() {
+  const now = useSavingsClock();
 
   const { data: activeResult, isPending: isActivePending } = useConvexQuery(api.goals.list, {});
 
@@ -53,18 +93,8 @@ export function useWantList() {
 
   const { data: summary, isPending: isSummaryPending } = useConvexQuery(
     api.savings.getSummary,
-    computed(() => ({
-      now: now.value,
-    })),
+    computed(() => ({ now: now.value })),
   );
-
-  const { mutate: createMutation } = useConvexMutation(api.goals.create);
-  const { mutate: updateMutation } = useConvexMutation(api.goals.update);
-  const { mutate: changeStatusMutation } = useConvexMutation(api.goals.changeStatus);
-  const { mutate: reorderMutation } = useConvexMutation(api.goals.reorder);
-  const { mutate: purchaseMutation } = useConvexMutation(api.goals.purchase);
-  const { mutate: correctPurchaseMutation } = useConvexMutation(api.goals.correctPurchase);
-  const { mutate: undoPurchaseMutation } = useConvexMutation(api.goals.undoPurchase);
 
   const sections = computed(() => ({
     active: activeResult.value?.active ?? [],
@@ -75,88 +105,23 @@ export function useWantList() {
 
   const isLoading = computed(() => isActivePending.value || isSummaryPending.value);
 
-  let refreshTimer: number | undefined;
-
-  function refreshNow() {
-    now.value = Date.now();
-  }
-
-  function scheduleNextMinute() {
-    if (!import.meta.client) return;
-
-    if (refreshTimer !== undefined) {
-      window.clearTimeout(refreshTimer);
-    }
-
-    const delay = 60_000 - (Date.now() % 60_000);
-
-    refreshTimer = window.setTimeout(() => {
-      refreshNow();
-      scheduleNextMinute();
-    }, delay);
-  }
-
-  if (import.meta.client) {
-    onMounted(() => {
-      refreshNow();
-      scheduleNextMinute();
-      window.addEventListener("focus", refreshNow);
-    });
-
-    onBeforeUnmount(() => {
-      if (refreshTimer !== undefined) {
-        window.clearTimeout(refreshTimer);
-      }
-
-      window.removeEventListener("focus", refreshNow);
-    });
-  }
-
-  function createItem(args: CreateItemArgs) {
-    return runAction(() => createMutation(args), "Could not create this Want. Try again.");
-  }
-
-  function updateItem(args: UpdateItemArgs) {
-    return runAction(() => updateMutation(args), "Could not update this Want. Try again.");
-  }
-
-  function changeStatus(args: ChangeStatusArgs) {
-    return runAction(
-      () => changeStatusMutation(args),
-      "Could not change this Want's status. Try again.",
-    );
-  }
-
-  function reorder(args: ReorderArgs) {
-    return runAction(() => reorderMutation(args), "Could not reorder the Wants list. Try again.");
-  }
-
-  function purchase(args: PurchaseArgs) {
-    return runAction(() => purchaseMutation(args), "Could not complete this purchase. Try again.");
-  }
-
-  function correctPurchase(args: CorrectPurchaseArgs) {
-    return runAction(
-      () => correctPurchaseMutation(args),
-      "Could not correct this purchase. Try again.",
-    );
-  }
-
-  function undoPurchase(args: UndoPurchaseArgs) {
-    return runAction(() => undoPurchaseMutation(args), "Could not undo this purchase. Try again.");
-  }
-
   return {
     sections,
     history,
     summary,
     isLoading,
-    createItem,
-    updateItem,
-    changeStatus,
-    reorder,
-    purchase,
-    correctPurchase,
-    undoPurchase,
+    createItem: useGoalAction(api.goals.create, "Could not create this Want. Try again."),
+    updateItem: useGoalAction(api.goals.update, "Could not update this Want. Try again."),
+    changeStatus: useGoalAction(
+      api.goals.changeStatus,
+      "Could not change this Want's status. Try again.",
+    ),
+    reorder: useGoalAction(api.goals.reorder, "Could not reorder the Wants list. Try again."),
+    purchase: useGoalAction(api.goals.purchase, "Could not complete this purchase. Try again."),
+    correctPurchase: useGoalAction(
+      api.goals.correctPurchase,
+      "Could not correct this purchase. Try again.",
+    ),
+    undoPurchase: useGoalAction(api.goals.undoPurchase, "Could not undo this purchase. Try again."),
   };
 }

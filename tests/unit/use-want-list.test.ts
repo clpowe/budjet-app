@@ -78,6 +78,7 @@ describe("useWantList", () => {
     vi.resetAllMocks();
     summaryPending.value = false;
     vi.stubGlobal("useState", () => nowRef);
+    vi.stubGlobal("useDate", () => ({ timeZone: ref("America/New_York") }));
     vi.stubGlobal("useConvexClient", () => ({ query: clientQueryMock, onUpdate: subscribeMock }));
     vi.stubGlobal("useConvexMutation", (endpoint: FunctionReference<"mutation">) => ({
       mutate: mutationFor(endpoint),
