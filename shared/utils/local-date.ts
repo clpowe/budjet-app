@@ -99,3 +99,15 @@ export function getLocalDayBounds(
     endExclusiveTimestamp: tzDate(`${endLocalDate}T00:00:00`, timeZone).getTime(),
   };
 }
+
+/** Calendar arithmetic on `YYYY-MM-DD`; time zones do not apply. */
+export function addLocalDays(localDate: string, days: number): string {
+  if (!Number.isInteger(days)) {
+    throw new Error("Days must be a whole number");
+  }
+
+  const date = parseLocalDate(localDate);
+  date.setUTCDate(date.getUTCDate() + days);
+
+  return date.toISOString().slice(0, 10);
+}

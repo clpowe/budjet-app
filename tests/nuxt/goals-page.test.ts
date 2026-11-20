@@ -83,6 +83,7 @@ function arrangePage({
   onHold = [],
   loadMoreBought,
   summary = makeSummary(),
+  savingsHistory = [],
 }: {
   active?: Goal[];
   purchased?: Goal[];
@@ -91,6 +92,7 @@ function arrangePage({
   onHold?: Goal[];
   loadMoreBought?: () => Goal;
   summary?: ReturnType<typeof makeSummary>;
+  savingsHistory?: Array<{ localDate: string; balanceCents: bigint }>;
 } = {}) {
   const sections = ref({ active, purchased, ideas, onHold });
   function section() {
@@ -115,6 +117,7 @@ function arrangePage({
     sections,
     history,
     summary: ref(summary),
+    savingsHistory: ref(savingsHistory),
     isLoading: ref(isLoading),
     createItem: mockFns.createItem,
     updateItem: mockFns.updateItem,
@@ -216,6 +219,20 @@ describe("GoalsPage", () => {
     expect(wrapper.find('[aria-label="Ideas"]').text()).toContain("Bike");
     await wrapper.get('[aria-label="Correct Older headphones purchase"]').trigger("click");
     expect(wrapper.text()).toContain("Correct Older headphones purchase");
+  });
+
+  it("shows the savings history chart with available savings beside it", () => {
+    const wrapper = arrangePage({
+      savingsHistory: [
+        { localDate: "2026-08-18", balanceCents: 2_000n },
+        { localDate: "2026-08-19", balanceCents: 4_000n },
+      ],
+    });
+    const chart = wrapper.get('[aria-labelledby="savings-chart-heading"]');
+
+    expect(chart.text()).toContain("Savings balance at day end");
+    expect(chart.text()).toContain("Available now$40.00");
+    expect(chart.text()).toContain("Aug 19: $40.00");
   });
 
   it("distinguishes available savings from the estimate for today", () => {

@@ -1,11 +1,17 @@
 import {
+  addLocalDays,
   getLocalDateKey,
   getLocalDayBounds,
   getNextLocalDate,
 } from "../../shared/utils/local-date.ts";
 import { calculatePurchaseFunding } from "../../shared/utils/goal-allocation";
 import { assertPositiveCents } from "../../shared/utils/money-cents";
-import { calculateSavings, type Savings } from "../../shared/utils/savings";
+import {
+  calculateSavings,
+  calculateSavingsHistory,
+  type Savings,
+  type SavingsHistoryPoint,
+} from "../../shared/utils/savings";
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import { getEffectiveTimeZone } from "../households";
@@ -80,6 +86,54 @@ async function sumSpentCents(
   }
 
   return totalCents;
+}
+
+export const MAX_SAVINGS_HISTORY_DAYS = 366;
+
+/**
+ * Savings balance at the end of each closed day in the `days` before today.
+ * Read-only; uses the current allowance for every day, like the live snapshot.
+ */
+export async function listSavingsHistory(
+  ctx: DatabaseCtx,
+  household: Doc<"households">,
+  now: number,
+  days: number,
+): Promise<SavingsHistoryPoint[]> {
+  if (!Number.isInteger(days) || days < 1 || days > MAX_SAVINGS_HISTORY_DAYS) {
+    throw new Error(`History must cover 1 to ${MAX_SAVINGS_HISTORY_DAYS} days`);
+  }
+
+  const firstEligibleLocalDate = household.savingsStartLocalDate;
+  if (firstEligibleLocalDate === undefined) return [];
+
+  const todayLocalDate = getLocalDateKey(now, getEffectiveTimeZone(household, now));
+  const windowStart = addLocalDays(todayLocalDate, -days);
+  const startLocalDate =
+    windowStart > firstEligibleLocalDate ? windowStart : firstEligibleLocalDate;
+  if (startLocalDate >= todayLocalDate) return [];
+
+  const [spentBeforeStartCents, totals] = await Promise.all([
+    sumSpentCents(ctx, household._id, firstEligibleLocalDate, startLocalDate),
+    ctx.db
+      .query("dailyBudgetTotals")
+      .withIndex("by_household_and_local_date", (q) =>
+        q
+          .eq("householdId", household._id)
+          .gte("localDate", startLocalDate)
+          .lt("localDate", todayLocalDate),
+      )
+      .take(MAX_SAVINGS_HISTORY_DAYS),
+  ]);
+
+  return calculateSavingsHistory({
+    allowanceCents: household.allowanceCents,
+    firstEligibleLocalDate,
+    todayLocalDate,
+    startLocalDate,
+    spentBeforeStartCents,
+    dailySpentCents: new Map(totals.map((total) => [total.localDate, total.totalSpentCents])),
+  });
 }
 
 /**

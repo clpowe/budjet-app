@@ -1,4 +1,4 @@
-import { countLocalDays } from "./local-date";
+import { addLocalDays, countLocalDays } from "./local-date";
 import { assertNonNegativeCents, type Cents } from "./money-cents";
 
 export interface SavingsInputs {
@@ -70,4 +70,61 @@ export function calculateSavings({
     availableCents: adjustedCents > 0n ? adjustedCents : 0n,
     shortfallCents: adjustedCents < 0n ? -adjustedCents : 0n,
   };
+}
+
+export interface SavingsHistoryInputs {
+  allowanceCents: Cents;
+  firstEligibleLocalDate: string | undefined;
+  todayLocalDate: string;
+  /** First day to report. Days before savings started are skipped. */
+  startLocalDate: string;
+  /** Spending charged to eligible days before the first reported day. */
+  spentBeforeStartCents: Cents;
+  /** Total spending per local date for the reported days; missing days spent nothing. */
+  dailySpentCents: ReadonlyMap<string, Cents>;
+}
+
+export interface SavingsHistoryPoint {
+  localDate: string;
+  /** Savings position once this day has closed. */
+  balanceCents: Cents;
+}
+
+/**
+ * Savings balance at the end of each closed day from `startLocalDate` to
+ * yesterday, using `calculateSavings` as if each following day were today.
+ */
+export function calculateSavingsHistory({
+  allowanceCents,
+  firstEligibleLocalDate,
+  todayLocalDate,
+  startLocalDate,
+  spentBeforeStartCents,
+  dailySpentCents,
+}: SavingsHistoryInputs): SavingsHistoryPoint[] {
+  assertNonNegativeCents(spentBeforeStartCents, "Spending before start");
+
+  if (firstEligibleLocalDate === undefined) return [];
+
+  const points: SavingsHistoryPoint[] = [];
+  let closedSpentCents = spentBeforeStartCents;
+  let localDate = startLocalDate > firstEligibleLocalDate ? startLocalDate : firstEligibleLocalDate;
+
+  while (localDate < todayLocalDate) {
+    closedSpentCents += dailySpentCents.get(localDate) ?? 0n;
+    const nextLocalDate = addLocalDays(localDate, 1);
+
+    const { positionCents } = calculateSavings({
+      allowanceCents,
+      firstEligibleLocalDate,
+      todayLocalDate: nextLocalDate,
+      closedSpentCents,
+      today: { totalSpentCents: 0n, spentFromSavingsCents: 0n },
+    });
+
+    points.push({ localDate, balanceCents: positionCents });
+    localDate = nextLocalDate;
+  }
+
+  return points;
 }

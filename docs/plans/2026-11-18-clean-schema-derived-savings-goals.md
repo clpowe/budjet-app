@@ -151,7 +151,7 @@ Update `GLOSSARY.md` and accessible names in the same change.
 - [x] P1 shared math (local-date, money-cents asserts, calculateSavings, goal-allocation + previewPurchase, budgetImpact; old want_savings.ts and getBudgetImpactCents die in P2)
 - [x] P2 Convex cutover (P2a-d done; fresh dev deployment wipe still to do)
 - [x] P3 frontend wiring
-- [ ] P4 naming pass
+- [x] P4 naming pass
 - [ ] P5 chart
 - [ ] P6 Temporal
 - [ ] P7 prod reset
@@ -175,3 +175,7 @@ _P2d done (247 tests green): `getHomeSummary` drops `reserve`, `reserveFundedCen
 _P3 done (3 commits, 263 tests green): Goals page computes allocations locally (`app/utils/goal-allocations.ts` `projectAllocations`); `savings.getSummary` no longer returns `activeAllocations`. Purchase dialog computes its breakdown locally (`previewGoalPurchase`); `goals.previewPurchase` query removed; server still computes the real split on purchase. `use-want-list` actions are one `useGoalAction` helper. Deviation: `savings.getSummary` keeps its `now` arg (Convex guideline: no wall clock in queries), but the client changes it only when the household's local date changes (midnight timer + focus/visibilitychange), not every minute. Syncing UI was already gone in P2b. Next: P4 naming pass._
 
 _P4b-d done (3 commits, all non-debt tests green): windfall UI -> income (`/income`, "One-off transactions", "Add income"; `useIncome` returns `entries`). wants -> goals (`/goals`, `components/goals`, `useGoalList`/`useGoalSection`, `goal-status`/`goal-guidance`, `nextGoal`, section keys `ideas`/`onHold`/`purchased`, goal error strings). Copy: Ideas / Saving for / On hold / Purchase history with actions Start saving / Put on hold / Move to Ideas; Available savings, Estimated savings from today, Savings shortfall; Record purchase with Amount paid / From savings / From daily budget; Add expense; nav Home / Transactions / Goals / Household. GLOSSARY rewritten. Found while adding debts: `transactions/form` `showPriority ?? true` was dead (Vue casts a missing boolean prop to false); removed. P4a (debts) in progress by user: `depts/add.vue` now calls `createDebt` with `show-priority`; rename depts -> debts and "Total debt payments" pending. P4 box stays open until debts land._
+
+_P4a done: debts can be created (`debts/add.vue` -> `api.debts.createDebt`, rendered on `/mydebts`); depts -> debts everywhere; "Total debt payments". P4 complete._
+
+_P5 done (286 tests green): pure `calculateSavingsHistory` in `shared/utils/savings.ts` calls `calculateSavings` per closed day; `savings.getHistory({ now, days })` (1-366 days, reads `dailyBudgetTotals` in the window plus one sum before it). Goals page shows `GoalsSavingsChart`: "Savings balance at day end" for the last 90 closed days, zero line, latest balance as text, "Available now" beside it. Today is excluded (it has not closed). Uses the current allowance for every past day (accepted risk). Not checked visually in a browser._

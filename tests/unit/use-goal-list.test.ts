@@ -51,6 +51,7 @@ const summaryRef = ref({
   todayOverageAdjustmentCents: -1_000n,
   projectedEndOfDayContributionCents: 0n,
 });
+const historyRef = ref([{ localDate: "2026-08-19", balanceCents: 4_000n }]);
 const nowRef = ref(Date.UTC(2026, 7, 20, 16));
 const summaryPending = ref(false);
 const mutations = new Map([
@@ -92,6 +93,9 @@ describe("useGoalList", () => {
         case getFunctionName(api.savings.getSummary):
           expect(args).toMatchObject({ value: { now: nowRef.value } });
           return { data: summaryRef, isPending: summaryPending };
+        case getFunctionName(api.savings.getHistory):
+          expect(args).toMatchObject({ value: { now: nowRef.value, days: 90 } });
+          return { data: historyRef, isPending: ref(false) };
         default:
           throw new Error(`Unexpected query: ${name}`);
       }
@@ -121,6 +125,7 @@ describe("useGoalList", () => {
       purchased: [boughtItem],
     });
     expect(goalList.summary.value).toEqual(summaryRef.value);
+    expect(goalList.savingsHistory.value).toEqual(historyRef.value);
     expect(goalList.isLoading.value).toBe(false);
 
     summaryPending.value = true;

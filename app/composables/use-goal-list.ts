@@ -79,6 +79,9 @@ function useSavingsClock() {
   return now;
 }
 
+/** Days of savings history shown on the Goals page. */
+export const SAVINGS_HISTORY_DAYS = 90;
+
 export function useGoalList() {
   const now = useSavingsClock();
 
@@ -96,6 +99,11 @@ export function useGoalList() {
     computed(() => ({ now: now.value })),
   );
 
+  const { data: savingsHistory } = useConvexQuery(
+    api.savings.getHistory,
+    computed(() => ({ now: now.value, days: SAVINGS_HISTORY_DAYS })),
+  );
+
   const sections = computed(() => ({
     active: activeResult.value?.active ?? [],
     ideas: history.ideas.items.value,
@@ -109,6 +117,7 @@ export function useGoalList() {
     sections,
     history,
     summary,
+    savingsHistory,
     isLoading,
     createItem: useGoalAction(api.goals.create, "Could not create this goal. Try again."),
     updateItem: useGoalAction(api.goals.update, "Could not update this goal. Try again."),

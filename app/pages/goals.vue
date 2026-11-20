@@ -31,6 +31,7 @@ const {
   sections,
   history,
   summary,
+  savingsHistory,
   isLoading,
   createItem,
   updateItem,
@@ -374,6 +375,12 @@ async function saveOrder(order: FunctionArgs<typeof api.goals.reorder>) {
         v-if="summary"
         :summary="summary"
         :next-item-name="sections.active[0]?.name"
+      />
+
+      <GoalsSavingsChart
+        v-if="summary && savingsHistory"
+        :points="savingsHistory"
+        :available-cents="summary.availableSavingsCents"
       />
 
       <p v-if="pageError" role="alert" aria-live="polite">

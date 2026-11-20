@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
-import { calculateSavings, type SavingsInputs } from "../../shared/utils/savings";
+import {
+  calculateSavings,
+  calculateSavingsHistory,
+  type SavingsInputs,
+} from "../../shared/utils/savings";
 
 const noSpendingToday = { totalSpentCents: 0n, spentFromSavingsCents: 0n };
 
@@ -109,5 +113,101 @@ describe("calculateSavings", () => {
         inputs({ today: { totalSpentCents: 1_000n, spentFromSavingsCents: 2_000n } }),
       ),
     ).toThrow("cannot exceed");
+  });
+});
+
+describe("calculateSavingsHistory", () => {
+  const base = {
+    allowanceCents: 2_500n,
+    firstEligibleLocalDate: "2026-03-07",
+    todayLocalDate: "2026-03-10",
+    startLocalDate: "2026-03-07",
+    spentBeforeStartCents: 0n,
+  };
+
+  it("reports the balance at the end of each closed day, excluding today", () => {
+    const points = calculateSavingsHistory({
+      ...base,
+      dailySpentCents: new Map([
+        ["2026-03-07", 1_000n],
+        ["2026-03-08", 4_000n],
+        ["2026-03-10", 9_999n],
+      ]),
+    });
+
+    expect(points).toEqual([
+      { localDate: "2026-03-07", balanceCents: 1_500n },
+      { localDate: "2026-03-08", balanceCents: 0n },
+      { localDate: "2026-03-09", balanceCents: 2_500n },
+    ]);
+  });
+
+  it("goes below zero when a day overspends", () => {
+    const points = calculateSavingsHistory({
+      ...base,
+      todayLocalDate: "2026-03-08",
+      dailySpentCents: new Map([["2026-03-07", 4_000n]]),
+    });
+
+    expect(points).toEqual([{ localDate: "2026-03-07", balanceCents: -1_500n }]);
+  });
+
+  it("agrees with calculateSavings for the last closed day", () => {
+    const dailySpentCents = new Map([
+      ["2026-03-07", 700n],
+      ["2026-03-09", 3_100n],
+    ]);
+    const last = calculateSavingsHistory({ ...base, dailySpentCents }).at(-1);
+    const live = calculateSavings({
+      allowanceCents: base.allowanceCents,
+      firstEligibleLocalDate: base.firstEligibleLocalDate,
+      todayLocalDate: base.todayLocalDate,
+      closedSpentCents: 3_800n,
+      today: { totalSpentCents: 0n, spentFromSavingsCents: 0n },
+    });
+
+    expect(last?.balanceCents).toBe(live.positionCents);
+  });
+
+  it("starts at savings start and carries spending from before the window", () => {
+    const points = calculateSavingsHistory({
+      ...base,
+      firstEligibleLocalDate: "2026-03-01",
+      startLocalDate: "2026-03-08",
+      spentBeforeStartCents: 10_000n,
+      dailySpentCents: new Map(),
+    });
+
+    // Mar 1-7 earned 7 x $25 = $175, minus $100 spent before the window.
+    expect(points[0]).toEqual({ localDate: "2026-03-08", balanceCents: 10_000n });
+    expect(points.map((point) => point.localDate)).toEqual(["2026-03-08", "2026-03-09"]);
+  });
+
+  it("skips window days before savings started", () => {
+    const points = calculateSavingsHistory({
+      ...base,
+      firstEligibleLocalDate: "2026-03-09",
+      startLocalDate: "2026-03-01",
+      dailySpentCents: new Map(),
+    });
+
+    expect(points).toEqual([{ localDate: "2026-03-09", balanceCents: 2_500n }]);
+  });
+
+  it("returns nothing before savings start or with no closed days", () => {
+    expect(
+      calculateSavingsHistory({
+        ...base,
+        firstEligibleLocalDate: undefined,
+        dailySpentCents: new Map(),
+      }),
+    ).toEqual([]);
+    expect(
+      calculateSavingsHistory({
+        ...base,
+        firstEligibleLocalDate: "2026-03-10",
+        dailySpentCents: new Map(),
+      }),
+    ).toEqual([]);
   });
 });

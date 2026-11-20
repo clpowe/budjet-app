@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  addLocalDays,
   countLocalDays,
   getLocalDateKey,
   getLocalDayBounds,
@@ -77,5 +78,20 @@ describe("countLocalDays", () => {
   it("is zero when the range is empty or reversed", () => {
     expect(countLocalDays("2026-03-10", "2026-03-10")).toBe(0);
     expect(countLocalDays("2026-03-11", "2026-03-10")).toBe(0);
+  });
+});
+
+describe("addLocalDays", () => {
+  it("moves across month, year and leap-day boundaries", () => {
+    expect(addLocalDays("2026-01-31", 1)).toBe("2026-02-01");
+    expect(addLocalDays("2026-12-31", 1)).toBe("2027-01-01");
+    expect(addLocalDays("2028-02-28", 1)).toBe("2028-02-29");
+    expect(addLocalDays("2026-03-01", -1)).toBe("2026-02-28");
+    expect(addLocalDays("2026-03-10", 0)).toBe("2026-03-10");
+  });
+
+  it("rejects fractional days and invalid dates", () => {
+    expect(() => addLocalDays("2026-03-10", 1.5)).toThrow("Days must be a whole number");
+    expect(() => addLocalDays("2026-02-30", 1)).toThrow("Local date is invalid");
   });
 });
