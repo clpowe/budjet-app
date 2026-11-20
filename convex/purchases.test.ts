@@ -9,6 +9,7 @@ import type { MutationCtx } from "./_generated/server";
 import schema from "./schema";
 import { getLocalDateKey } from "../shared/utils/local-date";
 import { allocateSavings } from "../shared/utils/goal-allocation";
+import { previewGoalPurchase } from "../app/utils/goal-allocations";
 
 const modules = import.meta.glob("./**/*.ts");
 
@@ -382,11 +383,14 @@ test.each([
     const goalId = buyTrip ? seeded.tripId : seeded.cameraId;
     const before = await asOwner.query(api.savings.getSummary, { now: serverNow });
     const beforeSnapshot = await readSnapshot(t, seeded.householdId);
-    const preview = await asOwner.query(api.goals.previewPurchase, {
+    // The dialog's local preview must match what the server records.
+    const preview = previewGoalPurchase(
+      before.availableSavingsCents,
+      activeGoalsInOrder(beforeSnapshot.wants),
       goalId,
       actualAmountCents,
-      now: serverNow,
-    });
+    );
+    if (!preview) throw new Error("Expected the goal to be in the active queue");
 
     const purchase = await asOwner.mutation(api.goals.purchase, {
       goalId,
@@ -411,6 +415,8 @@ test.each([
       remainingAllocations,
     );
     expect(preview.fromSavingsCents).toBe(expense?.fromSavingsCents);
+    expect(preview.fromSavingsCents).toBe(purchase.fromSavingsCents);
+    expect(preview.budgetImpactCents).toBe(purchase.budgetImpactCents);
     expect(preview.budgetImpactCents).toBe(actualAmountCents - preview.fromSavingsCents);
 
     const impacts = afterAllocations.flatMap((allocation) => {
@@ -445,11 +451,13 @@ test("recalculates funding from current server state instead of trusting a stale
   });
   const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
 
-  const preview = await asOwner.query(api.goals.previewPurchase, {
-    goalId: seeded.cameraId,
-    actualAmountCents: 12_000n,
-    now: serverNow,
-  });
+  const before = await asOwner.query(api.savings.getSummary, { now: serverNow });
+  const preview = previewGoalPurchase(
+    before.availableSavingsCents,
+    activeGoalsInOrder((await readSnapshot(t, seeded.householdId)).wants),
+    seeded.cameraId,
+    12_000n,
+  );
 
   expect(preview).toMatchObject({
     fromSavingsCents: 12_000n,

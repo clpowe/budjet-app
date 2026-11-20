@@ -36,36 +36,21 @@ function makeWant(status: WantItem["status"] = "saving"): WantItem {
   };
 }
 
-function makePreview({
-  actualAmountCents = 10_000n,
-  budgetImpactCents = 0n,
-  progressLosses = [],
-  fromSavingsCents = 10_000n,
-}: {
-  actualAmountCents?: bigint;
-  budgetImpactCents?: bigint;
-  progressLosses?: Array<{
-    goalId: Id<"goals">;
-    name: string;
-    lostCents: bigint;
-    allocatedCentsAfter: bigint;
-  }>;
-  fromSavingsCents?: bigint;
-} = {}) {
-  return {
-    actualAmountCents,
-    fromSavingsCents,
-    budgetImpactCents,
-    progressLosses,
-  };
-}
+const trip: WantItem = {
+  ...makeWant(),
+  _id: "want-trip" as Id<"goals">,
+  name: "Trip",
+  estimatedCostCents: 5_000n,
+  order: 1,
+};
 
 function mountDialog(
   extraProps: {
+    activeGoals?: WantItem[];
+    availableSavingsCents?: bigint;
     error?: string;
     isSubmitting?: boolean;
-    preview?: ReturnType<typeof makePreview> | null;
-    previewPending?: boolean;
+    mode?: "purchase" | "correct";
   } = {},
 ) {
   return mount(PurchaseDialog, {
@@ -74,7 +59,8 @@ function mountDialog(
       item: makeWant(),
       mode: "purchase",
       purchaseLocalDate: "2026-08-19",
-      preview: makePreview(),
+      activeGoals: [makeWant(), trip],
+      availableSavingsCents: 10_000n,
       ...extraProps,
     },
     attachTo: document.body,
@@ -85,42 +71,36 @@ describe("WantsPurchaseDialog", () => {
   it.each([
     {
       name: "fully funded",
-      preview: makePreview(),
+      availableSavingsCents: 15_000n,
       expected: ["Actual amount$100.00", "Paid from savings$100.00", "General-budget impact$0.00"],
     },
     {
       name: "partially funded",
-      preview: makePreview({
-        actualAmountCents: 12_000n,
-        fromSavingsCents: 10_000n,
-        budgetImpactCents: 2_000n,
-      }),
-      expected: ["Actual amount$120.00", "Paid from savings$100.00", "General-budget impact$20.00"],
+      availableSavingsCents: 8_000n,
+      expected: ["Actual amount$100.00", "Paid from savings$80.00", "General-budget impact$20.00"],
     },
-  ])("discloses a $name purchase breakdown", ({ preview, expected }) => {
-    const wrapper = mountDialog({ preview });
+    {
+      name: "unfunded",
+      availableSavingsCents: -500n,
+      expected: ["Actual amount$100.00", "Paid from savings$0.00", "General-budget impact$100.00"],
+    },
+  ])("computes a $name purchase breakdown locally", ({ availableSavingsCents, expected }) => {
+    const wrapper = mountDialog({ availableSavingsCents });
     const breakdown = wrapper.get('[data-test="purchase-breakdown"]');
 
     expected.forEach((copy) => expect(breakdown.text()).toContain(copy));
+    expect(wrapper.text()).not.toContain("Refreshing purchase breakdown");
 
     wrapper.unmount();
   });
 
-  it("shows affected Wants and their remaining progress", () => {
-    const wrapper = mountDialog({
-      preview: makePreview({
-        actualAmountCents: 12_000n,
-        fromSavingsCents: 12_000n,
-        progressLosses: [
-          {
-            goalId: "want-trip" as Id<"goals">,
-            name: "Trip",
-            lostCents: 2_000n,
-            allocatedCentsAfter: 3_000n,
-          },
-        ],
-      }),
-    });
+  it("shows affected Wants and their remaining progress", async () => {
+    // $150 saved: Camera holds $100, Trip holds $50. Paying $120 leaves $30 for Trip.
+    const wrapper = mountDialog({ availableSavingsCents: 15_000n });
+
+    expect(wrapper.find('[data-test="progress-losses"]').exists()).toBe(false);
+
+    await wrapper.get<HTMLInputElement>('input[name="actualAmount"]').setValue("120.00");
 
     const impact = wrapper.get('[data-test="progress-losses"]');
 
@@ -132,17 +112,17 @@ describe("WantsPurchaseDialog", () => {
     wrapper.unmount();
   });
 
-  it("requests a fresh preview when the amount changes and submits no preview authority", async () => {
+  it("updates the breakdown as the amount changes and submits only the amount and date", async () => {
     const wrapper = mountDialog();
     const input = wrapper.get<HTMLInputElement>('input[name="actualAmount"]');
 
     await input.setValue("120.00");
 
-    expect(wrapper.emitted("request-preview")?.at(-1)?.[0]).toEqual({
-      goalId: "want-camera",
-      actualAmountCents: 12_000n,
-    });
-    expect(wrapper.find('[data-test="purchase-breakdown"]').exists()).toBe(false);
+    const breakdown = wrapper.get('[data-test="purchase-breakdown"]');
+    expect(breakdown.text()).toContain("Actual amount$120.00");
+    expect(breakdown.text()).toContain("Paid from savings$100.00");
+    expect(breakdown.text()).toContain("General-budget impact$20.00");
+    expect(wrapper.emitted("request-preview")).toBeUndefined();
 
     await wrapper.get("form").trigger("submit");
 
@@ -155,16 +135,36 @@ describe("WantsPurchaseDialog", () => {
     wrapper.unmount();
   });
 
-  it("announces preview, mutation-pending, and mutation-error states", () => {
-    const previewPending = mountDialog({
-      preview: null,
-      previewPending: true,
-    });
+  it("hides the breakdown for an invalid amount", async () => {
+    const wrapper = mountDialog();
 
-    expect(previewPending.get('[role="status"]').text()).toContain("Refreshing purchase breakdown");
-    expect(previewPending.get('button[type="submit"]').attributes("disabled")).toBeDefined();
-    previewPending.unmount();
+    await wrapper.get<HTMLInputElement>('input[name="actualAmount"]').setValue("abc");
 
+    expect(wrapper.find('[data-test="purchase-breakdown"]').exists()).toBe(false);
+    expect(wrapper.get('button[type="submit"]').attributes("disabled")).toBeDefined();
+
+    wrapper.unmount();
+  });
+
+  it("hides the breakdown when the goal has left the active queue", () => {
+    const wrapper = mountDialog({ activeGoals: [trip] });
+
+    expect(wrapper.find('[data-test="purchase-breakdown"]').exists()).toBe(false);
+    expect(wrapper.find('[data-test="progress-losses"]').exists()).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it("shows no breakdown when correcting a purchase", () => {
+    const wrapper = mountDialog({ mode: "correct" });
+
+    expect(wrapper.find('[data-test="purchase-breakdown"]').exists()).toBe(false);
+    expect(wrapper.get("h2").text()).toBe("Correct Camera purchase");
+
+    wrapper.unmount();
+  });
+
+  it("announces mutation-pending and mutation-error states", () => {
     const submitting = mountDialog({
       error: "Could not complete this purchase. Try again.",
       isSubmitting: true,

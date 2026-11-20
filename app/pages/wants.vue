@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FunctionArgs, FunctionReturnType } from "convex/server";
+import type { FunctionArgs } from "convex/server";
 import { computed, nextTick, ref, shallowRef, watch } from "vue";
 import { api } from "@generated/api";
 import type { Doc, Id } from "@generated/dataModel";
@@ -25,9 +25,6 @@ type WantSubmitValues = {
   notes: string;
 };
 
-type PurchasePreview = FunctionReturnType<typeof api.goals.previewPurchase> & {
-  actualAmountCents: bigint;
-};
 type PurchaseDialogMode = "purchase" | "correct";
 
 const {
@@ -39,7 +36,6 @@ const {
   updateItem,
   changeStatus,
   reorder,
-  previewPurchase,
   purchase,
   correctPurchase,
   undoPurchase,
@@ -58,14 +54,11 @@ const pageNotice = ref("");
 const boughtError = ref("");
 const purchaseItem = ref<WantItem | null>(null);
 const purchaseMode = ref<PurchaseDialogMode>("purchase");
-const purchasePreview = ref<PurchasePreview | null>(null);
-const isPreviewPending = ref(false);
 const isSubmittingPurchase = ref(false);
 const purchaseError = ref("");
 const undoPendingItemId = ref<Id<"goals"> | undefined>();
 const purchaseTrigger = shallowRef<HTMLElement | null>(null);
 const formDialog = shallowRef<HTMLDialogElement | null>(null);
-let latestPreviewRequest = 0;
 
 function emptyFormModel(): WantFormModel {
   return {
@@ -137,7 +130,6 @@ function openPurchase(item: WantItem, mode: PurchaseDialogMode = "purchase") {
   pageError.value = "";
   pageNotice.value = "";
   purchaseError.value = "";
-  purchasePreview.value = null;
   purchaseMode.value = mode;
   purchaseItem.value = item;
 }
@@ -145,9 +137,6 @@ function openPurchase(item: WantItem, mode: PurchaseDialogMode = "purchase") {
 function closePurchaseDialog(force = false) {
   if (isSubmittingPurchase.value && !force) return;
 
-  latestPreviewRequest += 1;
-  isPreviewPending.value = false;
-  purchasePreview.value = null;
   purchaseError.value = "";
   purchaseItem.value = null;
 
@@ -155,40 +144,6 @@ function closePurchaseDialog(force = false) {
     purchaseTrigger.value?.focus();
     purchaseTrigger.value = null;
   });
-}
-
-async function requestPurchasePreview(value: { goalId: Id<"goals">; actualAmountCents: bigint }) {
-  if (
-    purchaseMode.value !== "purchase" ||
-    !purchaseItem.value ||
-    purchaseItem.value._id !== value.goalId
-  ) {
-    return;
-  }
-
-  const requestId = ++latestPreviewRequest;
-  isPreviewPending.value = true;
-  purchaseError.value = "";
-
-  try {
-    const result = await previewPurchase(value);
-
-    if (requestId !== latestPreviewRequest) return;
-
-    if (!result.success) {
-      purchaseError.value = result.error;
-      return;
-    }
-
-    purchasePreview.value = {
-      actualAmountCents: value.actualAmountCents,
-      ...result.data,
-    };
-  } finally {
-    if (requestId === latestPreviewRequest) {
-      isPreviewPending.value = false;
-    }
-  }
 }
 
 async function submitPurchase(
@@ -520,11 +475,10 @@ async function saveOrder(order: FunctionArgs<typeof api.goals.reorder>) {
       :item="purchaseItem"
       :mode="purchaseMode"
       :purchase-local-date="localDate"
-      :preview="purchasePreview"
-      :preview-pending="isPreviewPending"
       :is-submitting="isSubmittingPurchase"
       :error="purchaseError"
-      @request-preview="requestPurchasePreview"
+      :active-goals="sections.active"
+      :available-savings-cents="summary?.availableSavingsCents ?? 0n"
       @submit="submitPurchase"
       @close="closePurchaseDialog"
     />

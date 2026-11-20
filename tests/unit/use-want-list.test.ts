@@ -70,7 +70,7 @@ function mutationFor(endpoint: FunctionReference<"mutation">) {
   return mutate;
 }
 
-const previewQueryMock = vi.fn();
+const clientQueryMock = vi.fn();
 const subscribeMock = vi.fn();
 
 describe("useWantList", () => {
@@ -78,7 +78,7 @@ describe("useWantList", () => {
     vi.resetAllMocks();
     summaryPending.value = false;
     vi.stubGlobal("useState", () => nowRef);
-    vi.stubGlobal("useConvexClient", () => ({ query: previewQueryMock, onUpdate: subscribeMock }));
+    vi.stubGlobal("useConvexClient", () => ({ query: clientQueryMock, onUpdate: subscribeMock }));
     vi.stubGlobal("useConvexMutation", (endpoint: FunctionReference<"mutation">) => ({
       mutate: mutationFor(endpoint),
     }));
@@ -197,7 +197,6 @@ describe("useWantList", () => {
       wants.updateItem(updateArgs),
       wants.changeStatus({ goalId, status: "on_hold" }),
       wants.reorder({ goalIds: [goalId], expectedGoalIds: [goalId] }),
-      wants.previewPurchase({ goalId, actualAmountCents: 10_000n }),
       wants.purchase({
         goalId,
         actualAmountCents: 10_000n,
@@ -217,11 +216,8 @@ describe("useWantList", () => {
       goalIds: [goalId],
       expectedGoalIds: [goalId],
     });
-    expect(previewQueryMock).toHaveBeenCalledWith(api.goals.previewPurchase, {
-      goalId,
-      actualAmountCents: 10_000n,
-      now: nowRef.value,
-    });
+    expect(wants).not.toHaveProperty("previewPurchase");
+    expect(clientQueryMock).not.toHaveBeenCalled();
     expect(mutationFor(api.goals.purchase)).toHaveBeenCalledWith({
       goalId,
       actualAmountCents: 10_000n,

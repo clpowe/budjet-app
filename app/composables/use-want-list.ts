@@ -7,7 +7,6 @@ type CreateItemArgs = FunctionArgs<typeof api.goals.create>;
 type UpdateItemArgs = FunctionArgs<typeof api.goals.update>;
 type ChangeStatusArgs = FunctionArgs<typeof api.goals.changeStatus>;
 type ReorderArgs = FunctionArgs<typeof api.goals.reorder>;
-type PreviewPurchaseArgs = Omit<FunctionArgs<typeof api.goals.previewPurchase>, "now">;
 type PurchaseArgs = FunctionArgs<typeof api.goals.purchase>;
 type CorrectPurchaseArgs = FunctionArgs<typeof api.goals.correctPurchase>;
 type UndoPurchaseArgs = FunctionArgs<typeof api.goals.undoPurchase>;
@@ -132,17 +131,6 @@ export function useWantList() {
     return runAction(() => reorderMutation(args), "Could not reorder the Wants list. Try again.");
   }
 
-  function previewPurchase(args: PreviewPurchaseArgs) {
-    return runAction(
-      () =>
-        convex.query(api.goals.previewPurchase, {
-          ...args,
-          now: now.value,
-        }),
-      "Could not preview this purchase. Try again.",
-    );
-  }
-
   function purchase(args: PurchaseArgs) {
     return runAction(() => purchaseMutation(args), "Could not complete this purchase. Try again.");
   }
@@ -167,7 +155,6 @@ export function useWantList() {
     updateItem,
     changeStatus,
     reorder,
-    previewPurchase,
     purchase,
     correctPurchase,
     undoPurchase,

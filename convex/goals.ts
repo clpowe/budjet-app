@@ -6,7 +6,6 @@ import type { MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import {
   appendActiveGoal,
-  loadActiveGoalQueue,
   MAX_ACTIVE_GOALS,
   removeActiveGoal,
   reorderActiveGoals,
@@ -16,11 +15,9 @@ import { requireHouseholdDoc, requireHouseholdMember } from "./lib/household_acc
 import {
   activateSavings,
   correctPurchase as correctSavingsFundedPurchase,
-  getSavingsSnapshot,
   recordPurchase,
   undoPurchase as undoSavingsFundedPurchase,
 } from "./lib/savings_account";
-import { previewPurchase as previewGoalPurchase } from "../shared/utils/goal-allocation";
 
 export const INACTIVE_GOALS_PAGE_SIZE = 25;
 
@@ -43,19 +40,6 @@ const goalValidator = schema.tables.goals.validator.extend({
 const changeStatusResultValidator = v.object({
   kind: v.literal("updated"),
   item: goalValidator,
-});
-
-const progressLossValidator = v.object({
-  goalId: v.id("goals"),
-  name: v.string(),
-  lostCents: v.int64(),
-  allocatedCentsAfter: v.int64(),
-});
-
-const previewPurchaseResultValidator = v.object({
-  fromSavingsCents: v.int64(),
-  budgetImpactCents: v.int64(),
-  progressLosses: v.array(progressLossValidator),
 });
 
 const purchaseResultValidator = v.object({
@@ -362,63 +346,6 @@ export const reorder = mutation({
     });
 
     return { success };
-  },
-});
-
-export const previewPurchase = query({
-  args: {
-    goalId: v.id("goals"),
-    actualAmountCents: v.int64(),
-    now: v.number(),
-  },
-  returns: previewPurchaseResultValidator,
-  handler: async (ctx, args) => {
-    assertPositiveCents(args.actualAmountCents, "Actual amount");
-
-    if (!Number.isFinite(args.now)) {
-      throw new Error("Preview time must be finite");
-    }
-
-    const { household } = await requireHouseholdMember(ctx);
-
-    const goal = await requireHouseholdDoc(
-      ctx,
-      "goals",
-      args.goalId,
-      household._id,
-      "Want item not found",
-    );
-
-    if (goal.status !== "saving") {
-      throw new Error("Only planned Want items can be purchased");
-    }
-
-    const savingsSnapshot = await getSavingsSnapshot(ctx, household, args.now);
-    const activeItems = await loadActiveGoalQueue(ctx, household._id);
-    const isInActiveQueue = activeItems.some((activeItem) => activeItem._id === goal._id);
-
-    if (!isInActiveQueue) {
-      throw new Error("Want item is not in the active queue");
-    }
-
-    const { funding, losses } = previewGoalPurchase(
-      savingsSnapshot.availableCents,
-      activeItems,
-      goal._id,
-      args.actualAmountCents,
-    );
-    const progressLosses = losses.map(({ goal: affectedGoal, lostCents, allocatedCentsAfter }) => ({
-      goalId: affectedGoal._id,
-      name: affectedGoal.name,
-      lostCents,
-      allocatedCentsAfter,
-    }));
-
-    return {
-      fromSavingsCents: funding.fromSavingsCents,
-      budgetImpactCents: funding.fromDailyBudgetCents,
-      progressLosses,
-    };
   },
 });
 

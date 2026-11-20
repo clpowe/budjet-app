@@ -1,20 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useId, watch } from "vue";
 import type { Doc, Id } from "@generated/dataModel";
+import { previewGoalPurchase } from "../../utils/goal-allocations";
 
 type WantItem = Doc<"goals">;
-
-type PurchasePreview = {
-  actualAmountCents: bigint;
-  fromSavingsCents: bigint;
-  budgetImpactCents: bigint;
-  progressLosses: Array<{
-    goalId: Id<"goals">;
-    name: string;
-    lostCents: bigint;
-    allocatedCentsAfter: bigint;
-  }>;
-};
 
 const props = withDefaults(
   defineProps<{
@@ -22,28 +11,21 @@ const props = withDefaults(
     item: WantItem;
     mode?: "purchase" | "correct";
     purchaseLocalDate: string;
-    preview?: PurchasePreview | null;
-    previewPending?: boolean;
+    activeGoals?: readonly WantItem[];
+    availableSavingsCents?: bigint;
     isSubmitting?: boolean;
     error?: string;
   }>(),
   {
     mode: "purchase",
-    preview: null,
-    previewPending: false,
+    activeGoals: () => [],
+    availableSavingsCents: 0n,
     isSubmitting: false,
     error: "",
   },
 );
 
 const emit = defineEmits<{
-  (
-    event: "request-preview",
-    value: {
-      goalId: Id<"goals">;
-      actualAmountCents: bigint;
-    },
-  ): void;
   (
     event: "submit",
     value:
@@ -97,16 +79,15 @@ const amountError = computed(() => {
   }
 });
 
-const matchingPreview = computed(() => {
-  if (
-    !props.preview ||
-    parsedAmount.value === null ||
-    props.preview.actualAmountCents !== parsedAmount.value
-  ) {
-    return null;
-  }
+const preview = computed(() => {
+  if (props.mode !== "purchase" || parsedAmount.value === null) return null;
 
-  return props.preview;
+  return previewGoalPurchase(
+    props.availableSavingsCents,
+    props.activeGoals,
+    props.item._id,
+    parsedAmount.value,
+  );
 });
 
 const title = computed(() => {
@@ -124,27 +105,12 @@ const submitLabel = computed(() => {
 });
 
 function resetForm() {
-  actualAmount.value = centsToInput(
-    props.preview?.actualAmountCents ?? props.item.estimatedCostCents,
-  );
+  actualAmount.value = centsToInput(props.item.estimatedCostCents);
   purchaseDate.value = props.purchaseLocalDate;
-}
-
-function requestPreview() {
-  if (props.mode !== "purchase" || parsedAmount.value === null) {
-    return;
-  }
-
-  emit("request-preview", {
-    goalId: props.item._id,
-    actualAmountCents: parsedAmount.value,
-  });
 }
 
 function onAmountInput(event: Event) {
   actualAmount.value = (event.target as HTMLInputElement).value;
-
-  requestPreview();
 }
 
 async function syncDialog(open: boolean) {
@@ -181,7 +147,6 @@ watch(
   (open) => {
     if (open) {
       resetForm();
-      requestPreview();
     }
 
     void syncDialog(open);
@@ -195,12 +160,11 @@ watch(
     if (!props.open) return;
 
     resetForm();
-    requestPreview();
   },
 );
 
 function submit() {
-  if (parsedAmount.value === null || props.previewPending || props.isSubmitting) {
+  if (parsedAmount.value === null || props.isSubmitting) {
     return;
   }
 
@@ -271,44 +235,38 @@ function submit() {
           />
         </label>
 
-        <p v-if="previewPending" role="status" aria-live="polite">Refreshing purchase breakdown…</p>
-
-        <dl
-          class="l-grid"
-          v-if="mode === 'purchase' && matchingPreview"
-          data-test="purchase-breakdown"
-        >
+        <dl class="l-grid" v-if="mode === 'purchase' && preview" data-test="purchase-breakdown">
           <div>
             <dt>Actual amount</dt>
             <dd>
-              {{ formatCents(matchingPreview.actualAmountCents) }}
+              {{ formatCents(preview.actualAmountCents) }}
             </dd>
           </div>
 
           <div>
             <dt>Paid from savings</dt>
             <dd>
-              {{ formatCents(matchingPreview.fromSavingsCents) }}
+              {{ formatCents(preview.fromSavingsCents) }}
             </dd>
           </div>
 
           <div>
             <dt>General-budget impact</dt>
             <dd>
-              {{ formatCents(matchingPreview.budgetImpactCents) }}
+              {{ formatCents(preview.budgetImpactCents) }}
             </dd>
           </div>
         </dl>
 
         <section
-          v-if="matchingPreview && matchingPreview.progressLosses.length > 0"
+          v-if="preview && preview.progressLosses.length > 0"
           data-test="progress-losses"
           aria-labelledby="progress-losses-heading"
         >
           <h3 id="progress-losses-heading">Progress affected on other Wants</h3>
 
           <ul>
-            <li v-for="loss in matchingPreview.progressLosses" :key="loss.goalId">
+            <li v-for="loss in preview.progressLosses" :key="loss.goalId">
               <strong>{{ loss.name }}</strong>
               <span>
                 {{ formatCents(loss.lostCents) }} progress used ·
@@ -328,10 +286,7 @@ function submit() {
           <button
             type="submit"
             :disabled="
-              Boolean(amountError) ||
-              previewPending ||
-              isSubmitting ||
-              (mode === 'purchase' && !purchaseDate)
+              Boolean(amountError) || isSubmitting || (mode === 'purchase' && !purchaseDate)
             "
             :aria-busy="isSubmitting ? 'true' : undefined"
           >
