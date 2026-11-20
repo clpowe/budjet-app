@@ -152,8 +152,8 @@ Update `GLOSSARY.md` and accessible names in the same change.
 - [x] P2 Convex cutover (P2a-d done; fresh dev deployment wipe still to do)
 - [x] P3 frontend wiring
 - [x] P4 naming pass
-- [ ] P5 chart
-- [ ] P6 Temporal
+- [x] P5 chart
+- [x] P6 Temporal
 - [ ] P7 prod reset
 
 _2026-11-18: plan written; awaiting D1–D4._
@@ -179,3 +179,5 @@ _P4b-d done (3 commits, all non-debt tests green): windfall UI -> income (`/inco
 _P4a done: debts can be created (`debts/add.vue` -> `api.debts.createDebt`, rendered on `/mydebts`); depts -> debts everywhere; "Total debt payments". P4 complete._
 
 _P5 done (286 tests green): pure `calculateSavingsHistory` in `shared/utils/savings.ts` calls `calculateSavings` per closed day; `savings.getHistory({ now, days })` (1-366 days, reads `dailyBudgetTotals` in the window plus one sum before it). Goals page shows `GoalsSavingsChart`: "Savings balance at day end" for the last 90 closed days, zero line, latest balance as text, "Available now" beside it. Today is excluded (it has not closed). Uses the current allowance for every past day (accepted risk). Not checked visually in a browser._
+
+_P6 done (292 tests green): `temporal-polyfill@1.0.8` re-exported from `shared/utils/temporal.ts`; `shared/utils/local-date.ts` rewritten on Temporal (same exports and error messages, plus `addLocalDays`, `addMonthsInTimeZone`, `formatLocalDate`); `@formkit/tempo` removed (use-date, today, monthly, chat panel, local-date). Day bounds use `PlainDate.toZonedDateTime({ timeZone })` (start of day, DST-safe). Convex runtime check: `convex codegen` bundles and evaluates the modules with the polyfill on the dev deployment (ok). A full `convex dev --once` push is blocked by old-schema dev data (expense with float `amount`) until the dev deployment is wiped (P2 follow-up)._

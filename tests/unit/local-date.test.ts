@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
   addLocalDays,
+  addMonthsInTimeZone,
+  formatLocalDate,
   countLocalDays,
   getLocalDateKey,
   getLocalDayBounds,
@@ -93,5 +95,48 @@ describe("addLocalDays", () => {
   it("rejects fractional days and invalid dates", () => {
     expect(() => addLocalDays("2026-03-10", 1.5)).toThrow("Days must be a whole number");
     expect(() => addLocalDays("2026-02-30", 1)).toThrow("Local date is invalid");
+  });
+});
+
+describe("addMonthsInTimeZone", () => {
+  it("keeps the household wall-clock time and clamps to the month's last day", () => {
+    // Jan 31, 9:00 pm in New York is Feb 1 in UTC.
+    const jan31Evening = Date.UTC(2026, 1, 1, 2);
+
+    expect(addMonthsInTimeZone(jan31Evening, 1, timeZone)).toBe(Date.UTC(2026, 2, 1, 2));
+    expect(getLocalDateKey(addMonthsInTimeZone(jan31Evening, 1, timeZone), timeZone)).toBe(
+      "2026-02-28",
+    );
+    expect(getLocalDateKey(addMonthsInTimeZone(jan31Evening, -1, timeZone), timeZone)).toBe(
+      "2025-12-31",
+    );
+  });
+
+  it("crosses a DST change without shifting the local time", () => {
+    const feb15Noon = Date.UTC(2026, 1, 15, 17);
+
+    expect(addMonthsInTimeZone(feb15Noon, 1, timeZone)).toBe(Date.UTC(2026, 2, 15, 16));
+  });
+});
+
+describe("formatLocalDate", () => {
+  it("formats the calendar date without shifting it by a time zone", () => {
+    expect(formatLocalDate("2026-03-08", { month: "short", day: "numeric", year: "numeric" })).toBe(
+      "Mar 8, 2026",
+    );
+    expect(
+      formatLocalDate("2026-11-20", {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+    ).toBe("Friday, Nov 20, 2026");
+  });
+
+  it("rejects invalid dates", () => {
+    expect(() => formatLocalDate("2026-02-30", { month: "short" })).toThrow(
+      "Local date is invalid",
+    );
   });
 });

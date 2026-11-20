@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { api } from "../../convex/_generated/api";
-import { format } from "@formkit/tempo";
+import { formatLocalDate, getLocalDateKey } from "../../shared/utils/local-date";
 import type { FunctionReturnType } from "convex/server";
 import { formatCents } from "../../shared/utils/money-cents";
 
@@ -29,10 +29,11 @@ const sortedDateKeys = computed(() => {
 });
 
 const formatDate = (dateKey: string) => {
-  return format({
-    date: new Date(dateKey + "T00:00:00Z"),
-    format: "dddd, MMM D, YYYY",
-    tz: "UTC",
+  return formatLocalDate(dateKey, {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 };
 
@@ -47,10 +48,9 @@ const calculateDayTotal = (dateKey: string) => {
 };
 
 const currentMonthYear = computed(() => {
-  return format({
-    date: new Date(currentDate.value),
-    format: "MMMM YYYY",
-    tz: timeZone.value,
+  return formatLocalDate(getLocalDateKey(currentDate.value.getTime(), timeZone.value), {
+    month: "long",
+    year: "numeric",
   });
 });
 </script>

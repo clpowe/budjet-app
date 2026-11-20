@@ -44,4 +44,26 @@ describe("useDate", () => {
     });
     expect(date.toTransactionTimestamp("2026-03-08")).toBe(Date.UTC(2026, 2, 8, 5));
   });
+
+  it("labels the household-local date and month", () => {
+    const date = useDate();
+
+    // 06:30 UTC on Mar 8 is still Mar 8 in New York (01:30).
+    expect(date.displayDate.value).toBe("Mar 8, 2026");
+    expect(date.currentMonth.value).toBe("March");
+    expect(date.totalDaysInMonth.value).toBe(31);
+    expect(date.remainingDaysInMonth.value).toBe(24);
+  });
+
+  it("moves by whole months in the household time zone", () => {
+    currentDate.value = new Date(Date.UTC(2026, 0, 31, 17));
+    const date = useDate();
+
+    date.goToNextMonth();
+    expect(date.localDate.value).toBe("2026-02-28");
+    expect(date.totalDaysInMonth.value).toBe(28);
+
+    date.goToPreviousMonth();
+    expect(date.localDate.value).toBe("2026-01-28");
+  });
 });

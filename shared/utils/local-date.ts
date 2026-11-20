@@ -1,4 +1,4 @@
-import { format, tzDate } from "@formkit/tempo";
+import { Temporal } from "./temporal";
 
 export const LOCAL_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -10,20 +10,16 @@ function assertValidTimeZone(timeZone: string): void {
   }
 }
 
-function parseLocalDate(localDate: string): Date {
-  const match = LOCAL_DATE_PATTERN.exec(localDate);
-
-  if (!match) {
+function parseLocalDate(localDate: string): Temporal.PlainDate {
+  if (!LOCAL_DATE_PATTERN.test(localDate)) {
     throw new Error("Local date must use YYYY-MM-DD format");
   }
 
-  const date = new Date(`${localDate}T00:00:00.000Z`);
-
-  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== localDate) {
+  try {
+    return Temporal.PlainDate.from(localDate, { overflow: "reject" });
+  } catch {
     throw new Error("Local date is invalid");
   }
-
-  return date;
 }
 
 export function getLocalDateKey(timestamp: number, timeZone: string): string {
@@ -33,33 +29,36 @@ export function getLocalDateKey(timestamp: number, timeZone: string): string {
 
   assertValidTimeZone(timeZone);
 
-  return format({
-    date: new Date(timestamp),
-    format: "YYYY-MM-DD",
-    tz: timeZone,
-  });
+  return Temporal.Instant.fromEpochMilliseconds(timestamp)
+    .toZonedDateTimeISO(timeZone)
+    .toPlainDate()
+    .toString();
 }
 
 export function getNextLocalDate(localDate: string, timeZone: string): string {
   assertValidTimeZone(timeZone);
 
-  const date = parseLocalDate(localDate);
-  date.setUTCDate(date.getUTCDate() + 1);
-
-  return date.toISOString().slice(0, 10);
+  return parseLocalDate(localDate).add({ days: 1 }).toString();
 }
 
 export function getNextMonthStart(localDate: string): string {
-  const date = parseLocalDate(localDate);
-  date.setUTCMonth(date.getUTCMonth() + 1, 1);
-  return date.toISOString().slice(0, 10);
+  return parseLocalDate(localDate).with({ day: 1 }).add({ months: 1 }).toString();
+}
+
+/** Calendar arithmetic on `YYYY-MM-DD`; time zones do not apply. */
+export function addLocalDays(localDate: string, days: number): string {
+  if (!Number.isInteger(days)) {
+    throw new Error("Days must be a whole number");
+  }
+
+  return parseLocalDate(localDate).add({ days }).toString();
 }
 
 /** Whole calendar days from `startInclusive` to `endExclusive`; 0 when the range is empty or reversed. */
 export function countLocalDays(startInclusive: string, endExclusive: string): number {
-  const days =
-    (parseLocalDate(endExclusive).getTime() - parseLocalDate(startInclusive).getTime()) /
-    86_400_000;
+  const days = parseLocalDate(startInclusive).until(parseLocalDate(endExclusive), {
+    largestUnit: "days",
+  }).days;
 
   return days > 0 ? days : 0;
 }
@@ -85,29 +84,36 @@ export function getLocalMonthPeriod(asOfTimestamp: number, timeZone: string): Lo
   };
 }
 
+/** Start of the local day and start of the next one; DST days are 23 or 25 hours long. */
 export function getLocalDayBounds(
   localDate: string,
   timeZone: string,
 ): { startTimestamp: number; endExclusiveTimestamp: number } {
   assertValidTimeZone(timeZone);
 
-  const startLocalDate = parseLocalDate(localDate).toISOString().slice(0, 10);
-  const endLocalDate = getNextLocalDate(startLocalDate, timeZone);
+  const day = parseLocalDate(localDate);
 
   return {
-    startTimestamp: tzDate(`${startLocalDate}T00:00:00`, timeZone).getTime(),
-    endExclusiveTimestamp: tzDate(`${endLocalDate}T00:00:00`, timeZone).getTime(),
+    startTimestamp: day.toZonedDateTime({ timeZone }).epochMilliseconds,
+    endExclusiveTimestamp: day.add({ days: 1 }).toZonedDateTime({ timeZone }).epochMilliseconds,
   };
 }
 
-/** Calendar arithmetic on `YYYY-MM-DD`; time zones do not apply. */
-export function addLocalDays(localDate: string, days: number): string {
-  if (!Number.isInteger(days)) {
-    throw new Error("Days must be a whole number");
-  }
+/** Moves a moment by whole months in `timeZone`, keeping the wall-clock time; clamps the day. */
+export function addMonthsInTimeZone(timestamp: number, months: number, timeZone: string): number {
+  assertValidTimeZone(timeZone);
 
-  const date = parseLocalDate(localDate);
-  date.setUTCDate(date.getUTCDate() + days);
+  return Temporal.Instant.fromEpochMilliseconds(timestamp)
+    .toZonedDateTimeISO(timeZone)
+    .add({ months })
+    .toInstant().epochMilliseconds;
+}
 
-  return date.toISOString().slice(0, 10);
+/** Formats a `YYYY-MM-DD` date as a calendar date, independent of any time zone. */
+export function formatLocalDate(localDate: string, options: Intl.DateTimeFormatOptions): string {
+  parseLocalDate(localDate);
+
+  return new Intl.DateTimeFormat("en-US", { ...options, timeZone: "UTC" }).format(
+    new Date(`${localDate}T00:00:00Z`),
+  );
 }

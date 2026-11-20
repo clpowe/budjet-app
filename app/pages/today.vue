@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { dayStart } from "@formkit/tempo";
+import { getLocalDateKey } from "../../shared/utils/local-date";
 
-const { currentDate, goToPreviousDay, goToNextDay, displayDate } = useDate();
+const { currentDate, localDate, timeZone, goToPreviousDay, goToNextDay, displayDate } = useDate();
+
+const isToday = computed(() => localDate.value >= getLocalDateKey(Date.now(), timeZone.value));
 
 onMounted(() => {
   currentDate.value = new Date();
@@ -30,13 +32,7 @@ function openTransactionDialog() {
     <header class="l-cluster l-split">
       <button type="button" @click="goToPreviousDay">Previous day</button>
       <h1>{{ displayDate }}</h1>
-      <button
-        type="button"
-        @click="goToNextDay"
-        :disabled="dayStart(currentDate).getTime() >= dayStart(new Date()).getTime()"
-      >
-        Next day
-      </button>
+      <button type="button" @click="goToNextDay" :disabled="isToday">Next day</button>
     </header>
     <app-main-card
       title="Budget Overview"

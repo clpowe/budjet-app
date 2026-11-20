@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { format } from "@formkit/tempo";
-
 export type ChatPanelMessage = {
   _id: string;
   _creationTime: number;
@@ -30,8 +28,15 @@ const errorId = `${id}-error`;
 const bodyError = computed(() => getChatBodyError(draft.value.trim()));
 const canSend = computed(() => !props.sending && bodyError.value === null);
 
+const messageTimeFormat = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
 function formatMessageTime(timestamp: number) {
-  return format({ date: new Date(timestamp), format: "MMM D, h:mm A" });
+  return messageTimeFormat.format(new Date(timestamp));
 }
 
 function submit() {

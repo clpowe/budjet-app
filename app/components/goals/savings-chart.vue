@@ -6,6 +6,7 @@ import { scaleLinear } from "@tanstack/charts/scales/linear";
 import { tooltip } from "@tanstack/charts/tooltip";
 import { Chart } from "@tanstack/charts/vue";
 import { computed } from "vue";
+import { formatLocalDate } from "../../../shared/utils/local-date";
 import type { SavingsHistoryPoint } from "../../../shared/utils/savings";
 
 const props = defineProps<{
@@ -16,26 +17,21 @@ const props = defineProps<{
 
 type Row = { index: number; localDate: string; label: string; balance: number };
 
-const dateLabel = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   maximumFractionDigits: 0,
 });
 
-function formatLocalDate(localDate: string): string {
-  return dateLabel.format(new Date(`${localDate}T00:00:00Z`));
+function formatDay(localDate: string): string {
+  return formatLocalDate(localDate, { month: "short", day: "numeric" });
 }
 
 const rows = computed<Row[]>(() =>
   props.points.map((point, index) => ({
     index,
     localDate: point.localDate,
-    label: formatLocalDate(point.localDate),
+    label: formatDay(point.localDate),
     balance: Number(point.balanceCents) / 100,
   })),
 );
@@ -168,7 +164,7 @@ const definition = computed(() => {
 
     <template v-else>
       <p data-test="savings-chart-latest">
-        {{ formatLocalDate(latest!.localDate) }}: {{ formatCents(latest!.balanceCents) }}
+        {{ formatDay(latest!.localDate) }}: {{ formatCents(latest!.balanceCents) }}
       </p>
 
       <div class="chart">
