@@ -11,7 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as budget from "../budget.js";
 import type * as chat from "../chat.js";
-import type * as depts from "../depts.js";
+import type * as debts from "../debts.js";
 import type * as expenses from "../expenses.js";
 import type * as goals from "../goals.js";
 import type * as households from "../households.js";
@@ -37,7 +37,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   budget: typeof budget;
   chat: typeof chat;
-  depts: typeof depts;
+  debts: typeof debts;
   expenses: typeof expenses;
   goals: typeof goals;
   households: typeof households;

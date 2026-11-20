@@ -3,7 +3,7 @@ import type { Doc } from "../../../convex/_generated/dataModel";
 import { legacyDollarsToCents } from "../../../shared/utils/money-cents";
 
 const props = defineProps<{
-  depts: Doc<"debts">;
+  debt: Doc<"debts">;
 }>();
 
 const emit = defineEmits<(e: "updated", id: Doc<"debts">["_id"]) => void>();
@@ -13,7 +13,7 @@ const makeFormState = (debt: Doc<"debts">) => ({
   amount: Number(debt.paymentCents) / 100,
 });
 
-const formState = ref(makeFormState(props.depts));
+const formState = ref(makeFormState(props.debt));
 const isSaving = ref(false);
 const { update } = useDebts();
 
@@ -26,12 +26,12 @@ async function handleSubmit() {
   try {
     isSaving.value = true;
     await update({
-      id: props.depts._id,
+      id: props.debt._id,
       creditor: name,
       paymentCents: legacyDollarsToCents(amount),
     });
 
-    emit("updated", props.depts._id);
+    emit("updated", props.debt._id);
   } finally {
     isSaving.value = false;
   }

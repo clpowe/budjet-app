@@ -7,13 +7,14 @@ const totalPaymentDollars = computed(() =>
 <template>
   <main class="l-page l-stack">
     <app-main-card
-      title="Total Snowball"
-      subtitle="Amount to pay on target bill"
+      title="Total debt payments"
+      subtitle="Sum of every debt payment"
       :amount="totalPaymentDollars"
     >
       <template #items> </template>
       <template #actions> </template>
     </app-main-card>
-    <depts-list />
+    <debts-add />
+    <debts-list />
   </main>
 </template>

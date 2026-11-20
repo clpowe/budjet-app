@@ -300,7 +300,7 @@ function onDelete(id: Id<"debts">) {
                     <h2>Edit {{ row.original.creditor }}</h2>
                     <form method="dialog"><button type="submit">Close</button></form>
                   </header>
-                  <lazy-depts-edit :depts="row.original" @updated="onEditSaved" />
+                  <lazy-debts-edit :debt="row.original" @updated="onEditSaved" />
                 </dialog>
               </template>
               <FlexRender v-else :cell="cell" />

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { type PropType, defineComponent, h, nextTick, ref } from "vue";
 import type { Doc } from "../../convex/_generated/dataModel";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
-import DeptsList from "../../app/components/depts/list.vue";
+import DebtsList from "../../app/components/debts/list.vue";
 
 type Debt = Doc<"debts">;
 
@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   reorder: vi.fn(),
 }));
 
-vi.mock("../../app/composables/use-depts", () => ({
+vi.mock("../../app/composables/use-debts", () => ({
   useDebts: mocks.useDebts,
 }));
 
@@ -57,10 +57,10 @@ const VueDraggableStub = defineComponent({
   },
 });
 
-const LazyDeptsEditStub = defineComponent({
-  name: "LazyDeptsEdit",
+const LazyDebtsEditStub = defineComponent({
+  name: "LazyDebtsEdit",
   props: {
-    depts: {
+    debt: {
       type: Object as PropType<Debt>,
       required: true,
     },
@@ -71,15 +71,15 @@ const LazyDeptsEditStub = defineComponent({
       h(
         "button",
         {
-          "data-test": `save-${props.depts._id}`,
-          onClick: () => emit("updated", props.depts._id),
+          "data-test": `save-${props.debt._id}`,
+          onClick: () => emit("updated", props.debt._id),
         },
         "Save",
       );
   },
 });
 
-mockComponent("DeptsEdit", () => LazyDeptsEditStub);
+mockComponent("DebtsEdit", () => LazyDebtsEditStub);
 
 function makeDebt(id: string, creditor: string, payment: number, isPriority = false): Debt {
   return {
@@ -103,11 +103,11 @@ function mountList(items: Debt[]) {
 
   return {
     debts,
-    wrapper: mount(DeptsList, {
+    wrapper: mount(DebtsList, {
       global: {
         stubs: {
           Icon: true,
-          LazyDeptsEdit: LazyDeptsEditStub,
+          LazyDebtsEdit: LazyDebtsEditStub,
           VueDraggable: VueDraggableStub,
         },
       },
@@ -123,7 +123,7 @@ beforeEach(() => {
   mocks.reorder.mockResolvedValue({ success: true });
 });
 
-describe("DeptsList", () => {
+describe("DebtsList", () => {
   it("renders TanStack columns and reactive debt rows in source order", async () => {
     const first = makeDebt("debt-1", "Visa", 125.5, true);
     const second = makeDebt("debt-2", "Student loan", 300);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { Id } from "../../convex/_generated/dataModel";
-import { getDebtOrderUpdates, sumDebtPayments } from "../../convex/depts";
+import { getDebtOrderUpdates, sumDebtPayments } from "../../convex/debts";
 
 function debtId(id: string) {
   return id as Id<"debts">;
