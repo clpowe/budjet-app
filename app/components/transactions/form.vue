@@ -84,7 +84,6 @@ const fieldErrors = (errors: unknown[], externalError?: string) => {
   return messages;
 };
 
-const showPriority = computed(() => props.showPriority ?? true);
 const isDisabled = computed(() => Boolean(props.disabled || props.isSubmitting));
 const formId = useId();
 const fieldErrorIds: Record<TransactionFormField, string> = {

@@ -82,9 +82,9 @@ const hasItems = computed(() => {
 });
 
 const inactiveSections = [
-  { key: "ideas", title: "Considering" },
-  { key: "onHold", title: "Not now" },
-  { key: "purchased", title: "Bought history" },
+  { key: "ideas", title: "Ideas" },
+  { key: "onHold", title: "On hold" },
+  { key: "purchased", title: "Purchase history" },
 ] as const;
 
 function hasSectionStatus(key: (typeof inactiveSections)[number]["key"]) {
@@ -189,7 +189,7 @@ async function submitPurchase(
       return;
     }
 
-    pageNotice.value = `${formatCents(value.actualAmountCents)} total · ${formatCents(result.data.fromSavingsCents)} from savings · ${formatCents(result.data.budgetImpactCents)} budget impact.`;
+    pageNotice.value = `${formatCents(value.actualAmountCents)} total · ${formatCents(result.data.fromSavingsCents)} from savings · ${formatCents(result.data.budgetImpactCents)} from daily budget.`;
     closePurchaseDialog(true);
   } finally {
     isSubmittingPurchase.value = false;
@@ -211,7 +211,7 @@ async function undoPurchaseFromHistory(goalId: Id<"goals">) {
       return;
     }
 
-    pageNotice.value = "Purchase undone. The goal is back at the bottom of Plan for it.";
+    pageNotice.value = "Purchase undone. The goal is back at the bottom of Saving for.";
   } finally {
     undoPendingItemId.value = undefined;
   }
@@ -300,7 +300,7 @@ async function saveGoal(values: GoalSubmitValues) {
         return;
       }
 
-      pageNotice.value = `${values.name.trim()} added to Considering.`;
+      pageNotice.value = `${values.name.trim()} added to Ideas.`;
     }
 
     isFormOpen.value = false;
@@ -390,15 +390,13 @@ async function saveOrder(order: FunctionArgs<typeof api.goals.reorder>) {
         aria-labelledby="empty-goals-heading"
       >
         <h2 id="empty-goals-heading">No goals yet</h2>
-        <p>
-          Add an idea to Considering, then move it into the active plan when the household is ready.
-        </p>
+        <p>Add an idea, then start saving for it when the household is ready.</p>
       </section>
 
       <div v-else class="l-stack">
         <GoalsList
           v-if="sections.active.length"
-          title="Plan for it"
+          title="Saving for"
           :items="sections.active"
           :allocations="activeAllocations"
           reorderable

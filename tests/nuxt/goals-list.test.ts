@@ -63,7 +63,7 @@ function mountList(
 ) {
   return mount(GoalsList, {
     props: {
-      title: "Plan for it",
+      title: "Saving for",
       items,
       reorderable: true,
       ...extraProps,
@@ -123,6 +123,15 @@ describe("GoalsList reordering", () => {
     ]);
   });
 
+  it("labels purchase and status actions with the goal name", () => {
+    const wrapper = mountList([camera]);
+
+    const purchase = wrapper.get('button[aria-label="Record purchase of Camera"]');
+    expect(purchase.text()).toBe("Record purchase");
+    expect(wrapper.get('button[aria-label="Move to Ideas: Camera"]').text()).toBe("Move to Ideas");
+    expect(wrapper.get('button[aria-label="Put on hold: Camera"]').text()).toBe("Put on hold");
+  });
+
   it("offers named Move up and Move down buttons that emit a complete ID list", async () => {
     const wrapper = mountList();
 
@@ -154,7 +163,7 @@ describe("GoalsList reordering", () => {
   it("blocks pointer and button reordering while a save is pending", async () => {
     const wrapper = mountList([camera, bike], { reorderPending: true });
 
-    expect(wrapper.get('[aria-label="Plan for it"]').attributes("aria-busy")).toBe("true");
+    expect(wrapper.get('[aria-label="Saving for"]').attributes("aria-busy")).toBe("true");
     expect(
       wrapper.get('button[aria-label="Move Camera down"]').attributes("disabled"),
     ).toBeDefined();

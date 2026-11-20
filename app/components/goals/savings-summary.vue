@@ -23,14 +23,14 @@ defineProps<{
 
     <dl>
       <div>
-        <dt>For planned purchases</dt>
+        <dt>Available savings</dt>
         <dd>
           {{ formatCents(summary.availableSavingsCents) }}
         </dd>
       </div>
 
       <div>
-        <dt>Potential tonight</dt>
+        <dt>Estimated savings from today</dt>
         <dd>
           {{ formatCents(summary.projectedEndOfDayContributionCents) }}
         </dd>
@@ -39,10 +39,9 @@ defineProps<{
     </dl>
 
     <div v-if="summary.recoveryAmountCents > 0n">
-      <h3>Savings recovery</h3>
+      <h3>Savings shortfall</h3>
       <p>
-        {{ formatCents(summary.recoveryAmountCents) }} must be recovered before new progress is
-        added.
+        Your next {{ formatCents(summary.recoveryAmountCents) }} of unused budget will cover this.
       </p>
     </div>
   </section>

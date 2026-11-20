@@ -107,10 +107,10 @@ const priorityLabel = computed(() => {
       <button
         v-if="item.status === 'saving'"
         type="button"
-        :aria-label="`Purchase ${item.name}`"
+        :aria-label="`Record purchase of ${item.name}`"
         @click="emit('purchase', item)"
       >
-        Purchase
+        Record purchase
       </button>
 
       <button
@@ -129,7 +129,7 @@ const priorityLabel = computed(() => {
           <li v-for="targetStatus in strategy.allowedActions" :key="targetStatus">
             <button
               type="button"
-              :aria-label="`Move ${item.name} to ${getGoalStatusStrategy(targetStatus).label}`"
+              :aria-label="`${getGoalStatusStrategy(targetStatus).actionLabel}: ${item.name}`"
               @click="
                 emit('change-status', {
                   goalId: item._id,
@@ -137,7 +137,7 @@ const priorityLabel = computed(() => {
                 })
               "
             >
-              {{ getGoalStatusStrategy(targetStatus).label }}
+              {{ getGoalStatusStrategy(targetStatus).actionLabel }}
             </button>
           </li>
         </ul>

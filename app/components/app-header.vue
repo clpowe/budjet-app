@@ -45,13 +45,15 @@ const transactionDialog = shallowRef<HTMLDialogElement | null>(null);
       <NuxtLink to="/home" aria-label="Daily Funds home">Daily</NuxtLink>
 
       <nav class="l-stack" aria-label="Primary">
-        <NuxtLink to="/home">H</NuxtLink>
-        <NuxtLink to="/monthly">M</NuxtLink>
-        <NuxtLink to="/goals">W</NuxtLink>
-        <NuxtLink to="/household">H</NuxtLink>
+        <NuxtLink to="/home">Home</NuxtLink>
+        <NuxtLink to="/monthly">Transactions</NuxtLink>
+        <NuxtLink to="/goals">Goals</NuxtLink>
+        <NuxtLink to="/household">Household</NuxtLink>
       </nav>
       <div class="actions">
-        <button type="button" @click="openDialog(transactionDialog)">+</button>
+        <button type="button" aria-label="Add expense" @click="openDialog(transactionDialog)">
+          +
+        </button>
       </div>
       <button
         type="button"
@@ -64,7 +66,7 @@ const transactionDialog = shallowRef<HTMLDialogElement | null>(null);
     </div>
     <dialog id="transaction-dialog" ref="transactionDialog">
       <header class="l-cluster l-split">
-        <h2>Add transaction</h2>
+        <h2>Add expense</h2>
         <form method="dialog"><button type="submit">Close</button></form>
       </header>
       <expenses-add />

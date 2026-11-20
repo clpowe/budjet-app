@@ -4,30 +4,34 @@ Domain terms used in code, tests and plans. Keep names here in sync with the cod
 
 ## Household and access
 
-- **Household**: the tenant. Owns the daily allowance (`allowanceCents`), its time zone, Wants, expenses and savings.
+- **Household**: the tenant. Owns the daily allowance (`allowanceCents`), its time zone, goals, expenses, income and debts.
 - **Household member**: a signed-in user whose `householdId` points at an existing Household. Resolved only on the server by `requireHouseholdMember` / `findHouseholdMember` (`convex/lib/household_access.ts`); functions never accept a client-supplied household id.
-- **Stored vs effective time zone**: `household.timeZone` is stored. The effective zone is a scheduled `pendingTimeZone` once its effective time has passed. Days close in the stored zone; the pending zone is promoted only after the last day of the old zone has closed.
-- **Local date**: a household-local `YYYY-MM-DD` string. The key for rollups and the close cursor.
+- **Stored vs effective time zone**: `household.timeZone` is stored. A time-zone change is saved as `pendingTimeZone` with `pendingTimeZoneEffectiveAt` (the next local midnight in the current zone) and becomes the effective zone once that time has passed. It is resolved on read by `getEffectiveTimeZone`; nothing promotes it.
+- **Local date**: a household-local `YYYY-MM-DD` string. The key for daily budget totals.
 
 ## Money
 
-- **Cents**: all money is integer `bigint` cents. Legacy float `amount` fields are dual-written for old readers only.
-- **Expense**: spending. Has a **stored local date** (`expenses.localDate`): the day it counts against, fixed when it is written and never recomputed from the current zone. Moving an expense's timestamp re-keys it in the effective zone at that moment.
-- **Budget impact**: `amountCents − savingsUsedCents`; the part of an expense that counts against the daily allowance.
-- **Daily budget rollup**: per Household and local date, totals of expense, savings-funded and budget-impact cents.
+- **Cents**: all money is integer `bigint` cents (`shared/utils/money-cents.ts`). There are no float money fields.
+- **Expense**: spending. Has a required **local date** (`expenses.localDate`): the day it counts against, fixed when written.
+- **Goal purchase**: an expense linked to a goal (`expenses.goalId`). `fromSavingsCents` is the part paid from savings. Edited only from the Goals page.
+- **Budget impact** ("From daily budget"): `amountCents − fromSavingsCents`; the part of an expense that counts against the daily allowance (`budgetImpact` in `shared/utils/savings.ts`).
+- **Daily budget totals**: per Household and local date, `totalSpentCents` and `spentFromSavingsCents` (`dailyBudgetTotals`). Budget impact is derived from them.
+- **Income** ("One-off transactions"): one-off money in or out (`income`, signed `amountCents`). Shown on `/income`; does not affect savings.
+- **Debt**: a recurring payment (`debts`, `paymentCents`). "Total debt payments" sums them.
 
 ## Savings
 
-- **Savings account**: the module that moves household money (`convex/lib/savings_account.ts`). Owns every write to the savings state and daily budget rollups, plus the money fields of expenses. Every write closes pending days first.
-- **Savings position**: the signed household balance (`goalSavingsStates.positionCents`). The only stored savings money; there is no ledger. Moved by savings events (daily close, purchase, undo, correction, closed-day correction).
-- **Daily close**: finishing a local day. Its contribution, `allowance − that day's budget impact`, is added to the position. No per-day row is stored; the day's rollup is the record.
-- **Close cursor**: `lastClosedLocalDate`, the last closed day. A day is **closed** when `firstEligibleLocalDate ≤ day ≤ lastClosedLocalDate`.
-- **Savings syncing**: a write found more pending days than one transaction may close (31). It closed what it could, scheduled the rest for that Household, and did nothing else. Clients ask the user to retry.
-- **Closed-day correction**: an expense change on an already-closed day. Moves the position by the opposite of that day's budget-impact change.
-- **Savings snapshot**: live read of the savings at a moment: available savings, recovery amount, today's overage and projected end-of-day contribution.
+Savings are derived on read; no balance is stored.
 
-## Wants
+- **Savings start** (`households.savingsStartLocalDate`): the first local date that earns savings. Set when the first goal starts saving.
+- **Savings position**: `allowance × closed eligible days − spending charged to those days`, minus today's spending from savings. Calculated by `calculateSavings` (`shared/utils/savings.ts`); read through `getSavingsSnapshot` (`convex/lib/savings_account.ts`).
+- **Available savings**: the position floored at zero, after today's overage. What goals and purchases can use.
+- **Savings shortfall**: how far below zero savings are (`shortfallCents`, shown as "Your next $X of unused budget will cover this").
+- **Estimated savings from today**: `allowance − today's budget impact` when today is under budget (`projectedEndOfDayContributionCents`). An estimate until the day ends.
+- **Savings account**: the module that writes household money (`convex/lib/savings_account.ts`): expenses, goal purchases and daily budget totals.
 
-- **Want**: something the Household might buy. Status `considering`, `plan_for_it`, `not_now` or `bought`.
-- **Active Want queue**: the ordered `plan_for_it` Wants (max 100). Savings allocations to them are derived, never stored.
-- **Purchase**: buying a planned Want. Creates a linked expense funded from savings first. A **purchase correction** re-funds it from savings as if the original purchase never happened; **undo** removes the expense and returns its funding.
+## Goals
+
+- **Goal**: something the Household might buy (`goals`). Status `idea` (Ideas), `saving` (Saving for), `on_hold` (On hold) or `purchased` (Purchase history).
+- **Active goal queue**: the ordered `saving` goals (max 100). Available savings fund them in order (`allocateSavings` in `shared/utils/goal-allocation.ts`); allocations are computed, never stored.
+- **Record purchase**: buying a goal being saved for. Creates a linked expense paid from savings first, then from the daily budget. The Goals page previews the split locally (`previewGoalPurchase`); the server recalculates it when the purchase is recorded. A **purchase correction** re-funds it as if the original purchase never happened; **undo** removes the expense and puts the goal back at the bottom of Saving for.

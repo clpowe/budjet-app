@@ -87,8 +87,8 @@ describe("GoalsNextGoalCard", () => {
 
     expect(wrapper.text()).toContain("Camera");
     expect(wrapper.text()).toContain("$40.00 of $100.00 funded");
-    expect(wrapper.text()).toContain("Savings");
-    expect(wrapper.text()).toContain("Potential tonight");
+    expect(wrapper.text()).toContain("Available savings");
+    expect(wrapper.text()).toContain("Estimated savings from today");
     expect(wrapper.get('a[href="/goals"]').text()).toContain("View goals");
 
     const progress = wrapper.get('progress[aria-label="Camera funding progress"]');
@@ -111,16 +111,17 @@ describe("GoalsNextGoalCard", () => {
     expect(wrapper.text()).not.toContain("can't afford");
   });
 
-  it("explains savings recovery constructively", () => {
+  it("explains a savings shortfall constructively", () => {
     const summary = makeSummary();
     summary.savings.recoveryCents = 500n;
     summary.savings.todayOverageAdjustmentCents = -500n;
 
     const wrapper = mountCard(summary);
 
-    expect(wrapper.text()).toContain("Savings recovery");
-    expect(wrapper.text()).toContain("$5.00");
-    expect(wrapper.text()).toContain("before your savings can grow again");
+    expect(wrapper.text()).toContain("Savings shortfall");
+    expect(wrapper.text()).toContain(
+      "Your next $5.00 of unused budget will cover your savings shortfall.",
+    );
     expect(wrapper.text()).not.toContain("can't afford");
   });
 });

@@ -67,13 +67,13 @@ const parsedAmount = computed(() => {
 
 const amountError = computed(() => {
   if (!actualAmount.value) {
-    return "Enter the full actual amount.";
+    return "Enter the amount paid.";
   }
 
   try {
     return parseMoneyToCents(actualAmount.value) > 0n
       ? ""
-      : "Actual amount must be greater than $0.00.";
+      : "Amount paid must be greater than $0.00.";
   } catch {
     return "Enter a valid amount with no more than two decimal places.";
   }
@@ -93,15 +93,15 @@ const preview = computed(() => {
 const title = computed(() => {
   return props.mode === "correct"
     ? `Correct ${props.item.name} purchase`
-    : `Purchase ${props.item.name}`;
+    : `Record ${props.item.name} purchase`;
 });
 
 const submitLabel = computed(() => {
   if (props.isSubmitting) {
-    return props.mode === "correct" ? "Saving correction…" : "Completing purchase…";
+    return props.mode === "correct" ? "Saving correction…" : "Recording purchase…";
   }
 
-  return props.mode === "correct" ? "Save correction" : "Complete purchase";
+  return props.mode === "correct" ? "Save correction" : "Record purchase";
 });
 
 function resetForm() {
@@ -207,7 +207,7 @@ function submit() {
 
       <form class="app-form" novalidate @submit.prevent="submit">
         <label>
-          <span>Full actual amount</span>
+          <span>Amount paid</span>
           <input
             ref="amountInput"
             name="actualAmount"
@@ -237,21 +237,21 @@ function submit() {
 
         <dl class="l-grid" v-if="mode === 'purchase' && preview" data-test="purchase-breakdown">
           <div>
-            <dt>Actual amount</dt>
+            <dt>Amount paid</dt>
             <dd>
               {{ formatCents(preview.actualAmountCents) }}
             </dd>
           </div>
 
           <div>
-            <dt>Paid from savings</dt>
+            <dt>From savings</dt>
             <dd>
               {{ formatCents(preview.fromSavingsCents) }}
             </dd>
           </div>
 
           <div>
-            <dt>General-budget impact</dt>
+            <dt>From daily budget</dt>
             <dd>
               {{ formatCents(preview.budgetImpactCents) }}
             </dd>

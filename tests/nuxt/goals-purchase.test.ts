@@ -72,17 +72,17 @@ describe("GoalsPurchaseDialog", () => {
     {
       name: "fully funded",
       availableSavingsCents: 15_000n,
-      expected: ["Actual amount$100.00", "Paid from savings$100.00", "General-budget impact$0.00"],
+      expected: ["Amount paid$100.00", "From savings$100.00", "From daily budget$0.00"],
     },
     {
       name: "partially funded",
       availableSavingsCents: 8_000n,
-      expected: ["Actual amount$100.00", "Paid from savings$80.00", "General-budget impact$20.00"],
+      expected: ["Amount paid$100.00", "From savings$80.00", "From daily budget$20.00"],
     },
     {
       name: "unfunded",
       availableSavingsCents: -500n,
-      expected: ["Actual amount$100.00", "Paid from savings$0.00", "General-budget impact$100.00"],
+      expected: ["Amount paid$100.00", "From savings$0.00", "From daily budget$100.00"],
     },
   ])("computes a $name purchase breakdown locally", ({ availableSavingsCents, expected }) => {
     const wrapper = mountDialog({ availableSavingsCents });
@@ -119,9 +119,9 @@ describe("GoalsPurchaseDialog", () => {
     await input.setValue("120.00");
 
     const breakdown = wrapper.get('[data-test="purchase-breakdown"]');
-    expect(breakdown.text()).toContain("Actual amount$120.00");
-    expect(breakdown.text()).toContain("Paid from savings$100.00");
-    expect(breakdown.text()).toContain("General-budget impact$20.00");
+    expect(breakdown.text()).toContain("Amount paid$120.00");
+    expect(breakdown.text()).toContain("From savings$100.00");
+    expect(breakdown.text()).toContain("From daily budget$20.00");
     expect(wrapper.emitted("request-preview")).toBeUndefined();
 
     await wrapper.get("form").trigger("submit");
@@ -164,6 +164,16 @@ describe("GoalsPurchaseDialog", () => {
     wrapper.unmount();
   });
 
+  it("uses record-purchase wording for the title, amount and submit button", () => {
+    const wrapper = mountDialog();
+
+    expect(wrapper.get("h2").text()).toBe("Record Camera purchase");
+    expect(wrapper.text()).toContain("Amount paid");
+    expect(wrapper.get('button[type="submit"]').text()).toBe("Record purchase");
+
+    wrapper.unmount();
+  });
+
   it("announces mutation-pending and mutation-error states", () => {
     const submitting = mountDialog({
       error: "Could not complete this purchase. Try again.",
@@ -201,7 +211,7 @@ describe("GoalsPurchaseHistory", () => {
   it("shows linked ledger details and a dedicated correction entry point", async () => {
     const wrapper = mountHistory();
 
-    expect(wrapper.text()).toContain("Bought history");
+    expect(wrapper.text()).toContain("Purchase history");
     expect(wrapper.text()).toContain("Camera");
     expect(wrapper.text()).toContain("Purchased");
     expect(wrapper.get('a[href="/monthly?expense=expense-camera"]').text()).toContain(
@@ -222,7 +232,7 @@ describe("GoalsPurchaseHistory", () => {
     await wrapper.get('button[aria-label="Undo Camera purchase"]').trigger("click");
 
     expect(wrapper.get('[role="alertdialog"]').text()).toContain(
-      "This removes the linked expense and restores Camera to the bottom of Plan for it.",
+      "This removes the linked expense and restores Camera to the bottom of Saving for.",
     );
     expect(wrapper.emitted("undo")).toBeUndefined();
 

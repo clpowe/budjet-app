@@ -155,7 +155,7 @@ describe("GoalsPage", () => {
     expect(wrapper.get('button[aria-label="Add goal"]').text()).toContain("Add goal");
   });
 
-  it("explains savings recovery without presenting a negative available balance", () => {
+  it("explains a savings shortfall without presenting a negative available balance", () => {
     const summary = makeSummary();
     summary.positionCents = 1_000n;
     summary.availableSavingsCents = 0n;
@@ -165,9 +165,8 @@ describe("GoalsPage", () => {
 
     const wrapper = arrangePage({ summary });
 
-    expect(wrapper.text()).toContain("Savings recovery");
-    expect(wrapper.text()).toContain("$5.00");
-    expect(wrapper.text()).toContain("before new progress");
+    expect(wrapper.text()).toContain("Savings shortfall");
+    expect(wrapper.text()).toContain("Your next $5.00 of unused budget will cover this.");
     expect(wrapper.text()).not.toContain("-$5.00 available");
   });
 
@@ -180,13 +179,13 @@ describe("GoalsPage", () => {
     expect(Number(headphonesProgress.attributes("value"))).toBe(0);
     const progress = wrapper.get('progress[aria-label="Camera funding progress"]');
 
-    expect(wrapper.text()).toContain("Plan for it");
+    expect(wrapper.text()).toContain("Saving for");
     expect(wrapper.text()).toContain("Next: Camera");
     expect(wrapper.text()).toContain("$40.00 of $100.00");
     expect(Number(progress.attributes("value")) / Number(progress.attributes("max"))).toBe(0.4);
   });
 
-  it("keeps Considering, Not now, and Bought items in distinct sections", () => {
+  it("keeps Ideas, On hold and Purchase history in distinct sections", () => {
     const wrapper = arrangePage({
       ideas: [makeGoal("goal-bike", "Bike", "idea")],
       onHold: [makeGoal("goal-kayak", "Kayak", "on_hold")],
@@ -195,7 +194,7 @@ describe("GoalsPage", () => {
 
     const headings = wrapper.findAll("h2").map((heading) => heading.text());
 
-    expect(headings).toEqual(expect.arrayContaining(["Considering", "Not now", "Bought history"]));
+    expect(headings).toEqual(expect.arrayContaining(["Ideas", "On hold", "Purchase history"]));
     expect(wrapper.text()).toContain("Bike");
     expect(wrapper.text()).toContain("Kayak");
     expect(wrapper.text()).toContain("Headphones");
@@ -212,20 +211,20 @@ describe("GoalsPage", () => {
     expect(wrapper.find('[aria-label="Correct Older headphones purchase"]').exists()).toBe(false);
     await wrapper
       .findAll("button")
-      .find((button) => button.text() === "Load more from Bought history")!
+      .find((button) => button.text() === "Load more from Purchase history")!
       .trigger("click");
-    expect(wrapper.find('[aria-label="Considering"]').text()).toContain("Bike");
+    expect(wrapper.find('[aria-label="Ideas"]').text()).toContain("Bike");
     await wrapper.get('[aria-label="Correct Older headphones purchase"]').trigger("click");
     expect(wrapper.text()).toContain("Correct Older headphones purchase");
   });
 
-  it("distinguishes money available now from the amount that may arrive tonight", () => {
+  it("distinguishes available savings from the estimate for today", () => {
     const wrapper = arrangePage();
     const summary = wrapper.get('[aria-label="Savings summary"]');
 
-    expect(summary.text()).toContain("Savings");
-    expect(summary.text()).toContain("$40.00");
-    expect(summary.text()).toContain("Potential tonight");
+    expect(summary.text()).toContain("Available savings$40.00");
+    expect(summary.text()).toContain("Estimated savings from today");
+    expect(summary.text()).not.toContain("Potential tonight");
     expect(summary.text()).toContain("$25.00");
   });
 });
@@ -247,5 +246,13 @@ describe("AppHeader goals navigation", () => {
     });
 
     expect(wrapper.find('nav[aria-label="Primary"] a[href="/goals"]').exists()).toBe(true);
+    expect(wrapper.findAll('nav[aria-label="Primary"] a').map((link) => link.text())).toEqual([
+      "Home",
+      "Transactions",
+      "Goals",
+      "Household",
+    ]);
+    expect(wrapper.get('button[aria-label="Add expense"]').text()).toBe("+");
+    expect(wrapper.get("#transaction-dialog h2").text()).toBe("Add expense");
   });
 });

@@ -46,9 +46,9 @@ async function openUndoDialog(goalId: Id<"goals">) {
 </script>
 
 <template>
-  <section class="l-stack" aria-labelledby="bought-history-heading">
+  <section class="l-stack" aria-labelledby="purchase-history-heading">
     <div>
-      <h2 id="bought-history-heading">Bought history</h2>
+      <h2 id="purchase-history-heading">Purchase history</h2>
       <p>Completed goals remain linked to their ledger entries.</p>
     </div>
 
@@ -102,7 +102,7 @@ async function openUndoDialog(goalId: Id<"goals">) {
         <h4 :id="`undo-${item._id}-heading`">Undo this purchase?</h4>
 
         <p>
-          This removes the linked expense and restores {{ item.name }} to the bottom of Plan for it.
+          This removes the linked expense and restores {{ item.name }} to the bottom of Saving for.
         </p>
 
         <div class="actions">

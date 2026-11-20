@@ -31,7 +31,7 @@ const {
 const accountMessage = computed(() => {
   if (userLoading.value) return "Loading your account...";
   if (!user.value?.householdId) {
-    return "Finish household setup before adding spending.";
+    return "Finish household setup before adding an expense.";
   }
   return "";
 });
@@ -45,7 +45,7 @@ async function handleSubmit() {
 
   const householdId = user.value?.householdId;
   if (!householdId) {
-    submitError.value = "Finish household setup before adding spending.";
+    submitError.value = "Finish household setup before adding an expense.";
     return;
   }
 
@@ -76,7 +76,7 @@ async function handleSubmit() {
     :is-submitting="isSaving"
     :disabled="isDisabled"
     :errors="{ form: formError || undefined }"
-    submit-label="Add Spending"
+    submit-label="Add expense"
     @submit="handleSubmit"
   />
 

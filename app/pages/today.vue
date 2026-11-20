@@ -52,10 +52,10 @@ function openTransactionDialog() {
       </template>
       <template #actions> </template>
     </app-main-card>
-    <button type="button" @click="openTransactionDialog">Add transaction</button>
+    <button type="button" @click="openTransactionDialog">Add expense</button>
     <dialog id="transaction-dialog" ref="transactionDialog">
       <header class="l-cluster l-split">
-        <h2>Add transaction</h2>
+        <h2>Add expense</h2>
         <form method="dialog"><button type="submit">Close</button></form>
       </header>
       <expenses-add />

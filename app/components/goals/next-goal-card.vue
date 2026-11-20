@@ -44,7 +44,7 @@ const guidanceCopy = computed(() => {
     case "ready":
       return `${nextGoal.name} is fully funded and ready when you are.`;
     case "recovery":
-      return `${formatCents(currentGuidance.amountCents)} needs to be recovered before your savings can grow again.`;
+      return `Your next ${formatCents(currentGuidance.amountCents)} of unused budget will cover your savings shortfall.`;
     case "negative_today":
       return `Today's spending moved ${formatCents(currentGuidance.amountCents)} out of your savings.`;
     case "target":
@@ -95,25 +95,25 @@ function formatLocalDate(localDate: string): string {
       <p>{{ formatCents(summary.nextGoal.remainingCents) }} remains to fund this goal.</p>
 
       <p v-if="guidance">
-        <span v-if="guidance.kind === 'recovery'">Savings recovery. </span>
+        <span v-if="guidance.kind === 'recovery'">Savings shortfall. </span>
         {{ guidanceCopy }}
       </p>
     </template>
 
     <p v-else>
-      No active goal yet. Move an idea into Plan for it when your household is ready to fund it.
+      No active goal yet. Start saving for an idea when your household is ready to fund it.
     </p>
 
     <dl>
       <div>
-        <dt>Savings</dt>
+        <dt>Available savings</dt>
         <dd>
           {{ formatCents(summary.savings.availableCents) }}
         </dd>
       </div>
 
       <div>
-        <dt>Potential tonight</dt>
+        <dt>Estimated savings from today</dt>
         <dd>
           {{ formatCents(summary.savings.projectedEndOfDayContributionCents) }}
         </dd>
