@@ -150,7 +150,7 @@ Update `GLOSSARY.md` and accessible names in the same change.
 - [x] P0 triage (checkpoint 4d48396; removed rename migration, reserve shims, goalReserveStates/savingsMigration, table mirroring; Home 5 subscriptions -> 1; dual fields/apiVersion/syncing left for P2)
 - [x] P1 shared math (local-date, money-cents asserts, calculateSavings, goal-allocation + previewPurchase, budgetImpact; old want_savings.ts and getBudgetImpactCents die in P2)
 - [x] P2 Convex cutover (P2a-d done; fresh dev deployment wipe still to do)
-- [ ] P3 frontend wiring
+- [x] P3 frontend wiring
 - [ ] P4 naming pass
 - [ ] P5 chart
 - [ ] P6 Temporal
@@ -171,3 +171,5 @@ _P2a done (5 commits, 254 tests green): migrations/ and moneyMigrationCompletedA
 _P2c done (248 tests green): `wantItems` -> `goals` (statuses `idea|saving|on_hold|purchased`), `wants.ts` -> `goals.ts`, `active_want_queue` -> `active_goal_queue`, `itemId` -> `goalId`, expense `wantItemId` -> `goalId`, `savingsUsedCents` -> `fromSavingsCents` everywhere. Allocation, purchase funding and preview now come from shared `goal-allocation`; `want_savings.ts` and its test deleted; goal validators derive from the schema. Still on old names (P4): UI/section keys (`considering`, `notNow`, `bought`), component/page/route names, error strings ("Want item not found"), `nextPlannedWant`, `getHomeSummary` `reserve*` duplicates (P2d)._
 
 _P2d done (247 tests green): `getHomeSummary` drops `reserve`, `reserveFundedCents`, `closedPositiveReserveContributionCents`; Home reads `summary.savings` only. Time zone pending switch already resolves on read via `getEffectiveTimeZone` (cron gone). `want_savings.ts`/`getBudgetImpactCents` already deleted in P2c. Remaining for P2: wipe/create fresh dev deployment (user action). Next: P3 frontend wiring._
+
+_P3 done (3 commits, 263 tests green): Goals page computes allocations locally (`app/utils/goal-allocations.ts` `projectAllocations`); `savings.getSummary` no longer returns `activeAllocations`. Purchase dialog computes its breakdown locally (`previewGoalPurchase`); `goals.previewPurchase` query removed; server still computes the real split on purchase. `use-want-list` actions are one `useGoalAction` helper. Deviation: `savings.getSummary` keeps its `now` arg (Convex guideline: no wall clock in queries), but the client changes it only when the household's local date changes (midnight timer + focus/visibilitychange), not every minute. Syncing UI was already gone in P2b. Next: P4 naming pass._
