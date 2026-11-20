@@ -1,6 +1,6 @@
 import { LOCAL_DATE_PATTERN } from "../../shared/utils/local-date.ts";
 
-export type WantGuidance =
+export type GoalGuidance =
   | { kind: "ready" }
   | { kind: "recovery"; amountCents: bigint }
   | { kind: "negative_today"; amountCents: bigint }
@@ -13,7 +13,7 @@ export type WantGuidance =
     }
   | { kind: "starter" };
 
-export type WantGuidanceInput = {
+export type GoalGuidanceInput = {
   remainingCents: bigint;
   todayLocalDate: string;
   targetLocalDate?: string;
@@ -60,14 +60,14 @@ function ceilDivide(dividend: bigint, divisor: bigint): bigint {
   return (dividend + divisor - 1n) / divisor;
 }
 
-export function getWantGuidance({
+export function getGoalGuidance({
   remainingCents,
   todayLocalDate,
   targetLocalDate,
   recentDailyPaceCents,
   recoveryAmountCents,
   todayOverageAdjustmentCents,
-}: WantGuidanceInput): WantGuidance {
+}: GoalGuidanceInput): GoalGuidance {
   if (recoveryAmountCents > 0n) {
     return {
       kind: "recovery",

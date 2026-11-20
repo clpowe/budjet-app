@@ -1,15 +1,15 @@
 import type { Doc } from "../../convex/_generated/dataModel";
 
-export type WantStatus = Doc<"goals">["status"];
+export type GoalStatus = Doc<"goals">["status"];
 
-export type WantStatusStrategy = {
+export type GoalStatusStrategy = {
   label: string;
   description: string;
   badgeClass: string;
-  allowedActions: readonly WantStatus[];
+  allowedActions: readonly GoalStatus[];
 };
 
-export const WANT_STATUS_STRATEGIES = {
+export const GOAL_STATUS_STRATEGIES = {
   idea: {
     label: "Considering",
     description: "Ideas the household is still deciding on.",
@@ -18,24 +18,24 @@ export const WANT_STATUS_STRATEGIES = {
   },
   saving: {
     label: "Plan for it",
-    description: "Active Wants funded in this queue order.",
+    description: "Active goals funded in this queue order.",
     badgeClass: "badge-primary",
     allowedActions: ["idea", "on_hold"],
   },
   on_hold: {
     label: "Not now",
-    description: "Wants saved for another time.",
+    description: "Goals saved for another time.",
     badgeClass: "badge-neutral badge-outline",
     allowedActions: ["idea", "saving"],
   },
   purchased: {
     label: "Bought",
-    description: "Completed Wants with linked purchase history.",
+    description: "Completed goals with linked purchase history.",
     badgeClass: "badge-success",
     allowedActions: [],
   },
-} as const satisfies Record<WantStatus, WantStatusStrategy>;
+} as const satisfies Record<GoalStatus, GoalStatusStrategy>;
 
-export function getWantStatusStrategy(status: WantStatus): WantStatusStrategy {
-  return WANT_STATUS_STRATEGIES[status];
+export function getGoalStatusStrategy(status: GoalStatus): GoalStatusStrategy {
+  return GOAL_STATUS_STRATEGIES[status];
 }

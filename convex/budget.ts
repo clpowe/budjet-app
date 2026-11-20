@@ -12,7 +12,7 @@ import { query } from "./_generated/server";
 
 const DAYS_IN_PLAN = 30n;
 
-const nextPlannedWantSummaryValidator = v.object({
+const nextGoalSummaryValidator = v.object({
   goalId: v.id("goals"),
   name: v.string(),
   estimatedCostCents: v.int64(),
@@ -55,7 +55,7 @@ const homeSummaryValidator = v.object({
     }),
   }),
   savings: savingsBalance,
-  nextPlannedWant: v.union(v.null(), nextPlannedWantSummaryValidator),
+  nextGoal: v.union(v.null(), nextGoalSummaryValidator),
 });
 
 type SafeToSpendInputs = {
@@ -134,7 +134,7 @@ export const getHomeSummary = query({
       currentSavings.availableCents,
       activeItems,
     )[0];
-    const nextPlannedWant = nextAllocation
+    const nextGoal = nextAllocation
       ? {
           goalId: nextAllocation.goal._id,
           name: nextAllocation.goal.name,
@@ -179,7 +179,7 @@ export const getHomeSummary = query({
         },
       },
       savings,
-      nextPlannedWant,
+      nextGoal,
     };
   },
 });

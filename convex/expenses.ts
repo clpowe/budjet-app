@@ -32,7 +32,7 @@ const monthlyTransaction = v.union(
     type: v.literal("expense"),
     fromSavingsCents: v.int64(),
     budgetImpactCents: v.int64(),
-    isWantPurchase: v.boolean(),
+    isGoalPurchase: v.boolean(),
   }),
   schema.tables.income.validator.extend({
     _id: v.id("income"),
@@ -87,7 +87,7 @@ async function getAuthorizedExpense(ctx: MutationCtx, expenseId: Id<"expenses">)
   );
 
   if (expense.goalId) {
-    throw new Error("Want purchases must be managed from the wants flow");
+    throw new Error("Goal purchases must be managed from the Goals page");
   }
 
   return { expense, household, user };
@@ -203,7 +203,7 @@ export const listMonthlyTransactions = query({
           ...expense,
           fromSavingsCents,
           budgetImpactCents: budgetImpact(amountCents, fromSavingsCents),
-          isWantPurchase: expense.goalId !== undefined,
+          isGoalPurchase: expense.goalId !== undefined,
           type: "expense" as const,
         };
       }),

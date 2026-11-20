@@ -67,7 +67,7 @@ function budgetImpactCents(expense: Expense): bigint {
             <template v-if="cell.column.id === 'name'">
               <div>
                 <span>{{ row.original.name }}</span>
-                <span v-if="row.original.goalId !== undefined"> Want purchase </span>
+                <span v-if="row.original.goalId !== undefined"> Goal purchase </span>
               </div>
             </template>
             <template v-else-if="cell.column.id === 'amount'">

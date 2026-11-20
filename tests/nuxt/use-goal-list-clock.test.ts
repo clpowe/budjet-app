@@ -6,7 +6,7 @@ import { defineComponent, ref, type Ref } from "vue";
 import { getFunctionName, type FunctionReference } from "convex/server";
 import { api } from "../../convex/_generated/api";
 import { getLocalDateKey } from "../../shared/utils/local-date";
-import { useWantList } from "../../app/composables/use-want-list";
+import { useGoalList } from "../../app/composables/use-goal-list";
 
 const TIME_ZONE = "America/New_York";
 // 2026-11-20 is EST (UTC-5): 11:00 pm local is 04:00 UTC the next day.
@@ -39,16 +39,16 @@ function mountList() {
   return mount(
     defineComponent({
       setup() {
-        useWantList();
+        useGoalList();
         return () => null;
       },
     }),
   );
 }
 
-describe("useWantList savings clock", () => {
+describe("useGoalList savings clock", () => {
   beforeEach(() => {
-    clearNuxtState("wants-summary-now");
+    clearNuxtState("goals-summary-now");
     summaryArgs.current = undefined;
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     vi.setSystemTime(elevenPmLocal);

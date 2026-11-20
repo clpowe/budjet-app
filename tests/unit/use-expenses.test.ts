@@ -38,7 +38,7 @@ const summaryRef = ref({
     todayOverageAdjustmentCents: 0n,
     projectedEndOfDayContributionCents: 4_500n,
   },
-  nextPlannedWant: null,
+  nextGoal: null,
 });
 
 const deleteExpenseMock = vi.fn();
@@ -123,7 +123,7 @@ describe("useExpenses", () => {
         todayOverageAdjustmentCents: 0n,
         projectedEndOfDayContributionCents: 4_500n,
       },
-      nextPlannedWant: null,
+      nextGoal: null,
     };
   });
 

@@ -2,18 +2,18 @@ import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vite-plus/test";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
-import BoughtList from "../../app/components/wants/bought-list.vue";
+import PurchaseHistory from "../../app/components/goals/purchase-history.vue";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
-import PurchaseDialog from "../../app/components/wants/purchase-dialog.vue";
+import PurchaseDialog from "../../app/components/goals/purchase-dialog.vue";
 
-type WantItem = Doc<"goals">;
+type Goal = Doc<"goals">;
 
 const householdId = "household-1" as Id<"households">;
 const ownerId = "user-1" as Id<"users">;
 
-function makeWant(status: WantItem["status"] = "saving"): WantItem {
+function makeGoal(status: Goal["status"] = "saving"): Goal {
   return {
-    _id: "want-camera" as Id<"goals">,
+    _id: "goal-camera" as Id<"goals">,
     _creationTime: 1,
     householdId,
     name: "Camera",
@@ -36,9 +36,9 @@ function makeWant(status: WantItem["status"] = "saving"): WantItem {
   };
 }
 
-const trip: WantItem = {
-  ...makeWant(),
-  _id: "want-trip" as Id<"goals">,
+const trip: Goal = {
+  ...makeGoal(),
+  _id: "goal-trip" as Id<"goals">,
   name: "Trip",
   estimatedCostCents: 5_000n,
   order: 1,
@@ -46,7 +46,7 @@ const trip: WantItem = {
 
 function mountDialog(
   extraProps: {
-    activeGoals?: WantItem[];
+    activeGoals?: Goal[];
     availableSavingsCents?: bigint;
     error?: string;
     isSubmitting?: boolean;
@@ -56,10 +56,10 @@ function mountDialog(
   return mount(PurchaseDialog, {
     props: {
       open: true,
-      item: makeWant(),
+      item: makeGoal(),
       mode: "purchase",
       purchaseLocalDate: "2026-08-19",
-      activeGoals: [makeWant(), trip],
+      activeGoals: [makeGoal(), trip],
       availableSavingsCents: 10_000n,
       ...extraProps,
     },
@@ -67,7 +67,7 @@ function mountDialog(
   });
 }
 
-describe("WantsPurchaseDialog", () => {
+describe("GoalsPurchaseDialog", () => {
   it.each([
     {
       name: "fully funded",
@@ -94,7 +94,7 @@ describe("WantsPurchaseDialog", () => {
     wrapper.unmount();
   });
 
-  it("shows affected Wants and their remaining progress", async () => {
+  it("shows affected goals and their remaining progress", async () => {
     // $150 saved: Camera holds $100, Trip holds $50. Paying $120 leaves $30 for Trip.
     const wrapper = mountDialog({ availableSavingsCents: 15_000n });
 
@@ -104,7 +104,7 @@ describe("WantsPurchaseDialog", () => {
 
     const impact = wrapper.get('[data-test="progress-losses"]');
 
-    expect(impact.get("h3").text()).toBe("Progress affected on other Wants");
+    expect(impact.get("h3").text()).toBe("Progress affected on other goals");
     expect(impact.text()).toContain("Trip");
     expect(impact.text()).toContain("$20.00 progress used");
     expect(impact.text()).toContain("$30.00 remains allocated");
@@ -127,7 +127,7 @@ describe("WantsPurchaseDialog", () => {
     await wrapper.get("form").trigger("submit");
 
     expect(wrapper.emitted("submit")?.at(-1)?.[0]).toEqual({
-      goalId: "want-camera",
+      goalId: "goal-camera",
       actualAmountCents: 12_000n,
       purchaseLocalDate: "2026-08-19",
     });
@@ -181,11 +181,11 @@ describe("WantsPurchaseDialog", () => {
   });
 });
 
-describe("WantsBoughtList", () => {
+describe("GoalsPurchaseHistory", () => {
   function mountHistory() {
-    return mount(BoughtList, {
+    return mount(PurchaseHistory, {
       props: {
-        items: [makeWant("purchased")],
+        items: [makeGoal("purchased")],
       },
       global: {
         stubs: {
@@ -211,7 +211,7 @@ describe("WantsBoughtList", () => {
     await wrapper.get('button[aria-label="Correct Camera purchase"]').trigger("click");
 
     expect(wrapper.emitted("correct")?.[0]?.[0]).toMatchObject({
-      _id: "want-camera",
+      _id: "goal-camera",
       expenseId: "expense-camera",
     });
   });
@@ -228,7 +228,7 @@ describe("WantsBoughtList", () => {
 
     await wrapper.get('button[aria-label="Confirm undo Camera purchase"]').trigger("click");
 
-    expect(wrapper.emitted("undo")?.[0]?.[0]).toBe("want-camera");
+    expect(wrapper.emitted("undo")?.[0]?.[0]).toBe("goal-camera");
   });
 
   it("never exposes generic expense edit or delete actions", () => {

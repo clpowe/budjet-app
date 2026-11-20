@@ -6,10 +6,10 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
 import AppHeader from "../../app/components/app-header.vue";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
-import WantsPage from "../../app/pages/wants.vue";
+import GoalsPage from "../../app/pages/goals.vue";
 
-type WantItem = Doc<"goals">;
-type WantStatus = WantItem["status"];
+type Goal = Doc<"goals">;
+type GoalStatus = Goal["status"];
 
 const mockFns = vi.hoisted(() => ({
   changeStatus: vi.fn(),
@@ -20,7 +20,7 @@ const mockFns = vi.hoisted(() => ({
   signOut: vi.fn(),
   undoPurchase: vi.fn(),
   updateItem: vi.fn(),
-  useWantList: vi.fn(),
+  useGoalList: vi.fn(),
 }));
 
 const authUser = ref({
@@ -28,8 +28,8 @@ const authUser = ref({
   name: "Alex Rivera",
 });
 
-mockNuxtImport("useWantList", () => {
-  return () => mockFns.useWantList();
+mockNuxtImport("useGoalList", () => {
+  return () => mockFns.useGoalList();
 });
 mockNuxtImport("useDate", () => {
   return () => ({
@@ -47,7 +47,7 @@ mockNuxtImport("useBudgetAuth", () => {
 const householdId = "household-1" as Id<"households">;
 const ownerId = "user-1" as Id<"users">;
 
-function makeWant(id: string, name: string, status: WantStatus, order?: number): WantItem {
+function makeGoal(id: string, name: string, status: GoalStatus, order?: number): Goal {
   return {
     _id: id as Id<"goals">,
     _creationTime: 1,
@@ -77,22 +77,22 @@ function makeSummary() {
 
 function arrangePage({
   active = [],
-  bought = [],
-  considering = [],
+  purchased = [],
+  ideas = [],
   isLoading = false,
-  notNow = [],
+  onHold = [],
   loadMoreBought,
   summary = makeSummary(),
 }: {
-  active?: WantItem[];
-  bought?: WantItem[];
-  considering?: WantItem[];
+  active?: Goal[];
+  purchased?: Goal[];
+  ideas?: Goal[];
   isLoading?: boolean;
-  notNow?: WantItem[];
-  loadMoreBought?: () => WantItem;
+  onHold?: Goal[];
+  loadMoreBought?: () => Goal;
   summary?: ReturnType<typeof makeSummary>;
 } = {}) {
-  const sections = ref({ active, bought, considering, notNow });
+  const sections = ref({ active, purchased, ideas, onHold });
   function section() {
     return {
       isInitialLoading: ref(false),
@@ -103,15 +103,15 @@ function arrangePage({
       retry: vi.fn(),
     };
   }
-  const history = { considering: section(), notNow: section(), bought: section() };
+  const history = { ideas: section(), onHold: section(), purchased: section() };
   if (loadMoreBought) {
-    history.bought.canLoadMore.value = true;
-    history.bought.loadMore.mockImplementation(() => {
-      sections.value.bought.push(loadMoreBought());
-      history.bought.canLoadMore.value = false;
+    history.purchased.canLoadMore.value = true;
+    history.purchased.loadMore.mockImplementation(() => {
+      sections.value.purchased.push(loadMoreBought());
+      history.purchased.canLoadMore.value = false;
     });
   }
-  mockFns.useWantList.mockReturnValue({
+  mockFns.useGoalList.mockReturnValue({
     sections,
     history,
     summary: ref(summary),
@@ -125,7 +125,7 @@ function arrangePage({
     undoPurchase: mockFns.undoPurchase,
   });
 
-  return mount(WantsPage, {
+  return mount(GoalsPage, {
     global: {
       stubs: {
         Icon: true,
@@ -139,20 +139,20 @@ beforeEach(() => {
   mockFns.signOut.mockResolvedValue({ success: true });
 });
 
-describe("WantsPage", () => {
+describe("GoalsPage", () => {
   it("announces the loading state before rendering the queue", () => {
     const wrapper = arrangePage({ isLoading: true });
 
     expect(wrapper.get("main").attributes("aria-busy")).toBe("true");
-    expect(wrapper.get('[role="status"]').text()).toContain("Loading Wants");
+    expect(wrapper.get('[role="status"]').text()).toContain("Loading goals");
   });
 
-  it("offers a clear first action when the household has no Wants", () => {
+  it("offers a clear first action when the household has no goals", () => {
     const wrapper = arrangePage();
 
-    expect(wrapper.get("h1").text()).toBe("Wants");
-    expect(wrapper.text()).toContain("No Wants yet");
-    expect(wrapper.get('button[aria-label="Add Want"]').text()).toContain("Add Want");
+    expect(wrapper.get("h1").text()).toBe("Goals");
+    expect(wrapper.text()).toContain("No goals yet");
+    expect(wrapper.get('button[aria-label="Add goal"]').text()).toContain("Add goal");
   });
 
   it("explains savings recovery without presenting a negative available balance", () => {
@@ -172,8 +172,8 @@ describe("WantsPage", () => {
   });
 
   it("derives active queue progress locally from available savings", () => {
-    const camera = makeWant("want-camera", "Camera", "saving", 0);
-    const headphones = makeWant("want-headphones", "Headphones", "saving", 1);
+    const camera = makeGoal("goal-camera", "Camera", "saving", 0);
+    const headphones = makeGoal("goal-headphones", "Headphones", "saving", 1);
 
     const wrapper = arrangePage({ active: [camera, headphones] });
     const headphonesProgress = wrapper.get('progress[aria-label="Headphones funding progress"]');
@@ -188,9 +188,9 @@ describe("WantsPage", () => {
 
   it("keeps Considering, Not now, and Bought items in distinct sections", () => {
     const wrapper = arrangePage({
-      considering: [makeWant("want-bike", "Bike", "idea")],
-      notNow: [makeWant("want-kayak", "Kayak", "on_hold")],
-      bought: [makeWant("want-headphones", "Headphones", "purchased")],
+      ideas: [makeGoal("goal-bike", "Bike", "idea")],
+      onHold: [makeGoal("goal-kayak", "Kayak", "on_hold")],
+      purchased: [makeGoal("goal-headphones", "Headphones", "purchased")],
     });
 
     const headings = wrapper.findAll("h2").map((heading) => heading.text());
@@ -201,13 +201,13 @@ describe("WantsPage", () => {
     expect(wrapper.text()).toContain("Headphones");
   });
 
-  it("offers purchase correction for an older Bought Want after loading the next page", async () => {
+  it("offers purchase correction for an older purchased goal after loading the next page", async () => {
     const wrapper = arrangePage({
-      considering: [makeWant("bike", "Bike", "idea")],
-      bought: Array.from({ length: 25 }, (_, index) =>
-        makeWant(`bought-${index}`, `Bought ${index}`, "purchased"),
+      ideas: [makeGoal("bike", "Bike", "idea")],
+      purchased: Array.from({ length: 25 }, (_, index) =>
+        makeGoal(`purchased-${index}`, `Bought ${index}`, "purchased"),
       ),
-      loadMoreBought: () => makeWant("older", "Older headphones", "purchased"),
+      loadMoreBought: () => makeGoal("older", "Older headphones", "purchased"),
     });
     expect(wrapper.find('[aria-label="Correct Older headphones purchase"]').exists()).toBe(false);
     await wrapper
@@ -230,8 +230,8 @@ describe("WantsPage", () => {
   });
 });
 
-describe("AppHeader Wants navigation", () => {
-  it("includes Wants in the primary navigation", () => {
+describe("AppHeader goals navigation", () => {
+  it("includes Goals in the primary navigation", () => {
     const wrapper = mount(AppHeader, {
       global: {
         stubs: {
@@ -246,6 +246,6 @@ describe("AppHeader Wants navigation", () => {
       },
     });
 
-    expect(wrapper.find('nav[aria-label="Primary"] a[href="/wants"]').exists()).toBe(true);
+    expect(wrapper.find('nav[aria-label="Primary"] a[href="/goals"]').exists()).toBe(true);
   });
 });

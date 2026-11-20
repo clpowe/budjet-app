@@ -47,7 +47,7 @@ const transactionDialog = shallowRef<HTMLDialogElement | null>(null);
       <nav class="l-stack" aria-label="Primary">
         <NuxtLink to="/home">H</NuxtLink>
         <NuxtLink to="/monthly">M</NuxtLink>
-        <NuxtLink to="/wants">W</NuxtLink>
+        <NuxtLink to="/goals">W</NuxtLink>
         <NuxtLink to="/household">H</NuxtLink>
       </nav>
       <div class="actions">

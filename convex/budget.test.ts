@@ -158,7 +158,7 @@ test("derives one nested month-to-date summary and excludes future local-date ro
       todayOverageAdjustmentCents: -2_000n,
       projectedEndOfDayContributionCents: 0n,
     },
-    nextPlannedWant: {
+    nextGoal: {
       goalId: cameraId,
       name: "Camera",
       estimatedCostCents: 10_000n,
@@ -215,7 +215,7 @@ test("rejects duplicate monthly rollup local dates below the row cap", async () 
   ).rejects.toThrow("Daily budget rollups contain duplicate local dates");
 });
 
-test("marks want purchases and returns exact savings and budget-impact cents", async () => {
+test("marks goal purchases and returns exact savings and budget-impact cents", async () => {
   const t = convexTest(schema, modules);
   const seeded = await seedHousehold(t);
 
@@ -255,7 +255,7 @@ test("marks want purchases and returns exact savings and budget-impact cents", a
       amountCents: 12_000n,
       fromSavingsCents: 10_000n,
       budgetImpactCents: 2_000n,
-      isWantPurchase: true,
+      isGoalPurchase: true,
     }),
   ]);
 });

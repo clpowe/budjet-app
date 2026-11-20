@@ -87,7 +87,7 @@ function onExpenseUpdated(id: string) {
                 {{ formatPurchaseFunding(row.original) }}
               </template>
               <template v-else-if="cell.column.id === 'actions' && row.original.goalId">
-                Want purchase
+                Goal purchase
               </template>
               <template v-else-if="cell.column.id === 'actions'">
                 <div class="actions">

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { nextTick, ref } from "vue";
 import type { Doc, Id } from "@generated/dataModel";
-import WantsStatusBadge from "./status-badge.vue";
+import GoalsStatusBadge from "./status-badge.vue";
 
-type WantItem = Doc<"goals">;
+type Goal = Doc<"goals">;
 
 withDefaults(
   defineProps<{
-    items: WantItem[];
+    items: Goal[];
     pendingItemId?: Id<"goals">;
     error?: string;
   }>(),
@@ -18,7 +18,7 @@ withDefaults(
 );
 
 const emit = defineEmits<{
-  (event: "correct", item: WantItem): void;
+  (event: "correct", item: Goal): void;
   (event: "undo", goalId: Id<"goals">): void;
 }>();
 
@@ -49,7 +49,7 @@ async function openUndoDialog(goalId: Id<"goals">) {
   <section class="l-stack" aria-labelledby="bought-history-heading">
     <div>
       <h2 id="bought-history-heading">Bought history</h2>
-      <p>Completed Wants remain linked to their ledger entries.</p>
+      <p>Completed goals remain linked to their ledger entries.</p>
     </div>
 
     <p v-if="error" role="alert" aria-live="polite">
@@ -63,7 +63,7 @@ async function openUndoDialog(goalId: Id<"goals">) {
           <p>Purchased {{ purchaseDateLabel(item.purchasedAt) }}</p>
         </div>
 
-        <WantsStatusBadge status="purchased" />
+        <GoalsStatusBadge status="purchased" />
       </div>
 
       <p>Estimated cost: {{ formatCents(item.estimatedCostCents) }}</p>

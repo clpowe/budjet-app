@@ -79,7 +79,7 @@ async function seedHouseholds(t: TestConvex<typeof schema>) {
       updatedAt: 2,
     });
 
-    const otherWantId = await ctx.db.insert("goals", {
+    const otherGoalId = await ctx.db.insert("goals", {
       householdId: otherHouseholdId,
       name: "Other household item",
       estimatedCostCents: 5_000n,
@@ -113,7 +113,7 @@ async function seedHouseholds(t: TestConvex<typeof schema>) {
       householdId,
       cameraId,
       tripId,
-      otherWantId,
+      otherGoalId,
     };
   });
 }
@@ -237,7 +237,7 @@ test("allows household members to edit items but blocks other households", async
       targetDate: null,
       notes: "",
     }),
-  ).rejects.toThrow("Want item not found");
+  ).rejects.toThrow("Goal not found");
 });
 
 test("appends planned items and removes queue order when they leave the active queue", async () => {
@@ -278,7 +278,7 @@ test("appends planned items and removes queue order when they leave the active q
   });
 
   if (movedOut.kind !== "updated") {
-    throw new Error("Expected the want status update to complete");
+    throw new Error("Expected the goal status update to complete");
   }
 
   expect(movedOut.item.order).toBeUndefined();
@@ -306,7 +306,7 @@ test("requires a complete current queue for reordering and keeps priority data s
   await expect(
     asOwner.mutation(api.goals.reorder, {
       expectedGoalIds: [seeded.cameraId, seeded.tripId],
-      goalIds: [seeded.cameraId, seeded.otherWantId],
+      goalIds: [seeded.cameraId, seeded.otherGoalId],
     }),
   ).rejects.toThrow();
 

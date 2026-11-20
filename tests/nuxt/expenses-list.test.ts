@@ -74,11 +74,11 @@ describe("ExpensesList", () => {
     expect(wrapper.text()).not.toContain("Coffee");
   });
 
-  it("discloses Want purchase funding and omits generic edit and delete actions", () => {
+  it("discloses Goal purchase funding and omits generic edit and delete actions", () => {
     const wrapper = mountList([
       {
-        ...makeExpense("expense-want", "Camera", 120.01),
-        goalId: "want-camera" as NonNullable<Expense["goalId"]>,
+        ...makeExpense("expense-goal", "Camera", 120.01),
+        goalId: "goal-camera" as NonNullable<Expense["goalId"]>,
         amountCents: 12_001n,
         fromSavingsCents: 10_002n,
       },
@@ -88,7 +88,7 @@ describe("ExpensesList", () => {
     expect(row.find('button[aria-label="Edit Camera"]').exists()).toBe(false);
     expect(row.find('button[aria-label="Delete Camera"]').exists()).toBe(false);
     expect(row.find("dialog").exists()).toBe(false);
-    expect(row.text()).toContain("Want purchase");
+    expect(row.text()).toContain("Goal purchase");
     expect(row.text()).toContain("$120.01 total");
     expect(row.text()).toContain("$100.02 from savings");
     expect(row.text()).toContain("$19.99 budget impact");

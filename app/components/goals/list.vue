@@ -3,17 +3,17 @@ import type { FunctionArgs } from "convex/server";
 import { computed, ref, useId, watch } from "vue";
 import { VueDraggable } from "vue-draggable-plus";
 import type { Doc, Id } from "@generated/dataModel";
-import type { WantStatus } from "../../utils/want-status";
-import WantsItem from "./item.vue";
+import type { GoalStatus } from "../../utils/goal-status";
+import GoalsItem from "./item.vue";
 import type { ActiveAllocation } from "../../utils/goal-allocations";
 import type { api } from "~~/convex/_generated/api";
 
-type WantItem = Doc<"goals">;
+type Goal = Doc<"goals">;
 
 const props = withDefaults(
   defineProps<{
     title: string;
-    items: WantItem[];
+    items: Goal[];
     allocations?: ActiveAllocation[];
     reorderable?: boolean;
     reorderPending?: boolean;
@@ -29,21 +29,21 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (event: "reorder", order: FunctionArgs<typeof api.goals.reorder>): void;
-  (event: "edit", item: WantItem): void;
-  (event: "purchase", item: WantItem): void;
+  (event: "edit", item: Goal): void;
+  (event: "purchase", item: Goal): void;
   (
     event: "change-status",
     value: {
       goalId: Id<"goals">;
-      status: WantStatus;
+      status: GoalStatus;
     },
   ): void;
 }>();
 
 const headingId = useId();
 const instructionsId = useId();
-const localItems = ref<WantItem[]>([]);
-const dragSnapshot = ref<WantItem[] | null>(null);
+const localItems = ref<Goal[]>([]);
+const dragSnapshot = ref<Goal[] | null>(null);
 const isDragging = ref(false);
 
 const allocationsByItem = computed(() => {
@@ -71,13 +71,13 @@ watch(
   },
 );
 
-function hasSameOrder(first: WantItem[], second: WantItem[]) {
+function hasSameOrder(first: Goal[], second: Goal[]) {
   return (
     first.length === second.length && first.every((item, index) => item._id === second[index]?._id)
   );
 }
 
-function emitCurrentOrder(previousItems: WantItem[]) {
+function emitCurrentOrder(previousItems: Goal[]) {
   emit("reorder", {
     expectedGoalIds: previousItems.map((item) => item._id),
     goalIds: localItems.value.map((item) => item._id),
@@ -164,7 +164,7 @@ function moveItem(goalId: Id<"goals">, direction: -1 | 1) {
       v-else
       v-model="localItems"
       tag="div"
-      handle=".want-drag-handle"
+      handle=".goal-drag-handle"
       :animation="150"
       :disabled="!reorderable || reorderPending"
       @start="onDragStart"
@@ -173,7 +173,7 @@ function moveItem(goalId: Id<"goals">, direction: -1 | 1) {
       <div class="l-stack" v-for="(item, index) in localItems" :key="item._id">
         <button
           v-if="reorderable"
-          class="want-drag-handle"
+          class="goal-drag-handle"
           type="button"
           :disabled="reorderPending"
           :aria-label="`Drag ${item.name} to reorder`"
@@ -182,7 +182,7 @@ function moveItem(goalId: Id<"goals">, direction: -1 | 1) {
           Drag
         </button>
 
-        <WantsItem
+        <GoalsItem
           :item="item"
           :allocation="allocationsByItem.get(item._id)"
           :reorderable="reorderable"

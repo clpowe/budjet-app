@@ -3,26 +3,26 @@ import { useForm } from "@tanstack/vue-form";
 import { computed, useId, watch } from "vue";
 import { parseMoneyToCents } from "../../../shared/utils/money-cents";
 
-type WantPriority = "high" | "medium" | "low";
+type GoalPriority = "high" | "medium" | "low";
 
-type WantFormModel = {
+type GoalFormModel = {
   name: string;
   estimatedCost: string;
-  priority: WantPriority | "";
+  priority: GoalPriority | "";
   targetDate: string;
   notes: string;
 };
 
-type WantSubmitValues = {
+type GoalSubmitValues = {
   name: string;
   estimatedCostCents: bigint;
-  priority: WantPriority;
+  priority: GoalPriority;
   targetDate: number | undefined;
   notes: string;
 };
 
 const props = defineProps<{
-  modelValue: WantFormModel;
+  modelValue: GoalFormModel;
   submitLabel?: string;
   isSubmitting?: boolean;
   disabled?: boolean;
@@ -30,8 +30,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (event: "update:modelValue", value: WantFormModel): void;
-  (event: "submit", value: WantSubmitValues): void;
+  (event: "update:modelValue", value: GoalFormModel): void;
+  (event: "submit", value: GoalSubmitValues): void;
 }>();
 
 const { toTransactionTimestamp } = useDate();
@@ -54,7 +54,7 @@ function validateEstimatedCost({ value }: { value: string }) {
   }
 }
 
-function validatePriority({ value }: { value: WantPriority | "" }) {
+function validatePriority({ value }: { value: GoalPriority | "" }) {
   return value ? undefined : "Choose a priority.";
 }
 
@@ -81,7 +81,7 @@ const form = useForm({
   },
 });
 
-function updateModel<K extends keyof WantFormModel>(key: K, value: WantFormModel[K]) {
+function updateModel<K extends keyof GoalFormModel>(key: K, value: GoalFormModel[K]) {
   emit("update:modelValue", {
     ...props.modelValue,
     [key]: value,
@@ -243,10 +243,10 @@ function handleSubmit() {
               required
               @blur="field.handleBlur"
               @change="
-                field.handleChange(($event.target as HTMLSelectElement).value as WantPriority | '');
+                field.handleChange(($event.target as HTMLSelectElement).value as GoalPriority | '');
                 updateModel(
                   'priority',
-                  ($event.target as HTMLSelectElement).value as WantPriority | '',
+                  ($event.target as HTMLSelectElement).value as GoalPriority | '',
                 );
               "
             >
@@ -326,7 +326,7 @@ function handleSubmit() {
           :aria-busy="isSubmitting || isFormSubmitting ? 'true' : undefined"
           :aria-describedby="error ? formErrorId : undefined"
         >
-          {{ isSubmitting || isFormSubmitting ? "Saving..." : submitLabel || "Save Want" }}
+          {{ isSubmitting || isFormSubmitting ? "Saving..." : submitLabel || "Save goal" }}
         </button>
       </template>
     </form.Subscribe>

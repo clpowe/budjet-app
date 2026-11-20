@@ -252,7 +252,7 @@ test("maintains exact rollups when an expense changes days or is deleted", async
   });
 });
 
-test("refuses generic edits and deletes for want purchases", async () => {
+test("refuses generic edits and deletes for goal purchases", async () => {
   const t = convexTest(schema, modules);
   const seeded = await seedHouseholds(t);
   const asOwner = t.withIdentity({ tokenIdentifier: "test|owner" });
@@ -291,10 +291,10 @@ test("refuses generic edits and deletes for want purchases", async () => {
       amountCents: 9_000n,
       localDate: "2026-03-10",
     }),
-  ).rejects.toThrow("Want purchases must be managed from the wants flow");
+  ).rejects.toThrow("Goal purchases must be managed from the Goals page");
 
   await expect(asOwner.mutation(api.expenses.deleteExpense, { expenseId })).rejects.toThrow(
-    "Want purchases must be managed from the wants flow",
+    "Goal purchases must be managed from the Goals page",
   );
 });
 

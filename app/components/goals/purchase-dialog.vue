@@ -3,15 +3,15 @@ import { computed, nextTick, ref, useId, watch } from "vue";
 import type { Doc, Id } from "@generated/dataModel";
 import { previewGoalPurchase } from "../../utils/goal-allocations";
 
-type WantItem = Doc<"goals">;
+type Goal = Doc<"goals">;
 
 const props = withDefaults(
   defineProps<{
     open: boolean;
-    item: WantItem;
+    item: Goal;
     mode?: "purchase" | "correct";
     purchaseLocalDate: string;
-    activeGoals?: readonly WantItem[];
+    activeGoals?: readonly Goal[];
     availableSavingsCents?: bigint;
     isSubmitting?: boolean;
     error?: string;
@@ -263,7 +263,7 @@ function submit() {
           data-test="progress-losses"
           aria-labelledby="progress-losses-heading"
         >
-          <h3 id="progress-losses-heading">Progress affected on other Wants</h3>
+          <h3 id="progress-losses-heading">Progress affected on other goals</h3>
 
           <ul>
             <li v-for="loss in preview.progressLosses" :key="loss.goalId">

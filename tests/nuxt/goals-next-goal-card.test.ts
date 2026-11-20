@@ -3,10 +3,10 @@ import { describe, expect, it } from "vite-plus/test";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "../../convex/_generated/api";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
-import NextPlannedWantCard from "../../app/components/wants/next-planned-want-card.vue";
+import NextGoalCard from "../../app/components/goals/next-goal-card.vue";
 
 type HomeSummary = FunctionReturnType<typeof api.budget.getHomeSummary>;
-type NextPlannedWant = NonNullable<HomeSummary["nextPlannedWant"]>;
+type NextGoal = NonNullable<HomeSummary["nextGoal"]>;
 
 function makeSummary(): HomeSummary {
   const savings = {
@@ -41,8 +41,8 @@ function makeSummary(): HomeSummary {
       },
     },
     savings,
-    nextPlannedWant: {
-      goalId: "want-camera" as NextPlannedWant["goalId"],
+    nextGoal: {
+      goalId: "goal-camera" as NextGoal["goalId"],
       name: "Camera",
       estimatedCostCents: 10_000n,
       allocatedCents: 4_000n,
@@ -54,7 +54,7 @@ function makeSummary(): HomeSummary {
 }
 
 function mountCard(summary = makeSummary()) {
-  return mount(NextPlannedWantCard, {
+  return mount(NextGoalCard, {
     props: {
       summary,
       todayLocalDate: "2026-08-19",
@@ -71,15 +71,15 @@ function mountCard(summary = makeSummary()) {
   });
 }
 
-describe("WantsNextPlannedWantCard", () => {
-  it("offers a Wants link when no active item exists", () => {
+describe("GoalsNextGoalCard", () => {
+  it("offers a goals link when no active item exists", () => {
     const summary = makeSummary();
-    summary.nextPlannedWant = null;
+    summary.nextGoal = null;
 
     const wrapper = mountCard(summary);
 
-    expect(wrapper.text()).toContain("No active Want");
-    expect(wrapper.get('a[href="/wants"]').text()).toContain("View Wants");
+    expect(wrapper.text()).toContain("No active goal");
+    expect(wrapper.get('a[href="/goals"]').text()).toContain("View goals");
   });
 
   it("shows partial funding with progress and savings labels", () => {
@@ -89,20 +89,20 @@ describe("WantsNextPlannedWantCard", () => {
     expect(wrapper.text()).toContain("$40.00 of $100.00 funded");
     expect(wrapper.text()).toContain("Savings");
     expect(wrapper.text()).toContain("Potential tonight");
-    expect(wrapper.get('a[href="/wants"]').text()).toContain("View Wants");
+    expect(wrapper.get('a[href="/goals"]').text()).toContain("View goals");
 
     const progress = wrapper.get('progress[aria-label="Camera funding progress"]');
     expect(progress.attributes("value")).toBe("4000");
     expect(progress.attributes("max")).toBe("10000");
   });
 
-  it("announces a ready Want without a discouraging affordability message", () => {
+  it("announces a ready goal without a discouraging affordability message", () => {
     const summary = makeSummary();
 
-    if (summary.nextPlannedWant) {
-      summary.nextPlannedWant.allocatedCents = 10_000n;
-      summary.nextPlannedWant.remainingCents = 0n;
-      summary.nextPlannedWant.progressBasisPoints = 10_000;
+    if (summary.nextGoal) {
+      summary.nextGoal.allocatedCents = 10_000n;
+      summary.nextGoal.remainingCents = 0n;
+      summary.nextGoal.progressBasisPoints = 10_000;
     }
 
     const wrapper = mountCard(summary);

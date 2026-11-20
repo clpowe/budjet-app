@@ -270,24 +270,24 @@ export async function activateSavings(
 }
 
 // ---------------------------------------------------------------------------
-// Want purchases
+// Goal purchases
 // ---------------------------------------------------------------------------
 
 /**
- * Records a purchase of a planned Want: inserts the linked expense, funds it
+ * Records a purchase of a goal being saved for: inserts the linked expense, funds it
  * from savings first, and books it against `localDate`.
  */
 export async function recordPurchase(
   ctx: MutationCtx,
   {
     household,
-    want,
+    goal,
     amountCents,
     localDate,
     now,
   }: {
     household: Doc<"households">;
-    want: Doc<"goals">;
+    goal: Doc<"goals">;
     amountCents: bigint;
     localDate: string;
     now: number;
@@ -308,11 +308,11 @@ export async function recordPurchase(
 
   const expenseId = await ctx.db.insert("expenses", {
     householdId: household._id,
-    name: want.name,
-    notes: want.notes,
+    name: goal.name,
+    notes: goal.notes,
     amountCents,
     localDate,
-    goalId: want._id,
+    goalId: goal._id,
     fromSavingsCents: funding.fromSavingsCents,
   });
 
@@ -396,7 +396,7 @@ export async function undoPurchase(
 
 function assertLinkedPurchase(expense: Doc<"expenses">): void {
   if (!expense.goalId) {
-    throw new Error("Expense is not a Want purchase");
+    throw new Error("Expense is not a goal purchase");
   }
 }
 
@@ -419,7 +419,7 @@ function assertExpenseDayIsNotFuture(localDate: string, now: number, timeZone: s
 
 function assertEverydayExpense(expense: Doc<"expenses">): void {
   if (expense.goalId) {
-    throw new Error("Want purchases must be managed from the wants flow");
+    throw new Error("Goal purchases must be managed from the Goals page");
   }
 }
 

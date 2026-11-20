@@ -151,7 +151,7 @@ test("reports open-day underspending as potential instead of funded savings", as
     projectedEndOfDayContributionCents: 2_500n,
   });
 
-  expect(summary).not.toHaveProperty("nextPlannedWant");
+  expect(summary).not.toHaveProperty("nextGoal");
   expect(summary).not.toHaveProperty("activeAllocations");
 });
 

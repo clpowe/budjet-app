@@ -6,7 +6,7 @@ import { allocateSavings, type GoalAllocation } from "../../shared/utils/goal-al
 export const MAX_ACTIVE_GOALS = 100;
 
 type DatabaseCtx = QueryCtx | MutationCtx;
-type InactiveWantStatus = Exclude<Doc<"goals">["status"], "saving">;
+type InactiveGoalStatus = Exclude<Doc<"goals">["status"], "saving">;
 
 interface QueueMutationMetadata {
   actorId: Id<"users">;
@@ -20,7 +20,7 @@ interface AppendActiveGoalOptions extends QueueMutationMetadata {
 
 interface RemoveActiveGoalOptions extends QueueMutationMetadata {
   item: Doc<"goals">;
-  nextStatus: InactiveWantStatus;
+  nextStatus: InactiveGoalStatus;
 }
 
 interface ReorderActiveGoalsOptions extends QueueMutationMetadata {
@@ -59,11 +59,11 @@ export async function appendActiveGoal(
     item,
     actorId,
     now,
-    queueFullErrorMessage = "Active Want queue has reached its maximum size",
+    queueFullErrorMessage = "Active goal queue has reached its maximum size",
   }: AppendActiveGoalOptions,
 ): Promise<void> {
   if (item.status === "saving") {
-    throw new Error("Want item is already active");
+    throw new Error("Goal is already active");
   }
 
   assertPositiveCents(item.estimatedCostCents, "Estimated cost");
@@ -87,13 +87,13 @@ export async function removeActiveGoal(
   { item, nextStatus, actorId, now }: RemoveActiveGoalOptions,
 ): Promise<void> {
   if (item.status !== "saving") {
-    throw new Error("Want item is not active");
+    throw new Error("Goal is not active");
   }
 
   const activeItems = await loadActiveGoalQueue(ctx, item.householdId);
 
   if (!activeItems.some((activeItem) => activeItem._id === item._id)) {
-    throw new Error("Active Want queue does not contain the requested item");
+    throw new Error("Active goal queue does not contain the requested item");
   }
 
   await ctx.db.patch(item._id, {
@@ -147,7 +147,7 @@ export async function reorderActiveGoals(
     const item = activeById.get(goalId);
 
     if (!item) {
-      throw new Error("Active Want queue changed while reordering");
+      throw new Error("Active goal queue changed while reordering");
     }
 
     if (item.order !== order) {
@@ -163,26 +163,26 @@ export async function reorderActiveGoals(
 
 function assertValidActiveQueue(items: Doc<"goals">[]): void {
   if (items.length > MAX_ACTIVE_GOALS) {
-    throw new Error("Active Want queue exceeds its maximum size");
+    throw new Error("Active goal queue exceeds its maximum size");
   }
 
   const orders = new Set<number>();
 
   for (const item of items) {
     if (item.estimatedCostCents <= 0n) {
-      throw new Error("Active Want queue contains a nonpositive estimated cost");
+      throw new Error("Active goal queue contains a nonpositive estimated cost");
     }
 
     if (item.order === undefined) {
-      throw new Error("Active Want queue contains an item without an order");
+      throw new Error("Active goal queue contains an item without an order");
     }
 
     if (!Number.isSafeInteger(item.order) || item.order < 0) {
-      throw new Error("Active Want queue contains an invalid order");
+      throw new Error("Active goal queue contains an invalid order");
     }
 
     if (orders.has(item.order)) {
-      throw new Error("Active Want queue contains duplicate ordering");
+      throw new Error("Active goal queue contains duplicate ordering");
     }
 
     orders.add(item.order);
@@ -190,7 +190,7 @@ function assertValidActiveQueue(items: Doc<"goals">[]): void {
 
   for (const [expectedOrder, item] of items.entries()) {
     if (item.order !== expectedOrder) {
-      throw new Error("Active Want queue ordering is not contiguous");
+      throw new Error("Active goal queue ordering is not contiguous");
     }
   }
 }

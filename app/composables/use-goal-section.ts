@@ -15,7 +15,7 @@ type Page = {
 
 const PAGE_SIZE = 25;
 
-export function useWantSection(client: ConvexClient, status: SectionArgs["status"]) {
+export function useGoalSection(client: ConvexClient, status: SectionArgs["status"]) {
   const pages = shallowReactive<Page[]>([]);
   const error = ref("");
   const pending = ref(false);

@@ -4,23 +4,23 @@ import { computed, nextTick, ref, shallowRef, watch } from "vue";
 import { api } from "@generated/api";
 import type { Doc, Id } from "@generated/dataModel";
 import { projectAllocations } from "../utils/goal-allocations";
-import type { WantStatus } from "../utils/want-status";
+import type { GoalStatus } from "../utils/goal-status";
 
-type WantItem = Doc<"goals">;
-type WantPriority = WantItem["priority"];
+type Goal = Doc<"goals">;
+type GoalPriority = Goal["priority"];
 
-type WantFormModel = {
+type GoalFormModel = {
   name: string;
   estimatedCost: string;
-  priority: WantPriority | "";
+  priority: GoalPriority | "";
   targetDate: string;
   notes: string;
 };
 
-type WantSubmitValues = {
+type GoalSubmitValues = {
   name: string;
   estimatedCostCents: bigint;
-  priority: WantPriority;
+  priority: GoalPriority;
   targetDate: number | undefined;
   notes: string;
 };
@@ -39,20 +39,20 @@ const {
   purchase,
   correctPurchase,
   undoPurchase,
-} = useWantList();
+} = useGoalList();
 
 const { formatDateInput, localDate } = useDate();
 
 const isFormOpen = ref(false);
 const isSavingForm = ref(false);
 const isReordering = ref(false);
-const editingItem = ref<WantItem | null>(null);
+const editingItem = ref<Goal | null>(null);
 const formError = ref("");
 const reorderError = ref("");
 const pageError = ref("");
 const pageNotice = ref("");
 const boughtError = ref("");
-const purchaseItem = ref<WantItem | null>(null);
+const purchaseItem = ref<Goal | null>(null);
 const purchaseMode = ref<PurchaseDialogMode>("purchase");
 const isSubmittingPurchase = ref(false);
 const purchaseError = ref("");
@@ -60,7 +60,7 @@ const undoPendingItemId = ref<Id<"goals"> | undefined>();
 const purchaseTrigger = shallowRef<HTMLElement | null>(null);
 const formDialog = shallowRef<HTMLDialogElement | null>(null);
 
-function emptyFormModel(): WantFormModel {
+function emptyFormModel(): GoalFormModel {
   return {
     name: "",
     estimatedCost: "",
@@ -70,21 +70,21 @@ function emptyFormModel(): WantFormModel {
   };
 }
 
-const formModel = ref<WantFormModel>(emptyFormModel());
+const formModel = ref<GoalFormModel>(emptyFormModel());
 
 const hasItems = computed(() => {
   return (
     sections.value.active.length > 0 ||
-    sections.value.considering.length > 0 ||
-    sections.value.notNow.length > 0 ||
-    sections.value.bought.length > 0
+    sections.value.ideas.length > 0 ||
+    sections.value.onHold.length > 0 ||
+    sections.value.purchased.length > 0
   );
 });
 
 const inactiveSections = [
-  { key: "considering", title: "Considering" },
-  { key: "notNow", title: "Not now" },
-  { key: "bought", title: "Bought history" },
+  { key: "ideas", title: "Considering" },
+  { key: "onHold", title: "Not now" },
+  { key: "purchased", title: "Bought history" },
 ] as const;
 
 function hasSectionStatus(key: (typeof inactiveSections)[number]["key"]) {
@@ -106,7 +106,7 @@ const activeAllocations = computed(() => {
 });
 
 const formTitle = computed(() => {
-  return editingItem.value ? `Edit ${editingItem.value.name}` : "Add Want";
+  return editingItem.value ? `Edit ${editingItem.value.name}` : "Add goal";
 });
 
 function centsToInput(cents: bigint): string {
@@ -122,7 +122,7 @@ function clearFeedback() {
   pageNotice.value = "";
 }
 
-function openPurchase(item: WantItem, mode: PurchaseDialogMode = "purchase") {
+function openPurchase(item: Goal, mode: PurchaseDialogMode = "purchase") {
   if (import.meta.client && document.activeElement instanceof HTMLElement) {
     purchaseTrigger.value = document.activeElement;
   }
@@ -211,7 +211,7 @@ async function undoPurchaseFromHistory(goalId: Id<"goals">) {
       return;
     }
 
-    pageNotice.value = "Purchase undone. The Want is back at the bottom of Plan for it.";
+    pageNotice.value = "Purchase undone. The goal is back at the bottom of Plan for it.";
   } finally {
     undoPendingItemId.value = undefined;
   }
@@ -224,7 +224,7 @@ function openCreateForm() {
   isFormOpen.value = true;
 }
 
-function openEditForm(item: WantItem) {
+function openEditForm(item: Goal) {
   clearFeedback();
   editingItem.value = item;
   formModel.value = {
@@ -263,7 +263,7 @@ function onFormDialogCancel(event: Event) {
   if (isSavingForm.value) event.preventDefault();
 }
 
-async function saveWant(values: WantSubmitValues) {
+async function saveGoal(values: GoalSubmitValues) {
   if (isSavingForm.value) return;
 
   isSavingForm.value = true;
@@ -311,7 +311,7 @@ async function saveWant(values: WantSubmitValues) {
   }
 }
 
-async function updateStatus(value: { goalId: Id<"goals">; status: WantStatus }) {
+async function updateStatus(value: { goalId: Id<"goals">; status: GoalStatus }) {
   pageError.value = "";
   pageNotice.value = "";
 
@@ -322,7 +322,7 @@ async function updateStatus(value: { goalId: Id<"goals">; status: WantStatus }) 
     return;
   }
 
-  pageNotice.value = "Want status updated.";
+  pageNotice.value = "Goal status updated.";
 }
 
 async function saveOrder(order: FunctionArgs<typeof api.goals.reorder>) {
@@ -346,7 +346,7 @@ async function saveOrder(order: FunctionArgs<typeof api.goals.reorder>) {
       return;
     }
 
-    pageNotice.value = "Want order saved.";
+    pageNotice.value = "Goal order saved.";
   } finally {
     isReordering.value = false;
   }
@@ -357,20 +357,20 @@ async function saveOrder(order: FunctionArgs<typeof api.goals.reorder>) {
   <main class="l-page l-stack" :aria-busy="isLoading ? 'true' : undefined">
     <header class="l-cluster l-split">
       <div>
-        <h1>Wants</h1>
+        <h1>Goals</h1>
         <p>Decide together, order what matters, and track the shared savings funding each goal.</p>
       </div>
 
-      <button type="button" aria-label="Add Want" @click="openCreateForm">Add Want</button>
+      <button type="button" aria-label="Add goal" @click="openCreateForm">Add goal</button>
     </header>
 
     <div v-if="isLoading" role="status" aria-live="polite">
       <span aria-hidden="true" />
-      <p>Loading Wants…</p>
+      <p>Loading goals…</p>
     </div>
 
     <template v-else>
-      <WantsSavingsSummary
+      <GoalsSavingsSummary
         v-if="summary"
         :summary="summary"
         :next-item-name="sections.active[0]?.name"
@@ -387,16 +387,16 @@ async function saveOrder(order: FunctionArgs<typeof api.goals.reorder>) {
       <section
         v-if="!hasItems && !hasPendingSections"
         class="panel"
-        aria-labelledby="empty-wants-heading"
+        aria-labelledby="empty-goals-heading"
       >
-        <h2 id="empty-wants-heading">No Wants yet</h2>
+        <h2 id="empty-goals-heading">No goals yet</h2>
         <p>
           Add an idea to Considering, then move it into the active plan when the household is ready.
         </p>
       </section>
 
       <div v-else class="l-stack">
-        <WantsList
+        <GoalsList
           v-if="sections.active.length"
           title="Plan for it"
           :items="sections.active"
@@ -412,15 +412,15 @@ async function saveOrder(order: FunctionArgs<typeof api.goals.reorder>) {
 
         <template v-for="{ key, title } in inactiveSections" :key="key">
           <div v-if="sections[key].length || hasSectionStatus(key)" class="l-stack">
-            <WantsBoughtList
-              v-if="key === 'bought' && sections[key].length"
+            <GoalsPurchaseHistory
+              v-if="key === 'purchased' && sections[key].length"
               :items="sections[key]"
               :pending-item-id="undoPendingItemId"
               :error="boughtError"
               @correct="openPurchase($event, 'correct')"
               @undo="undoPurchaseFromHistory"
             />
-            <WantsList
+            <GoalsList
               v-else-if="sections[key].length"
               :title="title"
               :items="sections[key]"
@@ -451,25 +451,25 @@ async function saveOrder(order: FunctionArgs<typeof api.goals.reorder>) {
 
     <dialog
       ref="formDialog"
-      aria-labelledby="want-form-title"
+      aria-labelledby="goal-form-title"
       @close="onFormDialogClose"
       @cancel="onFormDialogCancel"
     >
       <header class="l-cluster l-split">
-        <h2 id="want-form-title">{{ formTitle }}</h2>
+        <h2 id="goal-form-title">{{ formTitle }}</h2>
         <button type="button" :disabled="isSavingForm" @click="closeForm">Close</button>
       </header>
 
-      <WantsForm
+      <GoalsForm
         v-model="formModel"
-        :submit-label="editingItem ? 'Save changes' : 'Add Want'"
+        :submit-label="editingItem ? 'Save changes' : 'Add goal'"
         :is-submitting="isSavingForm"
         :error="formError"
-        @submit="saveWant"
+        @submit="saveGoal"
       />
     </dialog>
 
-    <WantsPurchaseDialog
+    <GoalsPurchaseDialog
       v-if="purchaseItem"
       :open="Boolean(purchaseItem)"
       :item="purchaseItem"

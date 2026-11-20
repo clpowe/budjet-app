@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { Doc, Id } from "@generated/dataModel";
-import { getWantStatusStrategy, type WantStatus } from "../../utils/want-status";
-import WantsStatusBadge from "./status-badge.vue";
+import { getGoalStatusStrategy, type GoalStatus } from "../../utils/goal-status";
+import GoalsStatusBadge from "./status-badge.vue";
 import type { ActiveAllocation } from "../../utils/goal-allocations";
 
-type WantItem = Doc<"goals">;
+type Goal = Doc<"goals">;
 
 const props = defineProps<{
-  item: WantItem;
+  item: Goal;
   allocation?: ActiveAllocation;
   reorderable?: boolean;
   reorderPending?: boolean;
@@ -19,18 +19,18 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: "move-up", goalId: Id<"goals">): void;
   (event: "move-down", goalId: Id<"goals">): void;
-  (event: "edit", item: WantItem): void;
-  (event: "purchase", item: WantItem): void;
+  (event: "edit", item: Goal): void;
+  (event: "purchase", item: Goal): void;
   (
     event: "change-status",
     value: {
       goalId: Id<"goals">;
-      status: WantStatus;
+      status: GoalStatus;
     },
   ): void;
 }>();
 
-const strategy = computed(() => getWantStatusStrategy(props.item.status));
+const strategy = computed(() => getGoalStatusStrategy(props.item.status));
 
 const priorityLabel = computed(() => {
   return `${props.item.priority.charAt(0).toUpperCase()}${props.item.priority.slice(1)} priority`;
@@ -38,7 +38,7 @@ const priorityLabel = computed(() => {
 </script>
 
 <template>
-  <article class="panel l-stack" data-test="want-item">
+  <article class="panel l-stack" data-test="goal-item">
     <header class="l-cluster l-split">
       <div>
         <h3>
@@ -52,7 +52,7 @@ const priorityLabel = computed(() => {
         </p>
       </div>
 
-      <WantsStatusBadge :status="item.status" />
+      <GoalsStatusBadge :status="item.status" />
     </header>
 
     <p>
@@ -129,7 +129,7 @@ const priorityLabel = computed(() => {
           <li v-for="targetStatus in strategy.allowedActions" :key="targetStatus">
             <button
               type="button"
-              :aria-label="`Move ${item.name} to ${getWantStatusStrategy(targetStatus).label}`"
+              :aria-label="`Move ${item.name} to ${getGoalStatusStrategy(targetStatus).label}`"
               @click="
                 emit('change-status', {
                   goalId: item._id,
@@ -137,7 +137,7 @@ const priorityLabel = computed(() => {
                 })
               "
             >
-              {{ getWantStatusStrategy(targetStatus).label }}
+              {{ getGoalStatusStrategy(targetStatus).label }}
             </button>
           </li>
         </ul>

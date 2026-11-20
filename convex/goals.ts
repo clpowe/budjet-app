@@ -57,7 +57,7 @@ function normalizeName(name: string): string {
   const normalizedName = name.trim();
 
   if (!normalizedName) {
-    throw new Error("Want name is required");
+    throw new Error("Goal name is required");
   }
 
   return normalizedName;
@@ -75,7 +75,7 @@ function assertFiniteTargetDate(targetDate: number | null): void {
 
 function assertInactivePageSize(numItems: number): void {
   if (numItems !== INACTIVE_GOALS_PAGE_SIZE) {
-    throw new Error(`Inactive Want pages must contain ${INACTIVE_GOALS_PAGE_SIZE} items`);
+    throw new Error(`Inactive goal pages must contain ${INACTIVE_GOALS_PAGE_SIZE} items`);
   }
 }
 
@@ -87,10 +87,10 @@ async function requireLinkedPurchase(
   item: Doc<"goals">;
   expense: Doc<"expenses">;
 }> {
-  const item = await requireHouseholdDoc(ctx, "goals", goalId, householdId, "Want item not found");
+  const item = await requireHouseholdDoc(ctx, "goals", goalId, householdId, "Goal not found");
 
   if (item.status !== "purchased" || !item.expenseId) {
-    throw new Error("Want item does not have a linked purchase");
+    throw new Error("Goal does not have a linked purchase");
   }
 
   const expense = await ctx.db.get(item.expenseId);
@@ -130,11 +130,11 @@ export const list = query({
       .take(MAX_ACTIVE_GOALS + 1);
 
     if (active.length > MAX_ACTIVE_GOALS) {
-      throw new Error("Active Want queue exceeds its maximum size");
+      throw new Error("Active goal queue exceeds its maximum size");
     }
 
     if (active.some((item) => item.order === undefined)) {
-      throw new Error("Active Want queue contains an item without an order");
+      throw new Error("Active goal queue contains an item without an order");
     }
 
     return { active };
@@ -199,7 +199,7 @@ export const create = mutation({
     const goal = await ctx.db.get(goalId);
 
     if (!goal) {
-      throw new Error("Failed to create Want item");
+      throw new Error("Failed to create goal");
     }
 
     return goal;
@@ -225,7 +225,7 @@ export const update = mutation({
       "goals",
       args.goalId,
       household._id,
-      "Want item not found",
+      "Goal not found",
     );
 
     if (goal.status === "purchased") {
@@ -245,13 +245,13 @@ export const update = mutation({
       updatedAt: now,
     });
 
-    const updatedWantItem = await ctx.db.get(goal._id);
+    const updatedGoal = await ctx.db.get(goal._id);
 
-    if (!updatedWantItem) {
-      throw new Error("Want item disappeared during update");
+    if (!updatedGoal) {
+      throw new Error("Goal disappeared during update");
     }
 
-    return updatedWantItem;
+    return updatedGoal;
   },
 });
 
@@ -270,7 +270,7 @@ export const changeStatus = mutation({
       "goals",
       args.goalId,
       household._id,
-      "Want item not found",
+      "Goal not found",
     );
 
     if (goal.status === "purchased" || args.status === "purchased") {
@@ -314,15 +314,15 @@ export const changeStatus = mutation({
       await activateSavings(ctx, { household, now });
     }
 
-    const updatedWantItem = await ctx.db.get(goal._id);
+    const updatedGoal = await ctx.db.get(goal._id);
 
-    if (!updatedWantItem) {
-      throw new Error("Want item disappeared during status change");
+    if (!updatedGoal) {
+      throw new Error("Goal disappeared during status change");
     }
 
     return {
       kind: "updated" as const,
-      item: updatedWantItem,
+      item: updatedGoal,
     };
   },
 });
@@ -366,16 +366,16 @@ export const purchase = mutation({
       "goals",
       args.goalId,
       household._id,
-      "Want item not found",
+      "Goal not found",
     );
 
     if (goal.status !== "saving") {
-      throw new Error("Only planned Want items can be purchased");
+      throw new Error("Only goals being saved for can be purchased");
     }
 
     const result = await recordPurchase(ctx, {
       household,
-      want: goal,
+      goal,
       amountCents: args.actualAmountCents,
       localDate: args.purchaseLocalDate,
       now: serverNow,

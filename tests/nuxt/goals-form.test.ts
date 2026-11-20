@@ -2,7 +2,7 @@ import { mockNuxtImport } from "@nuxt/test-utils/runtime";
 import { flushPromises, mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vite-plus/test";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
-import WantsForm from "../../app/components/wants/form.vue";
+import GoalsForm from "../../app/components/goals/form.vue";
 
 const { toTransactionTimestampMock } = vi.hoisted(() => ({
   toTransactionTimestampMock: vi.fn((date: string) => {
@@ -24,9 +24,9 @@ function makeModel() {
   };
 }
 
-describe("WantsForm", () => {
+describe("GoalsForm", () => {
   it("requires a name, exact estimated cost, and priority before submitting", async () => {
-    const wrapper = mount(WantsForm, {
+    const wrapper = mount(GoalsForm, {
       props: {
         modelValue: {
           ...makeModel(),
@@ -48,7 +48,7 @@ describe("WantsForm", () => {
   });
 
   it("converts a decimal string to exact cents only when it emits submit", async () => {
-    const wrapper = mount(WantsForm, {
+    const wrapper = mount(GoalsForm, {
       props: {
         modelValue: makeModel(),
       },
@@ -71,7 +71,7 @@ describe("WantsForm", () => {
   });
 
   it("rejects an estimated cost with more than two fractional digits", async () => {
-    const wrapper = mount(WantsForm, {
+    const wrapper = mount(GoalsForm, {
       props: {
         modelValue: {
           ...makeModel(),
@@ -89,7 +89,7 @@ describe("WantsForm", () => {
   });
 
   it("keeps date and notes optional and interprets a supplied date through the household timezone", async () => {
-    const wrapper = mount(WantsForm, {
+    const wrapper = mount(GoalsForm, {
       props: {
         modelValue: {
           ...makeModel(),
@@ -111,9 +111,9 @@ describe("WantsForm", () => {
 
   it.each([
     { props: { isSubmitting: true }, expectedLabel: "Saving..." },
-    { props: { disabled: true }, expectedLabel: "Save Want" },
+    { props: { disabled: true }, expectedLabel: "Save goal" },
   ])("blocks duplicate submission when unavailable", async ({ props, expectedLabel }) => {
-    const wrapper = mount(WantsForm, {
+    const wrapper = mount(GoalsForm, {
       props: {
         modelValue: makeModel(),
         ...props,
@@ -130,16 +130,16 @@ describe("WantsForm", () => {
 
   it("announces an external mutation error without clearing parent-owned values", () => {
     const modelValue = makeModel();
-    const wrapper = mount(WantsForm, {
+    const wrapper = mount(GoalsForm, {
       props: {
         modelValue,
-        error: "Could not save this Want. Try again.",
+        error: "Could not save this goal. Try again.",
       },
     });
 
     const alert = wrapper.get('[role="alert"]');
 
-    expect(alert.text()).toBe("Could not save this Want. Try again.");
+    expect(alert.text()).toBe("Could not save this goal. Try again.");
     expect(alert.attributes("aria-live")).toBe("polite");
     expect(wrapper.get<HTMLInputElement>('input[name="name"]').element.value).toBe("Camera");
     expect(wrapper.get<HTMLInputElement>('input[name="estimatedCost"]').element.value).toBe(

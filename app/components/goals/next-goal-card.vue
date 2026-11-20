@@ -2,7 +2,7 @@
 import type { FunctionReturnType } from "convex/server";
 import { computed } from "vue";
 import { api } from "@generated/api";
-import { getWantGuidance } from "../../utils/want-guidance";
+import { getGoalGuidance } from "../../utils/goal-guidance";
 
 type HomeSummary = FunctionReturnType<typeof api.budget.getHomeSummary>;
 
@@ -20,12 +20,12 @@ const recentDailyPaceCents = computed(() => {
 });
 
 const guidance = computed(() => {
-  const nextPlannedWant = props.summary.nextPlannedWant;
+  const nextGoal = props.summary.nextGoal;
 
-  if (!nextPlannedWant) return null;
+  if (!nextGoal) return null;
 
-  return getWantGuidance({
-    remainingCents: nextPlannedWant.remainingCents,
+  return getGoalGuidance({
+    remainingCents: nextGoal.remainingCents,
     todayLocalDate: props.todayLocalDate,
     targetLocalDate: props.targetLocalDate,
     recentDailyPaceCents: recentDailyPaceCents.value,
@@ -35,14 +35,14 @@ const guidance = computed(() => {
 });
 
 const guidanceCopy = computed(() => {
-  const nextPlannedWant = props.summary.nextPlannedWant;
+  const nextGoal = props.summary.nextGoal;
   const currentGuidance = guidance.value;
 
-  if (!nextPlannedWant || !currentGuidance) return "";
+  if (!nextGoal || !currentGuidance) return "";
 
   switch (currentGuidance.kind) {
     case "ready":
-      return `${nextPlannedWant.name} is fully funded and ready when you are.`;
+      return `${nextGoal.name} is fully funded and ready when you are.`;
     case "recovery":
       return `${formatCents(currentGuidance.amountCents)} needs to be recovered before your savings can grow again.`;
     case "negative_today":
@@ -50,7 +50,7 @@ const guidanceCopy = computed(() => {
     case "target":
       return `Set aside ${formatCents(currentGuidance.dailyCents)} a day to reach your ${formatLocalDate(currentGuidance.targetLocalDate)} target.`;
     case "pace":
-      return `At your recent pace of ${formatCents(currentGuidance.dailyCents)} a day, ${nextPlannedWant.name} could be ready around ${formatLocalDate(currentGuidance.readyLocalDate)}.`;
+      return `At your recent pace of ${formatCents(currentGuidance.dailyCents)} a day, ${nextGoal.name} could be ready around ${formatLocalDate(currentGuidance.readyLocalDate)}.`;
     case "starter":
       return "Keep an eye on your next few closes; an estimate will appear after positive progress is recorded.";
   }
@@ -65,34 +65,34 @@ function formatLocalDate(localDate: string): string {
 </script>
 
 <template>
-  <section aria-labelledby="next-planned-want-heading">
+  <section aria-labelledby="next-goal-heading">
     <div>
       <div>
         <p>Shared savings</p>
-        <h2 id="next-planned-want-heading">Next planned Want</h2>
+        <h2 id="next-goal-heading">Next goal</h2>
       </div>
 
-      <NuxtLink to="/wants">View Wants</NuxtLink>
+      <NuxtLink to="/goals">View goals</NuxtLink>
     </div>
 
-    <template v-if="summary.nextPlannedWant">
+    <template v-if="summary.nextGoal">
       <div>
-        <h3>{{ summary.nextPlannedWant.name }}</h3>
+        <h3>{{ summary.nextGoal.name }}</h3>
         <p>
-          {{ formatCents(summary.nextPlannedWant.allocatedCents) }} of
-          {{ formatCents(summary.nextPlannedWant.estimatedCostCents) }} funded
+          {{ formatCents(summary.nextGoal.allocatedCents) }} of
+          {{ formatCents(summary.nextGoal.estimatedCostCents) }} funded
         </p>
       </div>
 
       <progress
-        :aria-label="`${summary.nextPlannedWant.name} funding progress`"
-        :value="summary.nextPlannedWant.progressBasisPoints"
+        :aria-label="`${summary.nextGoal.name} funding progress`"
+        :value="summary.nextGoal.progressBasisPoints"
         max="10000"
       >
-        {{ summary.nextPlannedWant.progressBasisPoints / 100 }}%
+        {{ summary.nextGoal.progressBasisPoints / 100 }}%
       </progress>
 
-      <p>{{ formatCents(summary.nextPlannedWant.remainingCents) }} remains to fund this Want.</p>
+      <p>{{ formatCents(summary.nextGoal.remainingCents) }} remains to fund this goal.</p>
 
       <p v-if="guidance">
         <span v-if="guidance.kind === 'recovery'">Savings recovery. </span>
@@ -101,7 +101,7 @@ function formatLocalDate(localDate: string): string {
     </template>
 
     <p v-else>
-      No active Want yet. Move an idea into Plan for it when your household is ready to fund it.
+      No active goal yet. Move an idea into Plan for it when your household is ready to fund it.
     </p>
 
     <dl>

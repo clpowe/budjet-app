@@ -189,12 +189,12 @@ async function readSnapshot(
       .query("dailyBudgetTotals")
       .withIndex("by_household_and_local_date", (q) => q.eq("householdId", householdId))
       .collect();
-    const wants = await ctx.db
+    const goals = await ctx.db
       .query("goals")
       .withIndex("by_household_and_status", (q) => q.eq("householdId", householdId))
       .collect();
 
-    return { savings, expenses, rollups, wants };
+    return { savings, expenses, rollups, goals };
   });
 }
 
@@ -259,8 +259,8 @@ test.each([
     const snapshot = await readSnapshot(t, seeded.householdId);
     const expense = snapshot.expenses.find((candidate) => candidate.goalId === seeded.cameraId);
     const rollup = snapshot.rollups.find((candidate) => candidate.localDate === purchaseLocalDate);
-    const camera = snapshot.wants.find((item) => item._id === seeded.cameraId);
-    const trip = snapshot.wants.find((item) => item._id === seeded.tripId);
+    const camera = snapshot.goals.find((item) => item._id === seeded.cameraId);
+    const trip = snapshot.goals.find((item) => item._id === seeded.tripId);
 
     expect(snapshot.expenses).toHaveLength(1);
     expect(expense).toMatchObject({
@@ -295,7 +295,7 @@ test.each([
   {
     name: "takes progress from the end of the queue when the first item overruns",
     positionCents: 20_000n,
-    addThirdWant: true,
+    addThirdGoal: true,
     buyTrip: false,
     actualAmountCents: 12_000n,
     remainingAllocations: [8_000n, 0n],
@@ -303,7 +303,7 @@ test.each([
   {
     name: "takes progress from an earlier item when buying the last item",
     positionCents: 8_000n,
-    addThirdWant: false,
+    addThirdGoal: false,
     buyTrip: true,
     actualAmountCents: 6_000n,
     remainingAllocations: [2_000n],
@@ -311,7 +311,7 @@ test.each([
   {
     name: "uses unallocated surplus without reducing progress",
     positionCents: 22_000n,
-    addThirdWant: false,
+    addThirdGoal: false,
     buyTrip: false,
     actualAmountCents: 12_000n,
     remainingAllocations: [8_000n],
@@ -319,7 +319,7 @@ test.each([
   {
     name: "preserves progress when the purchase costs less than estimated",
     positionCents: 15_000n,
-    addThirdWant: false,
+    addThirdGoal: false,
     buyTrip: false,
     actualAmountCents: 8_000n,
     remainingAllocations: [7_000n],
@@ -327,7 +327,7 @@ test.each([
   {
     name: "leaves the remaining allocation at zero when no savings is available",
     positionCents: 0n,
-    addThirdWant: false,
+    addThirdGoal: false,
     buyTrip: false,
     actualAmountCents: 12_000n,
     remainingAllocations: [0n],
@@ -335,7 +335,7 @@ test.each([
   {
     name: "preserves progress when savings exactly covers both estimates",
     positionCents: 18_000n,
-    addThirdWant: false,
+    addThirdGoal: false,
     buyTrip: false,
     actualAmountCents: 10_000n,
     remainingAllocations: [8_000n],
@@ -343,14 +343,14 @@ test.each([
   {
     name: "reports the loss when only one other item remains",
     positionCents: 15_000n,
-    addThirdWant: false,
+    addThirdGoal: false,
     buyTrip: false,
     actualAmountCents: 12_000n,
     remainingAllocations: [3_000n],
   },
 ])(
   "purchase preview $name",
-  async ({ positionCents, addThirdWant, buyTrip, actualAmountCents, remainingAllocations }) => {
+  async ({ positionCents, addThirdGoal, buyTrip, actualAmountCents, remainingAllocations }) => {
     vi.useFakeTimers();
     vi.setSystemTime(serverNow);
 
@@ -361,7 +361,7 @@ test.each([
       firstEligibleLocalDate: positionCents === 0n ? purchaseLocalDate : "2026-03-09",
     });
 
-    if (addThirdWant) {
+    if (addThirdGoal) {
       await t.run(async (ctx) => {
         await ctx.db.insert("goals", {
           householdId: seeded.householdId,
@@ -386,7 +386,7 @@ test.each([
     // The dialog's local preview must match what the server records.
     const preview = previewGoalPurchase(
       before.availableSavingsCents,
-      activeGoalsInOrder(beforeSnapshot.wants),
+      activeGoalsInOrder(beforeSnapshot.goals),
       goalId,
       actualAmountCents,
     );
@@ -405,11 +405,11 @@ test.each([
     expect(before.availableSavingsCents).toBe(positionCents);
     const beforeAllocations = allocateSavings(
       before.availableSavingsCents,
-      activeGoalsInOrder(beforeSnapshot.wants),
+      activeGoalsInOrder(beforeSnapshot.goals),
     );
     const afterAllocations = allocateSavings(
       after.availableSavingsCents,
-      activeGoalsInOrder(snapshot.wants),
+      activeGoalsInOrder(snapshot.goals),
     );
     expect(afterAllocations.map(({ allocatedCents }) => allocatedCents)).toEqual(
       remainingAllocations,
@@ -454,7 +454,7 @@ test("recalculates funding from current server state instead of trusting a stale
   const before = await asOwner.query(api.savings.getSummary, { now: serverNow });
   const preview = previewGoalPurchase(
     before.availableSavingsCents,
-    activeGoalsInOrder((await readSnapshot(t, seeded.householdId)).wants),
+    activeGoalsInOrder((await readSnapshot(t, seeded.householdId)).goals),
     seeded.cameraId,
     12_000n,
   );
@@ -522,7 +522,7 @@ test("serializes competing purchases so the same savings cannot be spent twice",
   ).toBe(10_000n);
   expect(snapshot.savings.positionCents).toBe(0n);
   expect(
-    snapshot.wants
+    snapshot.goals
       .filter((item) => item._id === seeded.cameraId || item._id === seeded.tripId)
       .map((item) => item.status),
   ).toEqual(["purchased", "purchased"]);
@@ -543,7 +543,7 @@ test("blocks cross-household, future-date, and client-timed purchases", async ()
       actualAmountCents: 10_000n,
       purchaseLocalDate,
     }),
-  ).rejects.toThrow("Want item not found");
+  ).rejects.toThrow("Goal not found");
 
   await expect(
     asOwner.mutation(api.goals.purchase, {
@@ -567,7 +567,7 @@ test("blocks cross-household, future-date, and client-timed purchases", async ()
 
   expect(snapshot.expenses).toEqual([]);
   expect(snapshot.savings.positionCents).toBe(10_000n);
-  expect(snapshot.wants.find((item) => item._id === seeded.cameraId)).toMatchObject({
+  expect(snapshot.goals.find((item) => item._id === seeded.cameraId)).toMatchObject({
     status: "saving",
   });
 });
@@ -616,7 +616,7 @@ test("corrects the linked purchase in place and recalculates exact funding", asy
     spentFromSavingsCents: 8_000n,
   });
   expect(corrected.savings.positionCents).toBe(2_000n);
-  expect(corrected.wants.find((item) => item._id === seeded.cameraId)).toMatchObject({
+  expect(corrected.goals.find((item) => item._id === seeded.cameraId)).toMatchObject({
     status: "purchased",
     expenseId: originalExpense._id,
   });
@@ -648,8 +648,8 @@ test("undoes a purchase, reverses its rollup, and restores the item at the queue
   await asOwner.mutation(api.goals.undoPurchase, { goalId: seeded.cameraId });
 
   const undone = await readSnapshot(t, seeded.householdId);
-  const camera = undone.wants.find((item) => item._id === seeded.cameraId);
-  const trip = undone.wants.find((item) => item._id === seeded.tripId);
+  const camera = undone.goals.find((item) => item._id === seeded.cameraId);
+  const trip = undone.goals.find((item) => item._id === seeded.tripId);
   const rollup = undone.rollups.find((candidate) => candidate.localDate === purchaseLocalDate);
 
   expect(undone.expenses).toEqual([]);

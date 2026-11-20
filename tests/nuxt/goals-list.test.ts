@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { type PropType, defineComponent, h, nextTick } from "vue";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 // @ts-expect-error Nuxt transforms Vue SFC imports in this test project.
-import WantsList from "../../app/components/wants/list.vue";
+import GoalsList from "../../app/components/goals/list.vue";
 
-type WantItem = Doc<"goals">;
+type Goal = Doc<"goals">;
 
 const householdId = "household-1" as Id<"households">;
 const ownerId = "user-1" as Id<"users">;
@@ -14,7 +14,7 @@ const VueDraggableStub = defineComponent({
   name: "VueDraggable",
   props: {
     modelValue: {
-      type: Array as PropType<WantItem[]>,
+      type: Array as PropType<Goal[]>,
       required: true,
     },
     tag: {
@@ -32,7 +32,7 @@ const VueDraggableStub = defineComponent({
   },
 });
 
-function makeWant(id: string, name: string, order: number): WantItem {
+function makeGoal(id: string, name: string, order: number): Goal {
   return {
     _id: id as Id<"goals">,
     _creationTime: 1,
@@ -50,18 +50,18 @@ function makeWant(id: string, name: string, order: number): WantItem {
   };
 }
 
-const camera = makeWant("want-camera", "Camera", 0);
-const bike = makeWant("want-bike", "Bike", 1);
-const trip = makeWant("want-trip", "Trip", 2);
+const camera = makeGoal("goal-camera", "Camera", 0);
+const bike = makeGoal("goal-bike", "Bike", 1);
+const trip = makeGoal("goal-trip", "Trip", 2);
 
 function mountList(
-  items: WantItem[] = [camera, bike, trip],
+  items: Goal[] = [camera, bike, trip],
   extraProps: {
     reorderError?: string;
     reorderPending?: boolean;
   } = {},
 ) {
-  return mount(WantsList, {
+  return mount(GoalsList, {
     props: {
       title: "Plan for it",
       items,
@@ -78,12 +78,12 @@ function mountList(
 }
 
 function renderedNames(wrapper: ReturnType<typeof mountList>) {
-  return wrapper.findAll('[data-test="want-item"]').map((row) => row.text());
+  return wrapper.findAll('[data-test="goal-item"]').map((row) => row.text());
 }
 
 async function simulatePointerReorder(
   wrapper: ReturnType<typeof mountList>,
-  nextItems: WantItem[],
+  nextItems: Goal[],
   oldIndex: number,
   newIndex: number,
 ) {
@@ -106,7 +106,7 @@ beforeEach(() => {
   trip.order = 2;
 });
 
-describe("WantsList reordering", () => {
+describe("GoalsList reordering", () => {
   it("emits the complete active ID list after a pointer reorder", async () => {
     const wrapper = mountList();
 

@@ -6,7 +6,7 @@ import {
   getLocalDayBounds,
   getNextLocalDate,
 } from "../../shared/utils/local-date.ts";
-import { useWantSection } from "./use-want-section";
+import { useGoalSection } from "./use-goal-section";
 
 type ActionResult<T> = { success: true; data: T } | { success: false; error: string };
 
@@ -27,7 +27,7 @@ function useGoalAction<M extends FunctionReference<"mutation">>(mutation: M, fal
 
 function useSavingsClock() {
   const { timeZone } = useDate();
-  const now = useState<number>("wants-summary-now", () => Date.now());
+  const now = useState<number>("goals-summary-now", () => Date.now());
 
   let midnightTimer: number | undefined;
 
@@ -79,16 +79,16 @@ function useSavingsClock() {
   return now;
 }
 
-export function useWantList() {
+export function useGoalList() {
   const now = useSavingsClock();
 
   const { data: activeResult, isPending: isActivePending } = useConvexQuery(api.goals.list, {});
 
   const convex = useConvexClient();
   const history = {
-    considering: useWantSection(convex, "idea"),
-    notNow: useWantSection(convex, "on_hold"),
-    bought: useWantSection(convex, "purchased"),
+    ideas: useGoalSection(convex, "idea"),
+    onHold: useGoalSection(convex, "on_hold"),
+    purchased: useGoalSection(convex, "purchased"),
   };
 
   const { data: summary, isPending: isSummaryPending } = useConvexQuery(
@@ -98,9 +98,9 @@ export function useWantList() {
 
   const sections = computed(() => ({
     active: activeResult.value?.active ?? [],
-    considering: history.considering.items.value,
-    notNow: history.notNow.items.value,
-    bought: history.bought.items.value,
+    ideas: history.ideas.items.value,
+    onHold: history.onHold.items.value,
+    purchased: history.purchased.items.value,
   }));
 
   const isLoading = computed(() => isActivePending.value || isSummaryPending.value);
@@ -110,13 +110,13 @@ export function useWantList() {
     history,
     summary,
     isLoading,
-    createItem: useGoalAction(api.goals.create, "Could not create this Want. Try again."),
-    updateItem: useGoalAction(api.goals.update, "Could not update this Want. Try again."),
+    createItem: useGoalAction(api.goals.create, "Could not create this goal. Try again."),
+    updateItem: useGoalAction(api.goals.update, "Could not update this goal. Try again."),
     changeStatus: useGoalAction(
       api.goals.changeStatus,
-      "Could not change this Want's status. Try again.",
+      "Could not change this goal's status. Try again.",
     ),
-    reorder: useGoalAction(api.goals.reorder, "Could not reorder the Wants list. Try again."),
+    reorder: useGoalAction(api.goals.reorder, "Could not reorder the goals list. Try again."),
     purchase: useGoalAction(api.goals.purchase, "Could not complete this purchase. Try again."),
     correctPurchase: useGoalAction(
       api.goals.correctPurchase,

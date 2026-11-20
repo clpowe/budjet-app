@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
-import { getWantGuidance } from "../../app/utils/want-guidance";
+import { getGoalGuidance } from "../../app/utils/goal-guidance";
 
-describe("getWantGuidance", () => {
+describe("getGoalGuidance", () => {
   const todayLocalDate = "2026-08-19";
 
   it("calculates the daily amount needed to meet a future target", () => {
     expect(
-      getWantGuidance({
+      getGoalGuidance({
         remainingCents: 10_000n,
         targetLocalDate: "2026-08-29",
         todayLocalDate,
@@ -23,7 +23,7 @@ describe("getWantGuidance", () => {
 
   it("uses recent positive pace to estimate a ready date", () => {
     expect(
-      getWantGuidance({
+      getGoalGuidance({
         remainingCents: 10_000n,
         todayLocalDate,
         recentDailyPaceCents: 1_250n,
@@ -40,7 +40,7 @@ describe("getWantGuidance", () => {
 
   it("keeps the forecast constructive when there is not enough positive history", () => {
     expect(
-      getWantGuidance({
+      getGoalGuidance({
         remainingCents: 10_000n,
         todayLocalDate,
         recentDailyPaceCents: 0n,
@@ -50,9 +50,9 @@ describe("getWantGuidance", () => {
     ).toEqual({ kind: "starter" });
   });
 
-  it("identifies a fully funded Want before calculating forecasts", () => {
+  it("identifies a fully funded goal before calculating forecasts", () => {
     expect(
-      getWantGuidance({
+      getGoalGuidance({
         remainingCents: 0n,
         todayLocalDate,
         recentDailyPaceCents: 1_250n,
@@ -64,7 +64,7 @@ describe("getWantGuidance", () => {
 
   it("surfaces today's negative savings movement without treating it as a forecast", () => {
     expect(
-      getWantGuidance({
+      getGoalGuidance({
         remainingCents: 10_000n,
         todayLocalDate,
         recentDailyPaceCents: 1_250n,
@@ -79,7 +79,7 @@ describe("getWantGuidance", () => {
 
   it("prioritizes savings recovery over a new funding forecast", () => {
     expect(
-      getWantGuidance({
+      getGoalGuidance({
         remainingCents: 10_000n,
         targetLocalDate: "2026-08-29",
         todayLocalDate,
@@ -95,7 +95,7 @@ describe("getWantGuidance", () => {
 
   it("falls back to a pace forecast when a persisted target is not a local date", () => {
     expect(
-      getWantGuidance({
+      getGoalGuidance({
         remainingCents: 10_000n,
         targetLocalDate: "2026-08-29T12:00:00.000Z",
         todayLocalDate,
@@ -113,7 +113,7 @@ describe("getWantGuidance", () => {
 
   it("returns starter guidance instead of throwing for an invalid current local date", () => {
     expect(
-      getWantGuidance({
+      getGoalGuidance({
         remainingCents: 10_000n,
         todayLocalDate: "August 19, 2026",
         recentDailyPaceCents: 1_250n,

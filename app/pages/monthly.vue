@@ -78,7 +78,7 @@ const currentMonthYear = computed(() => {
                 <td>
                   <div>
                     <span>{{ tx.name }}</span>
-                    <span v-if="tx.type === 'expense' && tx.isWantPurchase"> Want purchase </span>
+                    <span v-if="tx.type === 'expense' && tx.isGoalPurchase"> Goal purchase </span>
                   </div>
                   <div v-if="tx.notes">{{ tx.notes }}</div>
                 </td>
